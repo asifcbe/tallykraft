@@ -1,0 +1,81 @@
+// Cash-in-hand computation.
+// Cash in hand = opening cash
+//   + cash sales              (money received in cash)
+//   + cash payments-in        (customer paid in cash)
+//   - cash purchases          (paid supplier in cash)
+//   - cash payments-out       (paid vendor in cash)
+//   - cash expenses           (paid expense in cash)
+// Only transactions whose payment mode is "Cash" affect cash in hand. Credit /
+// UPI / Bank / Card movements do NOT change cash in hand.
+
+const num = (v) => Number(v) || 0;
+const isCash = (mode) => String(mode || '').trim().toLowerCase() === 'cash';
+
+// A cash-mode sale/purchase only adds to cash-in-hand once it is actually
+// settled. Most records carry no status (regular & POS transactions are paid in
+// full on creation) and count immediately. Records explicitly marked unpaid, or
+// still carrying an outstanding balance (e.g. a membership invoice awaiting
+// payment), are excluded until their separate payment-in/out is recorded.
+const isSettled = (r) => {
+  const status = String(r.status || '').trim().toLowerCase();
+  if (status === 'unpaid' || status === 'partial' || status === 'pending') return false;
+  if (status === 'paid') return true;
+  return num(r.balanceAmount) <= 0; // no status → settled unless a balance is owed
+};
+
+/**
+ * @param {object} opts
+ *   openingCash : starting cash (₹)
+ *   sales       : sale records
+ *   purchases   : purchase records
+ *   payments    : payment records (type 'PaymentIn' | 'PaymentOut')
+ *   expenses    : expense records
+ *   cashEntries : manual cash-book entries (type 'in' | 'out')
+ *   upto        : optional ISO date string (yyyy-mm-dd) — only count on/before
+ * Returns { opening, cashIn, cashOut, balance, breakdown }
+ */
+export const computeCashInHand = ({ openingCash = 0, sales = [], purchases = [], payments = [], expenses = [], cashEntries = [], upto = null } = {}) => {
+  const within = (d) => !upto || !d || d <= upto;
+
+  // Inflows
+  const cashSales = sales
+    .filter((s) => isCash(s.paymentMode) && isSettled(s) && within(s.date))
+    .reduce((a, s) => a + num(s.totalAmount), 0);
+  const cashPaymentsIn = payments
+    .filter((p) => p.type === 'PaymentIn' && isCash(p.paymentMode) && within(p.date))
+    .reduce((a, p) => a + num(p.totalAmount), 0);
+
+  // Outflows
+  const cashPurchases = purchases
+    .filter((p) => isCash(p.paymentMode) && isSettled(p) && within(p.date))
+    .reduce((a, p) => a + num(p.totalAmount), 0);
+  const cashPaymentsOut = payments
+    .filter((p) => p.type === 'PaymentOut' && isCash(p.paymentMode) && within(p.date))
+    .reduce((a, p) => a + num(p.totalAmount), 0);
+  // Expenses default to Cash when no payment mode is recorded (most expenses are
+  // paid in cash, and the expense form historically had no mode field).
+  const cashExpenses = expenses
+    .filter((e) => (e.paymentMode == null || isCash(e.paymentMode)) && within(e.date))
+    .reduce((a, e) => a + num(e.amount), 0);
+
+  // Manual cash-book entries (deposits, drawings, capital added, etc.)
+  const manualIn = cashEntries
+    .filter((c) => c.type === 'in' && within(c.date))
+    .reduce((a, c) => a + num(c.amount), 0);
+  const manualOut = cashEntries
+    .filter((c) => c.type === 'out' && within(c.date))
+    .reduce((a, c) => a + num(c.amount), 0);
+
+  const opening = num(openingCash);
+  const cashIn = cashSales + cashPaymentsIn + manualIn;
+  const cashOut = cashPurchases + cashPaymentsOut + cashExpenses + manualOut;
+  const balance = opening + cashIn - cashOut;
+
+  return {
+    opening,
+    cashIn,
+    cashOut,
+    balance,
+    breakdown: { cashSales, cashPaymentsIn, cashPurchases, cashPaymentsOut, cashExpenses, manualIn, manualOut },
+  };
+};

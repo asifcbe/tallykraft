@@ -1,0 +1,22 @@
+{
+  "businessType": "opticals",
+  "features": {
+    "dashboard": true,
+    "parties": true,
+    "items": true,
+    "sales": true,
+    "purchases": true,
+    "expenses": true,
+    "opticals": true,
+    "payments": true,
+    "reports": true,
+    "backup": true,
+    "settings": true
+  },
+  "multiBusiness": true,
+  "useIndexedDB": false,
+  "theme": {
+    "primaryColor": "#1976d2",
+    "secondaryColor": "#dc004e"
+  }
+}
