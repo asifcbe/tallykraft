@@ -111,23 +111,33 @@ const TabPageRenderer = ({ path }) => {
   return <Dashboard />;
 };
 
-// ── Inline tab strip — sits inside the Toolbar, takes flex space ─────────────
-const ToolbarTabs = () => {
+// ── Multi-instance tab sub-strip ─────────────────────────────────────────────
+// Shown below the AppBar only when there are 2+ tabs open for the same path
+// (Sales or Reports). Each chip = one open instance; × closes it.
+const MultiTabStrip = () => {
   const { tabs, activeTabId, activateTab, closeTab } = useTabs();
   const theme = useTheme();
   const primary = theme.palette.primary.main;
-  const isDark = theme.palette.mode === 'dark';
+  const salesTabs = tabs.filter(t => t.path === '/sales');
+  const reportTabs = tabs.filter(t => t.path === '/reports');
+  const multiTabs = [
+    ...(salesTabs.length >= 2 ? salesTabs : []),
+    ...(reportTabs.length >= 2 ? reportTabs : []),
+  ];
+  if (multiTabs.length === 0) return null;
 
   return (
     <Box sx={{
-      flex: 1, minWidth: 0,
       display: 'flex', alignItems: 'center',
-      gap: 0.5, px: 0.5,
-      overflowX: 'auto', overflowY: 'hidden',
+      gap: 0.4, px: 2.5, py: 0.5,
+      bgcolor: 'background.paper',
+      borderBottom: '1px solid',
+      borderColor: 'divider',
+      overflowX: 'auto',
       '&::-webkit-scrollbar': { display: 'none' },
       scrollbarWidth: 'none',
     }}>
-      {tabs.map(tab => {
+      {multiTabs.map(tab => {
         const isActive = tab.id === activeTabId;
         return (
           <Box
@@ -135,61 +145,41 @@ const ToolbarTabs = () => {
             onClick={() => activateTab(tab.id)}
             title={tab.label}
             sx={{
-              display: 'flex', alignItems: 'center', gap: 0.6,
-              px: 1.1, height: 30,
-              minWidth: 72, maxWidth: 160,
-              flexShrink: 0, cursor: 'pointer',
-              borderRadius: '7px',
-              userSelect: 'none',
-              transition: 'all 0.15s ease',
+              display: 'flex', alignItems: 'center', gap: 0.5,
+              px: 1.1, height: 28, borderRadius: '6px',
+              minWidth: 72, maxWidth: 160, flexShrink: 0,
+              cursor: 'pointer', userSelect: 'none',
+              transition: 'all 0.14s ease',
+              border: '1px solid',
               ...(isActive ? {
-                bgcolor: isDark ? alpha(primary, 0.2) : alpha(primary, 0.1),
-                border: '1.5px solid',
-                borderColor: isDark ? alpha(primary, 0.4) : alpha(primary, 0.28),
-                boxShadow: `0 1px 5px ${alpha(primary, 0.13)}`,
+                bgcolor: alpha(primary, 0.1),
+                borderColor: alpha(primary, 0.28),
               } : {
-                bgcolor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(0,0,0,0.04)',
-                border: '1.5px solid',
-                borderColor: isDark ? 'rgba(255,255,255,0.07)' : 'rgba(0,0,0,0.07)',
-                '&:hover': {
-                  bgcolor: isDark ? 'rgba(255,255,255,0.08)' : alpha(primary, 0.06),
-                  borderColor: isDark ? 'rgba(255,255,255,0.14)' : alpha(primary, 0.18),
-                },
+                bgcolor: 'transparent',
+                borderColor: 'divider',
+                '&:hover': { bgcolor: 'action.hover', borderColor: alpha(primary, 0.18) },
               }),
             }}
           >
             <Typography noWrap sx={{
-              fontSize: '0.72rem',
-              fontWeight: isActive ? 700 : 500,
-              flex: 1, minWidth: 0,
-              color: isActive
-                ? (isDark ? alpha(primary, 0.95) : primary)
-                : (isDark ? 'rgba(255,255,255,0.5)' : 'text.secondary'),
-              lineHeight: 1,
-              letterSpacing: isActive ? '0.01em' : 0,
+              fontSize: '0.71rem', fontWeight: isActive ? 700 : 500, flex: 1, minWidth: 0,
+              color: isActive ? 'primary.main' : 'text.secondary', lineHeight: 1,
             }}>
               {tab.label}
             </Typography>
-            {tab.closeable && (
-              <Box
-                component="span"
-                onClick={e => closeTab(tab.id, e)}
-                sx={{
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 14, height: 14, borderRadius: '3px', flexShrink: 0,
-                  color: isActive ? primary : 'text.disabled',
-                  opacity: isActive ? 0.65 : 0.35,
-                  transition: 'all 0.12s',
-                  '&:hover': {
-                    opacity: 1,
-                    bgcolor: alpha(primary, 0.12),
-                    color: primary,
-                  },
-                }}
-              >
-                <TabClose size={9} />
-              </Box>
-            )}
+            <Box
+              component="span"
+              onClick={e => closeTab(tab.id, e)}
+              sx={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 14, height: 14, borderRadius: '3px', flexShrink: 0,
+                color: isActive ? 'primary.main' : 'text.disabled',
+                opacity: isActive ? 0.7 : 0.45,
+                '&:hover': { opacity: 1, bgcolor: alpha(primary, 0.12), color: 'primary.main' },
+              }}
+            >
+              <TabClose size={9} />
+            </Box>
           </Box>
         );
       })}
@@ -765,18 +755,13 @@ const Layout = () => {
             </IconButton>
           )}
 
-          {/* Tab strip (desktop/tablet only) — takes the available middle space.
-              On mobile we never show tabs: just the current page title. */}
-          {isMobile ? (
-            <Typography
-              noWrap
-              sx={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: '0.95rem', color: 'text.primary', px: 0.5 }}
-            >
-              {currentPageTitle}
-            </Typography>
-          ) : (
-            <ToolbarTabs />
-          )}
+          {/* Current page title */}
+          <Typography
+            noWrap
+            sx={{ flex: 1, minWidth: 0, fontWeight: 700, fontSize: '0.95rem', color: 'text.primary', px: 0.5 }}
+          >
+            {currentPageTitle}
+          </Typography>
 
           {/* Business name pill (desktop only) */}
           <Box
@@ -1130,6 +1115,10 @@ const Layout = () => {
             </MenuItem>
           </Menu>
         </Toolbar>
+
+        {/* Multi-instance sub-strip — only visible when ≥2 Sales or Reports tabs are open */}
+        {!isMobile && <MultiTabStrip />}
+
       </AppBar>
 
       {/* Sidebar */}
@@ -1158,15 +1147,21 @@ const Layout = () => {
         </Drawer>
       </Box>
 
-      {/* Main content — offset for the unified AppBar (toolbar + tabs = 82px) */}
+      {/* Main content — offset for the unified AppBar + optional multi-tab strip */}
       <Box
         component="main"
         sx={{
           flexGrow: 1,
           width: { xs: '100%', md: `calc(100% - ${collapsed ? miniWidth : drawerWidth}px)` },
-          mt: `${APP_BAR_H}px`,
+          mt: (() => {
+            if (isMobile) return `${APP_BAR_H}px`;
+            const salesTabs = tabs.filter(t => t.path === '/sales');
+            const reportTabs = tabs.filter(t => t.path === '/reports');
+            const hasStrip = salesTabs.length >= 2 || reportTabs.length >= 2;
+            return `${APP_BAR_H + (hasStrip ? 38 : 0)}px`;
+          })(),
           minWidth: 0,
-          transition: 'margin 0.2s ease',
+          transition: 'margin-top 0.15s ease',
           display: 'flex', flexDirection: 'column', minHeight: `calc(100vh - ${APP_BAR_H}px)`,
         }}
       >

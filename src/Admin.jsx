@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   Box, Typography, Card, CardContent, TextField, Button, Grid,
   Switch, FormControlLabel, Chip, IconButton, Tooltip, Divider, Alert,
@@ -19,7 +19,7 @@ import {
   Tooltip as ReTooltip, ResponsiveContainer, PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import { firestore } from './db';
-import { collection, doc, onSnapshot, setDoc, deleteDoc, getDoc } from 'firebase/firestore';
+import { collection, doc, onSnapshot, setDoc, deleteDoc, getDoc, getDocs, query, orderBy, limit, startAfter } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 import { useDialog } from './DialogContext';
 import AdminBilling from './AdminBilling';
@@ -327,6 +327,9 @@ const Admin = () => {
 
   // Users state
   const [users, setUsers] = useState([]);
+  const [usersLastDoc, setUsersLastDoc] = useState(null);
+  const [usersHasMore, setUsersHasMore] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(false);
   const [subscriptions, setSubscriptions] = useState({});
   const [selectedEmail, setSelectedEmail] = useState('');
   const [form, setForm] = useState(defaultUserForm());
@@ -359,11 +362,27 @@ const Admin = () => {
       .catch(() => {});
   }, []);
 
-  useEffect(() => {
-    const ref = collection(firestore, 'userConfig');
-    return onSnapshot(ref, snap => setUsers(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-      err => console.error('Error loading userConfig:', err));
+  const USER_PAGE_SIZE = 50;
+
+  const loadUsers = useCallback(async (afterDoc = null) => {
+    setUsersLoading(true);
+    try {
+      const baseQuery = afterDoc
+        ? query(collection(firestore, 'userConfig'), orderBy('email'), startAfter(afterDoc), limit(USER_PAGE_SIZE))
+        : query(collection(firestore, 'userConfig'), orderBy('email'), limit(USER_PAGE_SIZE));
+      const snap = await getDocs(baseQuery);
+      const newUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+      setUsers(prev => afterDoc ? [...prev, ...newUsers] : newUsers);
+      setUsersLastDoc(snap.docs[snap.docs.length - 1] || null);
+      setUsersHasMore(snap.docs.length === USER_PAGE_SIZE);
+    } catch (err) {
+      console.error('Error loading userConfig:', err);
+    } finally {
+      setUsersLoading(false);
+    }
   }, []);
+
+  useEffect(() => { loadUsers(); }, [loadUsers]);
 
   useEffect(() => {
     const ref = collection(firestore, 'subscriptions');
@@ -576,6 +595,7 @@ const Admin = () => {
       }, { merge: true });
 
       setMessage({ type: 'success', text: 'User configuration saved.' });
+      loadUsers();
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to save: ' + (err.message || 'Unknown error') });
     }
@@ -588,6 +608,7 @@ const Admin = () => {
       await deleteDoc(doc(firestore, 'userConfig', email));
       if (selectedEmail === email) resetUserForm();
       setMessage({ type: 'success', text: 'User removed.' });
+      loadUsers();
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to delete: ' + (err.message || 'Unknown error') });
     }
@@ -1096,8 +1117,13 @@ const Admin = () => {
             <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
               <CardContent sx={{ p: 2.5 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
-                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Users ({users.length})</Typography>
-                  <Button size="small" startIcon={<Plus size={16} />} onClick={resetUserForm}>New</Button>
+                  <Typography variant="h6" sx={{ fontWeight: 700 }}>Users ({users.length}{usersHasMore ? '+' : ''})</Typography>
+                  <Stack direction="row" spacing={0.75}>
+                    <Tooltip title="Refresh list">
+                      <IconButton size="small" onClick={() => loadUsers()} disabled={usersLoading}><RefreshCw size={15} /></IconButton>
+                    </Tooltip>
+                    <Button size="small" startIcon={<Plus size={16} />} onClick={resetUserForm}>New</Button>
+                  </Stack>
                 </Stack>
 
                 {/* Search */}
@@ -1143,6 +1169,15 @@ const Admin = () => {
                     <Typography variant="body2" color="text.secondary">
                       {userSearch ? 'No users match your search.' : 'No users configured yet.'}
                     </Typography>
+                  )}
+                  {!userSearch && usersHasMore && (
+                    <Button size="small" fullWidth variant="outlined" onClick={() => loadUsers(usersLastDoc)} disabled={usersLoading}
+                      sx={{ mt: 1, borderRadius: 2 }}>
+                      {usersLoading ? 'Loading…' : `Load more`}
+                    </Button>
+                  )}
+                  {usersLoading && users.length === 0 && (
+                    <LinearProgress sx={{ mt: 1 }} />
                   )}
                 </Box>
               </CardContent>

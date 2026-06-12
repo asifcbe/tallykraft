@@ -16,7 +16,7 @@ import { isBusinessActive, isBusinessPro, onProStateChange } from './activeBusin
 // Backward compat: if the new subcollection is empty, falls back to reading
 // the old flat `users/{uid}.businesses` field automatically.
 
-const CHUNK_ROWS = 400;
+const CHUNK_ROWS = 800;
 const ALL_TABLES = [
   'parties','items','sales','purchases','expenses','payments','estimates',
   'creditNotes','debitNotes','deliveryNotes','journalEntries',
@@ -88,22 +88,31 @@ const firestoreReadAll = async (uid, cc) => {
 };
 
 /**
- * Write all businesses to Firestore using the chunked subcollection format.
+ * Write businesses to Firestore using the chunked subcollection format.
  * @param {string} uid
- * @param {object} allData  — allBusinessData map
- * @param {object} cc       — mutable chunk-counts object; updated in-place after each write
+ * @param {object} allData     — allBusinessData map
+ * @param {object} cc          — mutable chunk-counts object; updated in-place after each write
+ * @param {Set|null} dirtyTables — when provided, only rewrite chunks for these tables;
+ *                                 null/undefined means full rewrite (used on first sync / restore)
  */
-const firestoreWriteAll = async (uid, allData, cc) => {
+const firestoreWriteAll = async (uid, allData, cc, dirtyTables = null) => {
   const ops = [];
 
   for (const [bizId, biz] of Object.entries(allData)) {
     const prevCC = cc?.[bizId] || {};
-    const newCC = {};
+    // Start from the existing chunk-count map so untouched tables keep their counts.
+    const newCC = { ...prevCC };
     const bizData = biz.data || {};
 
-    for (const table of ALL_TABLES) {
+    // When dirtyTables is provided, only process those tables.
+    // Always write ALL_TABLES on a full sync (dirtyTables === null).
+    const tablesToWrite = dirtyTables
+      ? ALL_TABLES.filter(t => dirtyTables.has(t))
+      : ALL_TABLES;
+
+    for (const table of tablesToWrite) {
       const rows = bizData[table] || [];
-      const newCount = Math.ceil(rows.length / CHUNK_ROWS);
+      const newCount = Math.ceil(rows.length / CHUNK_ROWS) || 0;
       newCC[table] = newCount;
       const prevCount = prevCC[table] || 0;
 
@@ -122,7 +131,7 @@ const firestoreWriteAll = async (uid, allData, cc) => {
 
     const meta = {};
     BIZ_META_KEYS.forEach(k => { if (biz[k] !== undefined) meta[k] = biz[k]; });
-    meta._cc = newCC;
+    meta._cc = { ...newCC };
     ops.push({ type: 's', ref: doc(firestore, 'users', uid, 'biz', bizId), data: meta });
 
     if (cc) cc[bizId] = newCC;
@@ -213,6 +222,9 @@ export const DataProvider = ({ children }) => {
   // Debounced write: one timer shared across all mutations.
   const writeTimerRef = useRef(null);
   const pendingWriteSnapshotRef = useRef(null); // latest allData to flush
+  // Tracks which tables have been mutated since the last Firestore flush.
+  // Passed to firestoreWriteAll so only dirty chunks are rewritten.
+  const dirtyTablesRef = useRef(new Set());
 
   // Keep staffSession readable from inside the debounced flush closure.
   const staffSessionRef = useRef(staffSession);
@@ -288,10 +300,16 @@ export const DataProvider = ({ children }) => {
       const user = currentUserRef.current;
       const authorized = isAuthorizedRef.current;
       const staff = staffSessionRef.current;
+      // Snapshot dirty tables then immediately clear so the next mutation
+      // cycle starts fresh. null = full rewrite (staff path always does full).
+      const dirty = dirtyTablesRef.current.size > 0
+        ? new Set(dirtyTablesRef.current)
+        : null;
+      dirtyTablesRef.current.clear();
       try {
         if (staff) {
-          // Staff users write straight to the owner's Firestore path.
-          await firestoreWriteAll(staff.ownerUid, snapshot, chunkCountsRef.current);
+          // Staff users write straight to the owner's Firestore path (full rewrite).
+          await firestoreWriteAll(staff.ownerUid, snapshot, chunkCountsRef.current, null);
         } else if (user && authorized) {
           // IndexedDB is the local source of truth for ALL businesses (both plans).
           await setLocalData(user.uid, snapshot);
@@ -303,7 +321,8 @@ export const DataProvider = ({ children }) => {
               if (isBusinessPro(bizId)) proSnapshot[bizId] = biz;
             }
             if (Object.keys(proSnapshot).length > 0) {
-              firestoreWriteAll(user.uid, proSnapshot, chunkCountsRef.current).catch(() => {});
+              // Pass dirty set — only rewrite chunks for tables that changed.
+              firestoreWriteAll(user.uid, proSnapshot, chunkCountsRef.current, dirty).catch(() => {});
             }
           }
         }
@@ -325,6 +344,9 @@ export const DataProvider = ({ children }) => {
     const newAll = currentBiz
       ? { ...allDataRef.current, [bKey]: { ...currentBiz, data: newData } }
       : allDataRef.current;
+
+    // Mark this table dirty so schedulePersist only rewrites its chunks.
+    dirtyTablesRef.current.add(table);
 
     // Update refs first — next mutation in the same tick reads fresh values.
     dataRef.current = newData;
@@ -791,6 +813,9 @@ export const DataProvider = ({ children }) => {
     allDataRef.current = newAll;
     isUpdatingDataRef.current = true;
     setAllBusinessData(newAll);
+    // Business-level change (add/rename/delete) — force a full rewrite so
+    // the new business meta and all its tables land in Firestore correctly.
+    dirtyTablesRef.current.clear();
     schedulePersist();
     setTimeout(() => { isUpdatingDataRef.current = false; }, 100);
   }, [schedulePersist]);

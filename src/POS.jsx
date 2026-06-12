@@ -56,6 +56,24 @@ const getTokens = (theme) => {
 
 const money = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const playAddSound = () => {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1100, ctx.currentTime + 0.07);
+    gain.gain.setValueAtTime(0.18, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.12);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.12);
+    osc.onended = () => ctx.close();
+  } catch (_) {}
+};
+
 // Build the next sequential invoice number, mirroring Sales.jsx's scheme.
 const nextInvoiceNumber = (sales, businessId) => {
   const d = new Date();
@@ -219,6 +237,7 @@ const POS = () => {
 
   // ── Cart operations ─────────────────────────────────────────────────────────
   const addToCart = useCallback((item) => {
+    playAddSound();
     setCart((prev) => {
       const idx = prev.findIndex((c) => c.itemId === item.id);
       if (idx >= 0) {

@@ -1,0 +1,38 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── User data (business data, settings, backups) ──────────────────────────
+    // Each user can only read and write their own data tree.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // ── User access config ────────────────────────────────────────────────────
+    // Each user can read and write only their own config doc (keyed by email).
+    // Listing the whole collection is blocked — only direct doc access allowed.
+    match /userConfig/{email} {
+      allow read, write: if request.auth != null
+                         && request.auth.token.email == email;
+    }
+
+    // ── Business records ──────────────────────────────────────────────────────
+    // A business doc is readable/writable only by its owner.
+    match /businesses/{bizId} {
+      allow read, write: if request.auth != null
+                         && resource.data.ownerId == request.auth.uid;
+      // Allow create when the caller is setting themselves as owner.
+      allow create: if request.auth != null
+                    && request.resource.data.ownerId == request.auth.uid;
+    }
+
+    // ── Staff subcollection ───────────────────────────────────────────────────
+    // Only the business owner can read/write staff records.
+    match /businesses/{bizId}/staff/{staffId} {
+      allow read, write: if request.auth != null
+                         && get(/databases/$(database)/documents/businesses/$(bizId)).data.ownerId == request.auth.uid;
+    }
+
+  }
+}
