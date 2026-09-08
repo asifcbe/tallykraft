@@ -959,7 +959,7 @@ export default function StaffPage() {
               </Box>
               <Button variant="contained" onClick={saveMember} disabled={!memberForm.name?.trim()}
                 sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, px: 2.5,
-                  bgcolor: primary, '&:hover': { bgcolor: '#5c1f22' }, '&.Mui-disabled': { bgcolor: alpha(primary, 0.2), color: alpha(primary, 0.45) } }}>
+                  bgcolor: primary, '&:hover': { bgcolor: '#3f1417' }, '&.Mui-disabled': { bgcolor: alpha(primary, 0.2), color: alpha(primary, 0.45) } }}>
                 {memberDialog.editing ? 'Save Changes' : 'Add Member'}
               </Button>
             </DialogActions>
@@ -1034,7 +1034,7 @@ export default function StaffPage() {
         </DialogContent>
         <DialogActions sx={{ pb: 2.5, px: 2.5, gap: 1 }}>
           <Button onClick={() => { setSalPayDialog(null); setSalPayError(''); }} sx={{ borderRadius: 2 }}>Cancel</Button>
-          <Button variant="contained" sx={{ borderRadius: 2, fontWeight: 700, bgcolor: primary, '&:hover': { bgcolor: '#5c1f22' } }}
+          <Button variant="contained" sx={{ borderRadius: 2, fontWeight: 700, bgcolor: primary, '&:hover': { bgcolor: '#3f1417' } }}
             onClick={confirmSalaryPayment}>
             Confirm Payment
           </Button>

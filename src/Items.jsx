@@ -995,14 +995,14 @@ const ItemsPage = () => {
               <Button variant={barcodePrintMode ? 'contained' : 'outlined'} size="small" startIcon={<Printer size={15} />}
                 onClick={() => { setBarcodePrintMode(v => !v); setCheckedIds(new Set()); }}
                 sx={barcodePrintMode
-                  ? { bgcolor: '#5c1f22', color: '#ffffff', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', '&:hover': { bgcolor: '#5c1f22' } }
+                  ? { bgcolor: '#5c1f22', color: '#ffffff', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', '&:hover': { bgcolor: '#3f1417' } }
                   : { color: '#5c1f22', borderColor: '#ece2db', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', '&:hover': { bgcolor: 'rgba(92,31,34,0.08)' } }
                 }>
                 {barcodePrintMode ? 'Cancel' : 'Print Labels'}
               </Button>
             )}
             <Button variant="contained" size="small" disabled={!canWrite} startIcon={<Plus size={16} />} onClick={() => handleOpen()}
-              sx={{ bgcolor: '#5c1f22', color: '#ffffff', fontWeight: 700, borderRadius: 2, textTransform: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.25)', '&:hover': { bgcolor: '#5c1f22' }, whiteSpace: 'nowrap' }}>
+              sx={{ bgcolor: '#5c1f22', color: '#ffffff', fontWeight: 700, borderRadius: 2, textTransform: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.25)', '&:hover': { bgcolor: '#3f1417' }, whiteSpace: 'nowrap' }}>
               {isMobile ? t('common.add') : t('items.addItem')}
             </Button>
           </Box>
