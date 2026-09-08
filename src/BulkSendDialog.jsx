@@ -26,17 +26,27 @@ const buildMessage = (tx, businessName, isSale) => {
     tx.partyName ? `👤 ${isSale ? 'Customer' : 'Vendor'}: ${tx.partyName}` : '',
     '',
   ];
-  if (tx.items?.length) {
+  // "Not billed" lines (e.g. a free cover/bag — see Sales.jsx/POS.jsx) never
+  // appear on the customer-facing bill, so keep them out of the shared text too.
+  const billedItems = (tx.items || []).filter(i => !i.notBilled);
+  if (billedItems.length) {
     lines.push('*Items:*');
-    tx.items.forEach(i => {
-      const qty = Number(i.qty) || 1;
+    billedItems.forEach(i => {
+      // A qty derived from a typed Amount (Sales.jsx's Amount→Qty auto-calc)
+      // can carry more precision than 2dp — kept for the math (rawQty×rate)
+      // so it reproduces the exact typed amount; only the displayed figure
+      // needs rounding to a clean 2dp quantity here.
+      const rawQty = Number(i.qty) || 1;
+      const qty = Math.round(rawQty * 100) / 100;
       const rate = Number(i.price) || 0;
-      lines.push(`  • ${i.name} × ${qty} @ ₹${rate.toFixed(2)} = ₹${(qty * rate).toFixed(2)}`);
+      lines.push(`  • ${i.name} × ${qty} @ ₹${rate.toFixed(2)} = ₹${(rawQty * rate).toFixed(2)}`);
     });
     lines.push('');
   }
   if (Number(tx.discountAmount) > 0) lines.push(`Discount: -₹${Number(tx.discountAmount).toFixed(2)}`);
   if (Number(tx.taxAmount) > 0) lines.push(`Tax (GST): ₹${Number(tx.taxAmount).toFixed(2)}`);
+  if (Number(tx.packingCharge) > 0) lines.push(`Packing Charges: ₹${Number(tx.packingCharge).toFixed(2)}`);
+  if (Number(tx.shippingCharge) > 0) lines.push(`Shipping Charges: ₹${Number(tx.shippingCharge).toFixed(2)}`);
   lines.push(`*Total: ₹${(Number(tx.totalAmount) || Number(tx.total) || 0).toFixed(2)}*`);
   if (tx.dueDate) lines.push(`\n⏰ Due: ${tx.dueDate}`);
   lines.push('\n_Sent via TallyKraft_');
