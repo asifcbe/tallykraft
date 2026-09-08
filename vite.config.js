@@ -18,8 +18,8 @@ export default defineConfig({
         name: 'TallyKraft - Accounting Software',
         short_name: 'TallyKraft',
         description: 'Fully functional offline accounting software with GST and multi-business support.',
-        theme_color: '#0f172a',
-        background_color: '#0f172a',
+        theme_color: '#ffffff',
+        background_color: '#ffffff',
         icons: [
           {
             src: 'tallykraft.png',
