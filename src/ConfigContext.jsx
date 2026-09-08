@@ -256,7 +256,7 @@ export const ConfigProvider = ({ children }) => {
   // Track current business ID so we can react when it changes (business switch).
   // Read directly from localStorage since BusinessContext is a child of ConfigProvider.
   const [currentBizId, setCurrentBizId] = useState(
-    () => localStorage.getItem('digitzebra_currentBusinessId') || null
+    () => localStorage.getItem('tallykraft_currentBusinessId') || null
   );
   // Raw Firestore doc data — reused when business switches without a Firestore re-read
   const firestoreDataRef = React.useRef(null);
@@ -266,13 +266,13 @@ export const ConfigProvider = ({ children }) => {
   // Listen for business switches that happen inside BusinessContext (child)
   useEffect(() => {
     const onStorage = (e) => {
-      if (e.key === 'digitzebra_currentBusinessId') {
+      if (e.key === 'tallykraft_currentBusinessId') {
         setCurrentBizId(e.newValue);
       }
     };
     // Also poll on focus (same-tab switches don't fire storage event)
     const onFocus = () => {
-      const id = localStorage.getItem('digitzebra_currentBusinessId') || null;
+      const id = localStorage.getItem('tallykraft_currentBusinessId') || null;
       setCurrentBizId(prev => prev !== id ? id : prev);
     };
     window.addEventListener('storage', onStorage);
@@ -308,11 +308,11 @@ export const ConfigProvider = ({ children }) => {
       forceOffline = !!withBiz.completeOffline;
     }
     if (forceOffline) {
-      localStorage.setItem('digitzebra_offline_mode', 'true');
+      localStorage.setItem('tallykraft_offline_mode', 'true');
     } else {
-      localStorage.removeItem('digitzebra_offline_mode');
+      localStorage.removeItem('tallykraft_offline_mode');
     }
-    localStorage.setItem('digitzebra_backup_online_enabled', backupOnlineEnabled === true ? 'true' : backupOnlineEnabled === false ? 'false' : '');
+    localStorage.setItem('tallykraft_backup_online_enabled', backupOnlineEnabled === true ? 'true' : backupOnlineEnabled === false ? 'false' : '');
     withBiz.backupOnlineEnabled = backupOnlineEnabled;
 
     if (isAlwaysAdmin(email)) {
@@ -373,7 +373,7 @@ export const ConfigProvider = ({ children }) => {
       async (snapshot) => {
         const data = snapshot.data() || {};
         firestoreDataRef.current = data;
-        const bizId = localStorage.getItem('digitzebra_currentBusinessId') || null;
+        const bizId = localStorage.getItem('tallykraft_currentBusinessId') || null;
         setCurrentBizId(bizId);
 
         // Super-admin-controlled Payment Reminder / Freeze — top-level fields
@@ -450,7 +450,7 @@ export const ConfigProvider = ({ children }) => {
   const saveConfig = useCallback(
     async (newConfig) => {
       const cleanConfig = deepMerge(JSON.parse(JSON.stringify(defaultConfig)), newConfig || {});
-      const bizId = localStorage.getItem('digitzebra_currentBusinessId') || null;
+      const bizId = localStorage.getItem('tallykraft_currentBusinessId') || null;
 
       // Staff/admin sessions (no Firebase Auth) — save all settings to
       // businesses/{firestoreBizId}/appConfig/settings. Must use the Firestore

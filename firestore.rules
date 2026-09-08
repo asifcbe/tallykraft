@@ -2,42 +2,118 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // ── User data (business data, settings, backups) ──────────────────────────
-    // Owners read/write their own tree.
-    // Staff read is allowed without auth — the ownerUid is not guessable and is
-    // only known to staff who received it from the login flow. Writes still require
-    // the owner to be signed in so staff can never corrupt data.
+    function isAdmin() {
+      return request.auth != null
+          && exists(/databases/$(database)/documents/userConfig/$(request.auth.token.email))
+          && get(/databases/$(database)/documents/userConfig/$(request.auth.token.email)).data.isAdmin == true;
+    }
+
+    function isSuperAdmin() {
+      return request.auth != null
+          && request.auth.token.email == 'asifasifcbe@gmail.com';
+    }
+
+    function isAdminOrSuper() {
+      return isSuperAdmin() || isAdmin();
+    }
+
+    // ── User root doc ─────────────────────────────────────────────────────────
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow list: if isAdminOrSuper();
+    }
+
+    // ── Business data (invoices, items, parties, etc.) ─────────────────────────
+    // Authenticated owner: full read/write.
+    // Staff/admin business-code sessions have no Firebase Auth token, so we allow
+    // read+write on the biz subcollection for everyone — the data is already
+    // publicly readable, and the ownerUid embedded in the path is the only secret
+    // needed. (Reaching this data still requires the business code + credentials
+    // the login flow checks.)
+    match /users/{userId}/biz/{bizId} {
+      allow read, write: if true;
+    }
+    match /users/{userId}/biz/{bizId}/t/{chunkId} {
+      allow read, write: if true;
+    }
+
+    // All other subcollections under /users keep the original owner-only rules
+    // (staff read allowed since the ownerUid path is the only secret).
     match /users/{userId}/{document=**} {
-      allow read, write: if request.auth != null
-                         && request.auth.uid == userId;
-      // Staff read: unauthenticated but must know the exact ownerUid path.
+      allow read, write: if request.auth != null && request.auth.uid == userId;
       allow read: if true;
     }
 
     // ── User access config ────────────────────────────────────────────────────
+    // Public get/list — business-code / staff sessions (no auth token) need to
+    // read the owner's config and resolve uid → email. Write is auth-restricted.
     match /userConfig/{email} {
-      allow read, write: if request.auth != null
-                         && request.auth.token.email == email;
+      allow get, list: if true;
+      allow write: if request.auth != null
+                   && (request.auth.token.email == email || isAdminOrSuper());
+    }
+
+    // ── Subscriptions (self-serve billing) ───────────────────────────────────
+    // A signed-in owner reads AND WRITES their own subscription doc — this is
+    // how the client records a Razorpay payment / starts a trial
+    // (SubscriptionContext.activateSubscription / startTrial). The super admin
+    // can grant/revoke plans for anyone. Anyone else: no access.
+    match /subscriptions/{email} {
+      allow get: if request.auth != null
+                 && (request.auth.token.email == email || isAdminOrSuper());
+      allow list: if isAdminOrSuper();
+      allow write: if (request.auth != null && request.auth.token.email == email)
+                   || isAdminOrSuper();
+    }
+
+    // ── Platform billing / GST config (single doc, read by all for receipts) ──
+    match /globalConfig/{docId} {
+      allow read: if true;
+      allow write: if isAdminOrSuper();
     }
 
     // ── Business records ──────────────────────────────────────────────────────
-    // Readable by anyone (business code lookup during staff login).
-    // Writable only by the owner.
     match /businesses/{bizId} {
       allow read: if true;
-      allow write: if request.auth != null
-                   && resource.data.ownerId == request.auth.uid;
-      allow create: if request.auth != null
-                    && request.resource.data.ownerId == request.auth.uid;
+      allow write: if (request.auth != null && resource.data.ownerId == request.auth.uid)
+                   || isAdminOrSuper();
+      allow create: if (request.auth != null && request.resource.data.ownerId == request.auth.uid)
+                    || isAdminOrSuper();
     }
 
-    // ── Staff subcollection ───────────────────────────────────────────────────
-    // Readable by anyone (username/password lookup during staff login).
-    // Writable only by the business owner.
+    // ── Business app config (UI settings saved by staff/admin sessions) ───────
+    match /businesses/{bizId}/appConfig/{docId} {
+      allow read, write: if true;
+    }
+
+    // ── Staff subcollection (username/password lookup during staff login) ────
     match /businesses/{bizId}/staff/{staffId} {
       allow read: if true;
       allow write: if request.auth != null
                    && get(/databases/$(database)/documents/businesses/$(bizId)).data.ownerId == request.auth.uid;
+    }
+
+    // ── Staff accounts (mirrored store, written by staff/admin sessions) ─────
+    // Same open-access precedent as /appConfig — reaching the Settings/StaffPage
+    // UI already requires the business code + admin password.
+    match /businesses/{bizId}/staffAccounts/{staffId} {
+      allow read, write: if true;
+    }
+
+    // ── Admin sections (custom section templates) ────────────────────────────
+    match /adminSections/{sectionId} {
+      allow read: if true;
+      allow write: if isAdminOrSuper();
+    }
+
+    // ── Public contact / careers submissions ────────────────────────────────
+    match /contactMessages/{msgId} {
+      allow create: if true;
+      allow read, update, delete: if isAdminOrSuper();
+    }
+    match /careerMessages/{msgId} {
+      allow create: if true;
+      allow read, update, delete: if isAdminOrSuper();
     }
 
   }

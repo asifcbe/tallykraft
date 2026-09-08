@@ -10,7 +10,7 @@ import { txSortKey, formatCreatedTime } from './txTimeUtils';
 
 // Remembers the last-picked view mode per section (e.g. "estimates", "sales")
 // so switching tabs/reloading doesn't reset it back to the default.
-const VIEW_MODE_KEY = 'digitzebra_tx_view_mode';
+const VIEW_MODE_KEY = 'tallykraft_tx_view_mode';
 export const loadViewMode = (sectionKey, fallback = 'list') => {
   try {
     const all = JSON.parse(localStorage.getItem(VIEW_MODE_KEY) || '{}');

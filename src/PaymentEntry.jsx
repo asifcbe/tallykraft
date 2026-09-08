@@ -313,13 +313,13 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
     const modeText = isSplit
       ? `Mode: ⚡ Split Payment\n  💵 Cash: ₹${Number(row.paymentSplit.cash).toLocaleString()}\n  🏦 Bank: ₹${Number(row.paymentSplit.bank).toLocaleString()}`
       : `Mode: ${row.paymentMode}`;
-    const text = `*Payment Receipt from ${currentBusiness?.name || 'DigitZebra'}*\n\n` +
+    const text = `*Payment Receipt from ${currentBusiness?.name || 'TallyKraft'}*\n\n` +
       `Amount: ₹${row.totalAmount.toLocaleString()}\n` +
       `Date: ${row.date}\n` +
       `Party: ${row.partyName}\n` +
       `${modeText}\n` +
       `Ref: ${row.referenceNo}\n\n` +
-      `Shared via DigitZebra`;
+      `Shared via TallyKraft`;
     if (navigator.share) {
       navigator.share({ title: `Payment Receipt ${row.referenceNo}`, text }).catch(e => console.error(e));
     } else {
