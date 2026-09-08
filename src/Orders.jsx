@@ -1060,7 +1060,7 @@ const OrdersList = ({ orders, tokens, isMobile, onEdit, onDelete, onPrint, onSha
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search order #, customer, phone, address…"
           sx={{ flex: 1, minWidth: 220, '& .MuiOutlinedInput-root': { borderRadius: '8px', bgcolor: 'white' } }}
-          slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search size={15} color="#9c8a84" /></InputAdornment> } }}
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search size={15} color="#5f4f47" /></InputAdornment> } }}
         />
         <TextField
           select size="small" value={datePreset}

@@ -37,7 +37,7 @@ const ROLES = ['Manager', 'Cashier', 'Sales Staff', 'Delivery', 'Accountant', 'H
 const fmt = (n) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n || 0);
 
 const roleColor = (role) => {
-  const map = { Manager: '#111111', Cashier: '#5c1f22', 'Sales Staff': '#22c55e', Delivery: '#f59e0b', Accountant: '#8b5cf6', Helper: '#6b5550', Security: '#ef4444', Other: '#6b5550' };
+  const map = { Manager: '#111111', Cashier: '#5c1f22', 'Sales Staff': '#22c55e', Delivery: '#f59e0b', Accountant: '#8b5cf6', Helper: '#57433e', Security: '#ef4444', Other: '#57433e' };
   return map[role] || '#111111';
 };
 
@@ -824,14 +824,14 @@ export default function StaffPage() {
                   <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: '#5c1f22', lineHeight: 1.2 }}>
                     {memberDialog.editing ? memberDialog.editing.name : 'New Staff Member'}
                   </Typography>
-                  <Typography sx={{ fontSize: '0.72rem', color: '#6b5550', lineHeight: 1.3 }}>
+                  <Typography sx={{ fontSize: '0.72rem', color: '#57433e', lineHeight: 1.3 }}>
                     {memberDialog.editing ? `Editing • ${memberDialog.editing.role || 'Staff'}` : 'Fill in the details below'}
                   </Typography>
                 </Box>
                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.5, borderRadius: '20px', bgcolor: memberForm.status !== 'inactive' ? 'rgba(34,197,94,0.2)' : 'rgba(148,163,184,0.2)', border: `1px solid ${memberForm.status !== 'inactive' ? 'rgba(34,197,94,0.4)' : 'rgba(148,163,184,0.3)'}`, cursor: 'pointer' }}
                   onClick={() => setMemberForm(f => ({ ...f, status: f.status === 'inactive' ? 'active' : 'inactive' }))}>
-                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: memberForm.status !== 'inactive' ? '#22c55e' : '#9c8a84' }} />
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: memberForm.status !== 'inactive' ? '#16a34a' : '#9c8a84', whiteSpace: 'nowrap' }}>
+                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: memberForm.status !== 'inactive' ? '#22c55e' : '#5f4f47' }} />
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: memberForm.status !== 'inactive' ? '#16a34a' : '#5f4f47', whiteSpace: 'nowrap' }}>
                     {memberForm.status !== 'inactive' ? 'Active' : 'Inactive'}
                   </Typography>
                 </Box>
@@ -841,10 +841,10 @@ export default function StaffPage() {
                 {dialogTabs.map((label, i) => (
                   <Box key={label} onClick={() => setDlgTab(i)} sx={{
                     px: 2, py: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600,
-                    color: dlgTab === i ? '#5c1f22' : '#9c8a84',
+                    color: dlgTab === i ? '#5c1f22' : '#5f4f47',
                     borderBottom: dlgTab === i ? '2px solid #fff' : '2px solid transparent',
                     transition: 'all 0.15s',
-                    '&:hover': { color: dlgTab === i ? '#5c1f22' : '#6b5550' },
+                    '&:hover': { color: dlgTab === i ? '#5c1f22' : '#57433e' },
                   }}>{label}</Box>
                 ))}
               </Box>
@@ -885,7 +885,7 @@ export default function StaffPage() {
 
               {/* ── Tab 1: Salary & Login ── */}
               <Box sx={{ display: dlgTab === 1 ? 'block' : 'none', px: 3, py: 2.5 }}>
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Salary</Typography>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Salary</Typography>
                 <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2.5 }}>
                   <TextField size="small" label="Amount (₹)" type="number" value={sf('salary')}
                     onChange={upd('salary')} sx={{ flex: '1 1 140px' }} />
@@ -894,7 +894,7 @@ export default function StaffPage() {
                     {SALARY_TYPES.map(t => <MenuItem key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</MenuItem>)}
                   </TextField>
                 </Box>
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Login Credentials</Typography>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Login Credentials</Typography>
                 <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                   <TextField size="small" label="Username" placeholder="e.g. rahul" value={sf('username')}
                     helperText="Used to log in — lowercase, no spaces"
@@ -908,12 +908,12 @@ export default function StaffPage() {
               {/* ── Tab 2: Access ── */}
               <Box sx={{ display: dlgTab === 2 ? 'block' : 'none', px: 3, py: 2.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Section Access</Typography>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Section Access</Typography>
                   <Box sx={{ display: 'flex', gap: 0.5 }}>
                     <Button size="small" onClick={() => setMemberForm(f => ({ ...f, features: ACCESS_ITEMS.reduce((a, { key }) => ({ ...a, [key]: true }), {}) }))}
                       sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: primary, '&:hover': { bgcolor: alpha(primary, 0.06) } }}>All On</Button>
                     <Button size="small" onClick={() => setMemberForm(f => ({ ...f, features: ACCESS_ITEMS.reduce((a, { key }) => ({ ...a, [key]: false }), {}) }))}
-                      sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#9c8a84', '&:hover': { bgcolor: '#f6efe9' } }}>All Off</Button>
+                      sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#5f4f47', '&:hover': { bgcolor: '#f6efe9' } }}>All Off</Button>
                   </Box>
                 </Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 0.75 }}>
@@ -929,7 +929,7 @@ export default function StaffPage() {
                       }}>
                         <Box sx={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, transition: 'background 0.12s',
                           bgcolor: on ? primary : '#e8ddd6' }} />
-                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: on ? primary : '#6b5550', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: on ? primary : '#57433e', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {label}
                         </Typography>
                       </Box>
@@ -947,7 +947,7 @@ export default function StaffPage() {
 
             <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f6efe9', bgcolor: '#fafafa', gap: 1 }}>
               <Button onClick={() => { setMemberDialog({ open: false, editing: null }); setMemberError(''); }}
-                sx={{ borderRadius: '8px', textTransform: 'none', color: '#6b5550', '&:hover': { bgcolor: '#f6efe9' } }}>
+                sx={{ borderRadius: '8px', textTransform: 'none', color: '#57433e', '&:hover': { bgcolor: '#f6efe9' } }}>
                 Cancel
               </Button>
               <Box sx={{ flex: 1, display: 'flex', gap: 0.75 }}>
@@ -1001,7 +1001,7 @@ export default function StaffPage() {
                   border: '1.5px solid', transition: 'all 0.12s',
                   borderColor: salPayForm.paymentMode === mode ? primary : '#e5e7eb',
                   bgcolor: salPayForm.paymentMode === mode ? alpha(primary, 0.08) : '#fafafa',
-                  color: salPayForm.paymentMode === mode ? primary : '#6b5550',
+                  color: salPayForm.paymentMode === mode ? primary : '#57433e',
                 }}>
                 {mode}
               </Box>

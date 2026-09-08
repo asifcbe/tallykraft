@@ -142,9 +142,9 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
   const dash = (secPct / 100) * circ;
 
   const statRows = heroStats ? [
-    { label: 'Sales',        value: heroStats.totalSales,     color: accentColorHex, trend: heroStats.salesTrend,    actions: onQuickNew ? [{ label: 'Invoice',  fn: () => onQuickNew('/sales', 'New Invoice', 'createNew') }] : [] },
+    { label: 'Sales',        value: heroStats.totalSales,     color: '#5c1f22',      trend: heroStats.salesTrend,    actions: onQuickNew ? [{ label: 'Invoice',  fn: () => onQuickNew('/sales', 'New Invoice', 'createNew') }] : [] },
     { label: 'Purchases',    value: heroStats.totalPurchases, color: '#a78bfa',      trend: heroStats.purchaseTrend, actions: onQuickNew ? [{ label: 'Purchase', fn: () => onQuickNew('/purchases', 'New Purchase', 'createNew') }] : [] },
-    { label: 'Receivable',   value: heroStats.toGet,          color: '#9c8a84',      trend: null,                   actions: onQuickNew ? [{ label: 'Receive',  fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-in', 'Payment In', 'viewOutstanding') }] : [] },
+    { label: 'Receivable',   value: heroStats.toGet,          color: '#a9803f',      trend: null,                   actions: onQuickNew ? [{ label: 'Receive',  fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-in', 'Payment In', 'viewOutstanding') }] : [] },
     { label: 'Payable',      value: heroStats.toGive,         color: '#fbbf24',      trend: null,                   actions: onQuickNew ? [{ label: 'Pay',      fn: () => onQuickNew('/payment-out', 'Payment Out', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-out', 'Payment Out', 'viewOutstanding') }] : [] },
     { label: 'Expenses',     value: heroStats.totalExpenses,  color: '#fb7185',      trend: null,                   actions: onQuickNew ? [{ label: 'Expense',  fn: () => onQuickNew('/expenses', 'Expenses', 'openAdd') }] : [] },
     { label: 'Cash in Hand', value: cash?.balance ?? 0,       color: '#22d3ee',      cashIn: lastCashAmounts?.lastIn ?? 0, cashOut: lastCashAmounts?.lastOut ?? 0,
@@ -195,7 +195,7 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
 
                 {/* Value */}
                 <Box sx={{ width: '100%', mb: r.actions?.length > 0 ? 0.9 : 0, display: 'flex', justifyContent: 'center' }}>
-                  <KpiValue value={r.value} color={(r.value ?? 0) < 0 ? '#dc2626' : alpha(r.color, 0.85)} fontSize={kpiFontSize} />
+                  <KpiValue value={r.value} color={(r.value ?? 0) < 0 ? '#dc2626' : '#241f1c'} fontSize={kpiFontSize} />
                 </Box>
 
                 {/* Action buttons — pinned to bottom */}
@@ -877,7 +877,7 @@ const Dashboard = () => {
         <ClockCalendarWidget
           now={now}
           accentColor={BRAND.teal}
-          accentColorHex="#6b5550"
+          accentColorHex="#57433e"
           bgColor="#ffffff"
           textOnBg="#5c1f22"
           stats={stats}
@@ -1229,10 +1229,10 @@ const Dashboard = () => {
               </Box>
               <Box>
                 <Typography sx={{ fontWeight: 800, color: '#5c1f22', fontSize: '0.95rem', lineHeight: 1.2 }}>Scan to Pay</Typography>
-                {currentBusiness?.name && <Typography sx={{ color: '#6b5550', fontSize: '0.7rem', mt: 0.25 }}>{currentBusiness.name}</Typography>}
+                {currentBusiness?.name && <Typography sx={{ color: '#57433e', fontSize: '0.7rem', mt: 0.25 }}>{currentBusiness.name}</Typography>}
               </Box>
             </Box>
-            <IconButton onClick={() => setQrOpen(false)} size="small" sx={{ color: '#6b5550', '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
+            <IconButton onClick={() => setQrOpen(false)} size="small" sx={{ color: '#57433e', '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
               <X size={18} />
             </IconButton>
           </Box>
@@ -1242,7 +1242,7 @@ const Dashboard = () => {
             </Box>
           </Box>
           <Box sx={{ px: 3, pt: 1, pb: 3, textAlign: 'center' }}>
-            <Typography sx={{ color: '#9c8a84', fontSize: '0.7rem', letterSpacing: '0.03em' }}>Point your camera at the QR code to pay</Typography>
+            <Typography sx={{ color: '#5f4f47', fontSize: '0.7rem', letterSpacing: '0.03em' }}>Point your camera at the QR code to pay</Typography>
           </Box>
         </DialogContent>
       </Dialog>

@@ -1890,13 +1890,13 @@ const POS = () => {
           </Tooltip>
           <Tooltip title="Add inventory item — used in this sale but not charged (e.g. a cover/bag)">
             <IconButton size="small" onClick={() => setAddInventoryDialog(true)}
-              sx={{ color: '#6b5550', '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
+              sx={{ color: '#57433e', '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
               <Ban size={15} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Clear all">
             <IconButton size="small" onClick={resetSale}
-              sx={{ color: '#6b5550', '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
+              sx={{ color: '#57433e', '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
               <RotateCcw size={15} />
             </IconButton>
           </Tooltip>

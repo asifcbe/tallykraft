@@ -397,12 +397,12 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                 transition: 'all 0.15s',
                 '&:hover': { bgcolor: alpha(tab.color, 0.04) },
               }}>
-              <Box sx={{ p: 0.5, borderRadius: '6px', bgcolor: tabValue === i ? alpha(tab.color, 0.12) : 'transparent', color: tabValue === i ? tab.color : '#9c8a84', display: 'flex', transition: 'all 0.15s' }}>
+              <Box sx={{ p: 0.5, borderRadius: '6px', bgcolor: tabValue === i ? alpha(tab.color, 0.12) : 'transparent', color: tabValue === i ? tab.color : '#5f4f47', display: 'flex', transition: 'all 0.15s' }}>
                 {tab.icon}
               </Box>
               <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.2, color: tabValue === i ? '#3f1417' : '#6b5550' }}>{tab.label}</Typography>
-                <Typography sx={{ fontSize: '0.68rem', color: '#9c8a84', lineHeight: 1 }}>{tab.sub}</Typography>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.2, color: tabValue === i ? '#3f1417' : '#57433e' }}>{tab.label}</Typography>
+                <Typography sx={{ fontSize: '0.68rem', color: '#5f4f47', lineHeight: 1 }}>{tab.sub}</Typography>
               </Box>
               {editingId && tabValue === i && <Chip label="Editing" size="small" sx={{ ml: 'auto', height: 18, fontSize: '0.65rem', bgcolor: alpha(accentColor, 0.1), color: accentColor, fontWeight: 700 }} />}
             </Box>
@@ -451,7 +451,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
 
             {/* Row 2: Payment mode + Less side by side */}
             <Grid size={{ xs: 12, sm: 7 }}>
-              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Payment Via</Typography>
+              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Payment Via</Typography>
               <Box sx={{ display: 'flex', gap: 0.75 }}>
                 {[
                   { value: 'Cash',  icon: <Banknote size={14} />,   color: '#16a34a' },
@@ -462,7 +462,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                   return (
                     <Box key={opt.value} onClick={() => setFormData({ ...formData, paymentMode: opt.value })}
                       sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, borderRadius: '8px', border: '1.5px solid', cursor: 'pointer', userSelect: 'none', transition: 'all 0.12s', fontWeight: 700, fontSize: '0.8rem',
-                        borderColor: sel ? opt.color : '#e5e7eb', bgcolor: sel ? alpha(opt.color, 0.07) : '#fafafa', color: sel ? opt.color : '#6b5550',
+                        borderColor: sel ? opt.color : '#e5e7eb', bgcolor: sel ? alpha(opt.color, 0.07) : '#fafafa', color: sel ? opt.color : '#57433e',
                         '&:hover': { borderColor: opt.color, color: opt.color, bgcolor: alpha(opt.color, 0.05) } }}>
                       {opt.icon}{opt.value}
                     </Box>
@@ -472,7 +472,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
             </Grid>
 
             <Grid size={{ xs: 12, sm: 5 }}>
-              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Less — Discount / Write-off</Typography>
+              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Less — Discount / Write-off</Typography>
               <Box sx={{ border: `1.5px solid`, borderColor: lessAmount ? '#d97706' : '#e5e7eb', borderRadius: '10px', px: 1.5, py: 0.75, bgcolor: lessAmount ? alpha('#d97706', 0.03) : '#fafafa', transition: 'all 0.2s', '&:focus-within': { borderColor: '#d97706' } }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: lessAmount ? '#d97706' : '#ddd0c9' }}>₹</Typography>
@@ -483,7 +483,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                   />
                   {(parseFloat(formData.amount) > 0 || parseFloat(lessAmount) > 0) && (
                     <Box sx={{ textAlign: 'right', flexShrink: 0, pl: 1, borderLeft: '1px solid #f6efe9' }}>
-                      <Typography sx={{ fontSize: '0.6rem', color: '#9c8a84', lineHeight: 1.2 }}>Settled</Typography>
+                      <Typography sx={{ fontSize: '0.6rem', color: '#5f4f47', lineHeight: 1.2 }}>Settled</Typography>
                       <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', color: accentColor, lineHeight: 1.2 }}>
                         ₹{((parseFloat(formData.amount) || 0) + (parseFloat(lessAmount) || 0)).toLocaleString('en-IN')}
                       </Typography>
@@ -731,7 +731,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                   <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: accentColor }}>{filteredHistory.length}</Typography>
                 </Box>
               </Box>
-              <Typography sx={{ fontSize: '0.75rem', color: '#6b5550' }}>
+              <Typography sx={{ fontSize: '0.75rem', color: '#57433e' }}>
                 Total&nbsp;<Box component="span" sx={{ fontWeight: 800, color: accentColor }}>₹{filteredTotal.toLocaleString('en-IN')}</Box>
               </Typography>
             </Box>

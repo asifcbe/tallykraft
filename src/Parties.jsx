@@ -316,15 +316,15 @@ const PartiesPage = () => {
 
   const getBalanceChip = (party) => {
     const bal = party.balance || 0;
-    if (bal === 0) return { label: 'Settled', bgcolor: alpha('#6b5550', 0.1), color: '#7a2e30', border: alpha('#6b5550', 0.25) };
+    if (bal === 0) return { label: 'Settled', bgcolor: alpha('#57433e', 0.1), color: '#7a2e30', border: alpha('#57433e', 0.25) };
     if (party.type === 'Customer') {
       return bal > 0
-        ? { label: `To Collect  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#6b5550', 0.1), color: '#5c1f22', border: alpha('#6b5550', 0.25) }
+        ? { label: `To Collect  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#57433e', 0.1), color: '#5c1f22', border: alpha('#57433e', 0.25) }
         : { label: `To Pay  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#ef4444', 0.1), color: '#dc2626', border: alpha('#ef4444', 0.25) };
     } else {
       return bal < 0
         ? { label: `To Pay  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#ef4444', 0.1), color: '#dc2626', border: alpha('#ef4444', 0.25) }
-        : { label: `To Collect  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#6b5550', 0.1), color: '#5c1f22', border: alpha('#6b5550', 0.25) };
+        : { label: `To Collect  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#57433e', 0.1), color: '#5c1f22', border: alpha('#57433e', 0.25) };
     }
   };
 
@@ -347,11 +347,11 @@ const PartiesPage = () => {
               </Box>
               <Typography variant="h5" sx={{ fontWeight: 800, color: '#5c1f22', letterSpacing: '-0.01em' }}>{t('nav.parties')}</Typography>
             </Box>
-            <Typography variant="body2" sx={{ color: '#6b5550', pl: 0.5 }}>Manage your customers and vendors</Typography>
+            <Typography variant="body2" sx={{ color: '#57433e', pl: 0.5 }}>Manage your customers and vendors</Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, alignItems: 'center' }}>
             <Tooltip title="More options">
-              <IconButton size="small" onClick={(e) => setMoreMenuAnchor(e.currentTarget)} sx={{ color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)', border: '1px solid #ece2db', borderRadius: 1.5, '&:hover': { bgcolor: '#9c8a84' } }}>
+              <IconButton size="small" onClick={(e) => setMoreMenuAnchor(e.currentTarget)} sx={{ color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)', border: '1px solid #ece2db', borderRadius: 1.5, '&:hover': { bgcolor: '#5f4f47' } }}>
                 <MoreHorizontal size={18} />
               </IconButton>
             </Tooltip>
@@ -385,7 +385,7 @@ const PartiesPage = () => {
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1.5, position: 'relative' }}>
           {[
-            { label: 'Customers', value: customers.length, icon: UserCheck, color: '#6b5550' },
+            { label: 'Customers', value: customers.length, icon: UserCheck, color: '#57433e' },
             { label: 'Vendors', value: vendors.length, icon: Store, color: '#93c5fd' },
             { label: t('parties.receivable'), value: `₹${totalReceivable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#16a34a' },
             { label: t('parties.payable'), value: `₹${totalPayable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingDown, color: '#fca5a5' },
@@ -393,7 +393,7 @@ const PartiesPage = () => {
             <Box key={label} sx={{ bgcolor: 'rgba(92,31,34,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #ece2db' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
                 <Icon size={14} color={color} />
-                <Typography variant="caption" sx={{ color: '#6b5550', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Typography>
+                <Typography variant="caption" sx={{ color: '#57433e', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Typography>
               </Box>
               <Typography sx={{ color: '#5c1f22', fontWeight: 800, lineHeight: 1.1, fontSize: { xs: '0.95rem', sm: '1.1rem' } }}>{value}</Typography>
             </Box>
@@ -466,7 +466,7 @@ const PartiesPage = () => {
                   px: 1.5, py: 0.5, borderRadius: 1.5, cursor: 'pointer', userSelect: 'none',
                   fontSize: '0.8rem', fontWeight: 600, transition: 'all 0.15s', whiteSpace: 'nowrap',
                   bgcolor: filters.balanceType === opt.value ? (
-                    opt.value === 'collect' ? alpha('#6b5550', 0.12) :
+                    opt.value === 'collect' ? alpha('#57433e', 0.12) :
                     opt.value === 'pay' ? alpha('#ef4444', 0.12) :
                     'background.paper'
                   ) : 'transparent',
@@ -478,7 +478,7 @@ const PartiesPage = () => {
                   boxShadow: filters.balanceType === opt.value ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
                   border: '1px solid',
                   borderColor: filters.balanceType === opt.value ? (
-                    opt.value === 'collect' ? alpha('#6b5550', 0.3) :
+                    opt.value === 'collect' ? alpha('#57433e', 0.3) :
                     opt.value === 'pay' ? alpha('#ef4444', 0.3) :
                     'divider'
                   ) : 'transparent',
@@ -994,7 +994,7 @@ const PartiesPage = () => {
                           flex: 1, py: 1, px: 1.5, borderRadius: 2, cursor: 'pointer',
                           border: '1.5px solid',
                           borderColor: active ? (isCollect ? '#5c1f22' : '#dc2626') : 'divider',
-                          bgcolor: active ? (isCollect ? alpha('#6b5550', 0.08) : alpha('#ef4444', 0.08)) : 'background.paper',
+                          bgcolor: active ? (isCollect ? alpha('#57433e', 0.08) : alpha('#ef4444', 0.08)) : 'background.paper',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75,
                           transition: 'all 0.15s',
                           userSelect: 'none',

@@ -596,7 +596,7 @@ const ExpensesPage = () => {
           <Box sx={{ background: 'linear-gradient(135deg, #3f1417, #5c1f22)', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: 'rgba(92,31,34,0.1)', display: 'flex' }}><TrendingDown size={18} color="#fff" /></Box>
             <Typography sx={{ color: '#5c1f22', fontWeight: 800, fontSize: '1.05rem', flex: 1 }}>{editingExpense ? t('exp.editExpense') : t('exp.addNew')}</Typography>
-            <IconButton size="small" onClick={handleClose} sx={{ color: '#6b5550' }}><X size={18} /></IconButton>
+            <IconButton size="small" onClick={handleClose} sx={{ color: '#57433e' }}><X size={18} /></IconButton>
           </Box>
           <DialogContent dividers sx={{ p: 2.5 }}>
             {/* Amount — prominent */}
@@ -715,7 +715,7 @@ const ExpensesPage = () => {
             <Eye size={18} color="#5c1f22" />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: '#6b5550', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+            <Typography variant="overline" sx={{ color: '#57433e', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
               Expense Preview
             </Typography>
             <Typography variant="h6" sx={{ color: '#5c1f22', fontWeight: 800, mt: 0.5, fontSize: '1.05rem' }}>
@@ -723,10 +723,10 @@ const ExpensesPage = () => {
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, mt: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
               {previewRecord?.date && (
-                <Typography variant="caption" sx={{ color: '#6b5550', fontWeight: 600 }}>{previewRecord.date}</Typography>
+                <Typography variant="caption" sx={{ color: '#57433e', fontWeight: 600 }}>{previewRecord.date}</Typography>
               )}
               {previewRecord?.description && (
-                <Typography variant="caption" sx={{ color: '#6b5550', fontWeight: 600 }}>{previewRecord.description}</Typography>
+                <Typography variant="caption" sx={{ color: '#57433e', fontWeight: 600 }}>{previewRecord.description}</Typography>
               )}
               {previewRecord?.amount != null && (
                 <Box sx={{ px: 1.25, py: 0.25, bgcolor: 'rgba(92,31,34,0.1)', borderRadius: '100px', border: '1px solid #ece2db' }}>
@@ -735,7 +735,7 @@ const ExpensesPage = () => {
               )}
             </Box>
           </Box>
-          <IconButton onClick={() => setPreviewOpen(false)} size="small" sx={{ color: '#6b5550', mt: -0.5, '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
+          <IconButton onClick={() => setPreviewOpen(false)} size="small" sx={{ color: '#57433e', mt: -0.5, '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
             <X size={18} />
           </IconButton>
         </Box>

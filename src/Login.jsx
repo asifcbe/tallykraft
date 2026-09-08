@@ -104,7 +104,7 @@ const Login = ({ onBack }) => {
     inputBg:          'rgba(255,255,255,0.055)',
     inputBorder:      'rgba(255,255,255,0.09)',
     inputBorderHov:   'rgba(255,255,255,0.2)',
-    inputFocus:       '#9c8a84',
+    inputFocus:       '#5f4f47',
     inputText:        '#f6efe9',
     eyeColor:         'rgba(255,255,255,0.35)',
     googleBg:         'rgba(255,255,255,0.07)',
@@ -124,29 +124,29 @@ const Login = ({ onBack }) => {
     cardBorder:       'rgba(100,116,139,0.13)',
     cardShadow:       '0 0 0 1px rgba(100,116,139,0.07), 0 24px 64px rgba(100,116,139,0.11)',
     title:            '#3f1417',
-    sub:              '#6b5550',
+    sub:              '#57433e',
     tabWrap:          '#e8edff',
-    tabText:          '#9c8a84',
+    tabText:          '#5f4f47',
     tabActiveBg:      '#ffffff',
-    tabActiveText:    '#6b5550',
+    tabActiveText:    '#57433e',
     tabActiveShadow:  '0 2px 10px rgba(100,116,139,0.14)',
-    lbl:              '#6b5550',
+    lbl:              '#57433e',
     inputBg:          '#f8faff',
     inputBorder:      'rgba(100,116,139,0.16)',
     inputBorderHov:   'rgba(100,116,139,0.38)',
-    inputFocus:       '#6b5550',
+    inputFocus:       '#57433e',
     inputText:        '#3f1417',
-    eyeColor:         '#9c8a84',
+    eyeColor:         '#5f4f47',
     googleBg:         '#ffffff',
     googleBorder:     'rgba(0,0,0,0.1)',
     googleText:       '#5c1f22',
     googleHov:        '#f8faff',
     divider:          'rgba(100,116,139,0.1)',
-    caption:          '#9c8a84',
+    caption:          '#5f4f47',
     footerText:       '#ddd0c9',
-    backColor:        '#9c8a84',
+    backColor:        '#5f4f47',
     backHovBg:        'rgba(100,116,139,0.07)',
-    backHovColor:     '#6b5550',
+    backHovColor:     '#57433e',
   };
 
   const inputSx = {
@@ -257,7 +257,7 @@ const Login = ({ onBack }) => {
             TALLYKRAFT
           </Typography>
           <Typography sx={{
-            color: '#6b5550', fontSize: '0.88rem', mb: 4.5,
+            color: '#57433e', fontSize: '0.88rem', mb: 4.5,
             animation: 'lg-fadein 0.65s ease both', animationDelay: '0.08s',
           }}>
             Premium Business Accounting
@@ -297,7 +297,7 @@ const Login = ({ onBack }) => {
             animation: 'lg-fadein 0.6s ease both', animationDelay: '0.5s',
           }}>
             <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#4ade80', animation: 'lg-blink 2.2s ease-in-out infinite' }} />
-            <Typography sx={{ color: '#6b5550', fontSize: '0.73rem', fontWeight: 600, letterSpacing: '0.04em' }}>
+            <Typography sx={{ color: '#57433e', fontSize: '0.73rem', fontWeight: 600, letterSpacing: '0.04em' }}>
               All data processed locally
             </Typography>
           </Box>

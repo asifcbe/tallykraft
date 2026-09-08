@@ -179,7 +179,7 @@ const CustomerPreviewPanel = ({ party, onClose, onRedeem, redeemedPoints = 0, la
         {onClose && (
           <IconButton size="small" onClick={onClose} sx={{
             position: 'absolute', top: 8, right: 8,
-            color: '#6b5550',
+            color: '#57433e',
             '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' },
           }}>
             <X size={14} />
@@ -205,7 +205,7 @@ const CustomerPreviewPanel = ({ party, onClose, onRedeem, redeemedPoints = 0, la
               {party.name}
             </Typography>
             {party.partyId && (
-              <Typography sx={{ color: '#6b5550', fontSize: '0.65rem', fontFamily: 'monospace', mt: 0.2 }}>
+              <Typography sx={{ color: '#57433e', fontSize: '0.65rem', fontFamily: 'monospace', mt: 0.2 }}>
                 {party.partyId}
               </Typography>
             )}
@@ -253,11 +253,11 @@ const CustomerPreviewPanel = ({ party, onClose, onRedeem, redeemedPoints = 0, la
                   px: 1, py: 0.4, borderRadius: '8px',
                   bgcolor: 'rgba(92,31,34,0.08)', border: '1px solid #ece2db',
                   textDecoration: 'none', cursor: 'pointer',
-                  '&:hover': { bgcolor: '#9c8a84' },
+                  '&:hover': { bgcolor: '#5f4f47' },
                   transition: 'all 0.15s',
                 }}
               >
-                <Phone size={11} color="#9c8a84" />
+                <Phone size={11} color="#5f4f47" />
                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#7a2e30', fontFamily: 'monospace' }}>
                   {party.phone}
                 </Typography>

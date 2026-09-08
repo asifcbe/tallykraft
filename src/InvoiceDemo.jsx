@@ -51,7 +51,7 @@ const StepBadge = ({ active, done, n, label }) => (
     </div>
     <span style={{
       fontSize: '.82rem', fontWeight: active || done ? 700 : 500,
-      color: active || done ? '#5c1f22' : '#9c8a84',
+      color: active || done ? '#5c1f22' : '#5f4f47',
       transition: 'color .3s',
     }}>{label}</span>
   </div>
@@ -113,7 +113,7 @@ export default function InvoiceDemo({ isDark = false }) {
   const bgAlt   = isDark ? '#5c1f22' : '#f6efe9';
   const border  = isDark ? 'rgba(255,255,255,.07)' : '#e8ddd6';
   const text    = isDark ? '#f6efe9' : '#5c1f22';
-  const muted   = isDark ? '#9c8a84' : '#6b5550';
+  const muted   = isDark ? '#5f4f47' : '#57433e';
   const dim     = isDark ? '#7a2e30' : '#ddd0c9';
   const accent  = 'rgba(92,31,34,.1)';
 

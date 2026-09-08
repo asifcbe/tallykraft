@@ -133,7 +133,7 @@ const BillingPayments = () => {
       {isSubscribed && (
         <Card variant="outlined" sx={{ borderRadius: 2, mb: 2.5, borderColor: alpha(primary, 0.3), bgcolor: alpha(primary, 0.03) }}>
           <CardContent sx={{ py: 2, '&:last-child': { pb: 2 }, display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
-            <Box sx={{ p: 1.1, borderRadius: 1.5, bgcolor: alpha(currentIsPro ? primary : '#6b5550', 0.1), color: currentIsPro ? primary : '#5c1f22', display: 'flex', flexShrink: 0 }}>
+            <Box sx={{ p: 1.1, borderRadius: 1.5, bgcolor: alpha(currentIsPro ? primary : '#57433e', 0.1), color: currentIsPro ? primary : '#5c1f22', display: 'flex', flexShrink: 0 }}>
               {currentIsPro ? <Cloud size={20} /> : <Lock size={20} />}
             </Box>
             <Box sx={{ flex: 1, minWidth: 0 }}>

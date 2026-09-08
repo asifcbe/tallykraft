@@ -137,7 +137,7 @@ export default function SalesImportDialog({ open, onClose, isSale, onSuccess }) 
           <Upload size={18} color="#5c1f22" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="overline" sx={{ color: '#6b5550', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>IMPORT</Typography>
+          <Typography variant="overline" sx={{ color: '#57433e', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>IMPORT</Typography>
           <Typography variant="h6" sx={{ color: '#5c1f22', fontWeight: 800, lineHeight: 1.2 }}>Import {isSale ? 'Sales' : 'Purchases'}</Typography>
         </Box>
         <IconButton onClick={handleClose} disabled={saving} sx={{ color: '#5c1f22' }}><X size={20} /></IconButton>

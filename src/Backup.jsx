@@ -286,7 +286,7 @@ const Backup = () => {
           <Typography sx={{ color: '#5c1f22', fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }}>
             Switching from Vyapar or My Bill Book?
           </Typography>
-          <Typography sx={{ color: '#6b5550', fontSize: '0.8rem' }}>
+          <Typography sx={{ color: '#57433e', fontSize: '0.8rem' }}>
             Import your Items, Customers, Vendors, Sales & Purchases in one step.
           </Typography>
         </Box>
@@ -296,8 +296,8 @@ const Backup = () => {
           endIcon={<ArrowRight size={15} />}
           sx={{
             textTransform: 'none', fontWeight: 700, borderRadius: 2, flexShrink: 0,
-            bgcolor: '#9c8a84', color: '#5c1f22', border: '1px solid #ece2db',
-            '&:hover': { bgcolor: '#9c8a84' },
+            bgcolor: '#5f4f47', color: '#5c1f22', border: '1px solid #ece2db',
+            '&:hover': { bgcolor: '#5f4f47' },
           }}
         >
           Migrate Data

@@ -3748,7 +3748,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                     bgcolor: obMode ? tokens.primarySoft : "transparent",
                   }}
                 >
-                  <ListOrdered size={13} color={obMode ? tokens.primary : "#9c8a84"} style={{ flexShrink: 0 }} />
+                  <ListOrdered size={13} color={obMode ? tokens.primary : "#5f4f47"} style={{ flexShrink: 0 }} />
                   <Typography sx={{ color: obMode ? tokens.primary : "text.secondary", fontSize: "0.72rem", fontWeight: 700, display: { xs: "none", sm: "inline" }, whiteSpace: "nowrap" }}>
                     1-by-1
                   </Typography>
@@ -5749,7 +5749,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="overline" sx={{ color: "#6b5550", fontWeight: 700, fontSize: "0.62rem", letterSpacing: "0.1em", lineHeight: 1 }}>
+          <Typography variant="overline" sx={{ color: "#57433e", fontWeight: 700, fontSize: "0.62rem", letterSpacing: "0.1em", lineHeight: 1 }}>
             {isSale ? "Invoice Preview" : "Bill Preview"}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
@@ -5799,7 +5799,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
           </IconButton>
         </Tooltip>
         <Tooltip title="Close preview">
-          <IconButton size="small" onClick={closeTxPreview} sx={{ color: "#6b5550", "&:hover": { color: "#5c1f22", bgcolor: "rgba(92,31,34,0.08)" } }}>
+          <IconButton size="small" onClick={closeTxPreview} sx={{ color: "#57433e", "&:hover": { color: "#5c1f22", bgcolor: "rgba(92,31,34,0.08)" } }}>
             <X size={16} />
           </IconButton>
         </Tooltip>
@@ -6884,7 +6884,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             <Typography
               variant="overline"
               sx={{
-                color: "#6b5550",
+                color: "#57433e",
                 fontWeight: 700,
                 fontSize: "0.65rem",
                 letterSpacing: "0.1em",
@@ -6917,7 +6917,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             >
               {previewTx?.partyName && (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <User size={12} color="#9c8a84" />
+                  <User size={12} color="#5f4f47" />
                   <Typography
                     variant="caption"
                     sx={{ color: "#7a2e30", fontWeight: 600 }}
@@ -6928,7 +6928,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
               )}
               {previewTx?.date && (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <Calendar size={12} color="#9c8a84" />
+                  <Calendar size={12} color="#5f4f47" />
                   <Typography
                     variant="caption"
                     sx={{ color: "#7a2e30", fontWeight: 600 }}
@@ -6977,7 +6977,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <Typography
                     variant="caption"
-                    sx={{ color: '#6b5550', fontSize: '0.7rem' }}
+                    sx={{ color: '#57433e', fontSize: '0.7rem' }}
                   >
                     Billed by: <strong style={{ color: '#5c1f22' }}>{previewTx.billedBy}</strong>
                   </Typography>
@@ -6989,7 +6989,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             onClick={() => setPreviewOpen(false)}
             size="small"
             sx={{
-              color: "#6b5550",
+              color: "#57433e",
               mt: -0.5,
               mr: -0.5,
               "&:hover": {

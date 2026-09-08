@@ -181,7 +181,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: 'settings', icon: Settings, color: '#6b5550',
+    id: 'settings', icon: Settings, color: '#57433e',
     title: 'Settings',
     summary: 'Business profile, invoice style, features, language, theme — all configurable.',
     steps: [

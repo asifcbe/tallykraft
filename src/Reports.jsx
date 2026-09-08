@@ -1161,7 +1161,7 @@ const ReportsPage = () => {
           const share = ipNetProfit * pct / 100;
           return { account: inv.name, percent: `${pct}%`, amount: share < 0 ? `(${fmt(Math.abs(share))})` : fmt(share), _color: share < 0 ? '#dc2626' : undefined };
         }),
-        ...(ipUnallocated > 0 ? [{ account: 'Unallocated (retained by business)', percent: `${ipUnallocated}%`, amount: fmt(ipNetProfit * ipUnallocated / 100), _color: '#9c8a84' }] : []),
+        ...(ipUnallocated > 0 ? [{ account: 'Unallocated (retained by business)', percent: `${ipUnallocated}%`, amount: fmt(ipNetProfit * ipUnallocated / 100), _color: '#5f4f47' }] : []),
       ];
       rc.totals = {};
 
@@ -2481,7 +2481,7 @@ const ReportsPage = () => {
           <Typography sx={{ fontWeight: 800, color: '#5c1f22', fontSize: '0.95rem', lineHeight: 1.2 }} noWrap>
             Reports
           </Typography>
-          <Typography sx={{ color: '#6b5550', fontSize: '0.74rem' }} noWrap>
+          <Typography sx={{ color: '#57433e', fontSize: '0.74rem' }} noWrap>
             {activeGroup?.label ? `${activeGroup.label} · ${activeReport?.label}` : 'Choose a report'}
           </Typography>
         </Box>
@@ -2515,7 +2515,7 @@ const ReportsPage = () => {
                 value={navSearch} onChange={e => setNavSearch(e.target.value)}
                 InputProps={{
                   startAdornment: (
-                    <InputAdornment position="start"><Search size={13} color="#9c8a84" /></InputAdornment>
+                    <InputAdornment position="start"><Search size={13} color="#5f4f47" /></InputAdornment>
                   ),
                 }}
                 sx={{ mb: 1, '& .MuiOutlinedInput-root': { borderRadius: 1.5, fontSize: '0.75rem' } }}
@@ -2535,7 +2535,7 @@ const ReportsPage = () => {
                         bgcolor: active ? alpha(r.groupColor, 0.12) : 'transparent',
                         '&:hover': { bgcolor: active ? alpha(r.groupColor, 0.16) : alpha(r.groupColor, 0.06) },
                       }}>
-                        {Icon && <Icon size={15} color={active ? r.groupColor : '#6b5550'} style={{ flexShrink: 0 }} />}
+                        {Icon && <Icon size={15} color={active ? r.groupColor : '#57433e'} style={{ flexShrink: 0 }} />}
                         <Typography sx={{ fontSize: '0.72rem', fontWeight: active ? 700 : 500, color: active ? r.groupColor : 'text.secondary', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {r.label}
                         </Typography>
@@ -2560,7 +2560,7 @@ const ReportsPage = () => {
                             bgcolor: active ? alpha(group.color, 0.12) : 'transparent',
                             '&:hover': { bgcolor: active ? alpha(group.color, 0.16) : alpha(group.color, 0.06) },
                           }}>
-                            {Icon && <Icon size={15} color={active ? group.color : '#6b5550'} style={{ flexShrink: 0 }} />}
+                            {Icon && <Icon size={15} color={active ? group.color : '#57433e'} style={{ flexShrink: 0 }} />}
                             <Typography sx={{ fontSize: '0.72rem', fontWeight: active ? 700 : 500, color: active ? group.color : 'text.secondary', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {label}
                             </Typography>
@@ -2626,7 +2626,7 @@ const ReportsPage = () => {
                         bgcolor: active ? alpha(r.groupColor, 0.14) : 'transparent',
                         color: active ? r.groupColor : 'text.secondary',
                         border: '1px solid', borderColor: active ? alpha(r.groupColor, 0.5) : 'divider',
-                        '& .MuiChip-icon': { color: active ? r.groupColor : '#9c8a84' },
+                        '& .MuiChip-icon': { color: active ? r.groupColor : '#5f4f47' },
                       }} />
                   );
                 })}
@@ -2955,7 +2955,7 @@ const ReportsPage = () => {
                   InputProps={{
                     startAdornment: (
                       <InputAdornment position="start">
-                        <Search size={14} color="#9c8a84" />
+                        <Search size={14} color="#5f4f47" />
                       </InputAdornment>
                     ),
                     endAdornment: searchText ? (
@@ -3388,12 +3388,12 @@ const ReportsPage = () => {
                   {detailContent.title}
                 </Typography>
                 {detailContent.subtitle && (
-                  <Typography sx={{ color: '#6b5550', fontSize: '0.74rem' }} noWrap>
+                  <Typography sx={{ color: '#57433e', fontSize: '0.74rem' }} noWrap>
                     {detailContent.subtitle}
                   </Typography>
                 )}
               </Box>
-              <IconButton size="small" onClick={() => setDetailDialog(null)} sx={{ color: '#6b5550', '&:hover': { bgcolor: 'rgba(92,31,34,0.08)' } }}>
+              <IconButton size="small" onClick={() => setDetailDialog(null)} sx={{ color: '#57433e', '&:hover': { bgcolor: 'rgba(92,31,34,0.08)' } }}>
                 <X size={17} />
               </IconButton>
             </Box>

@@ -129,7 +129,7 @@ function GSTDemo({ isDark, C }) {
   const fBdr = 'rgba(255,255,255,.12)';
 
   return (
-    <DemoCard isDark={isDark} C={C} accent='#9c8a84'
+    <DemoCard isDark={isDark} C={C} accent='#5f4f47'
       label="GST Auto-Calculation"
       title="Tax Calculated Automatically"
       desc="Select an item, enter quantity — CGST, SGST, and grand total update instantly. No manual tax math, ever."
@@ -180,7 +180,7 @@ function GSTDemo({ isDark, C }) {
                 padding: '5px 0', borderTop: '1px solid rgba(255,255,255,.12)',
                 fontWeight: 800, fontSize: '.78rem' }}>
                 <span style={{ color: 'rgba(255,255,255,.9)' }}>Grand Total</span>
-                <span style={{ color: '#9c8a84' }}>₹2,832</span>
+                <span style={{ color: '#5f4f47' }}>₹2,832</span>
               </div>
             </div>
           </div>
@@ -211,7 +211,7 @@ function WhatsAppDemo({ isDark, C }) {
 
           {/* action buttons */}
           <div style={{ display: 'flex', gap: 6 }}>
-            {[{ key:'Print', color:'#6b5550' }, { key:'WhatsApp', color: WA }, { key:'PDF', color:'#ef4444' }].map(({ key, color }) => {
+            {[{ key:'Print', color:'#57433e' }, { key:'WhatsApp', color: WA }, { key:'PDF', color:'#ef4444' }].map(({ key, color }) => {
               const isWA  = key === 'WhatsApp';
               const active = isWA && phase >= 1;
               return (
@@ -259,7 +259,7 @@ function StockDemo({ isDark, C }) {
   const phase = useLoop([2200, 1200, 2100]); // 0=normal 1=billing 2=updated
 
   return (
-    <DemoCard isDark={isDark} C={C} accent='#9c8a84'
+    <DemoCard isDark={isDark} C={C} accent='#5f4f47'
       label="Real-Time Inventory"
       title="Stock Updates on Every Sale"
       desc="When you create an invoice, stock levels drop automatically. Always know your exact inventory without manual counting."
@@ -269,7 +269,7 @@ function StockDemo({ isDark, C }) {
             borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ background: 'rgba(52,211,153,.12)', padding: '7px 12px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#9c8a84', letterSpacing: '.05em' }}>INVENTORY</span>
+              <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#5f4f47', letterSpacing: '.05em' }}>INVENTORY</span>
               <span style={{ fontSize: '.62rem', color: 'rgba(52,211,153,.6)', fontWeight: 600 }}>
                 {phase === 1 ? '⟳ Updating…' : 'Live'}
               </span>
@@ -288,10 +288,10 @@ function StockDemo({ isDark, C }) {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '.86rem', fontWeight: 800,
-                      color: updated ? '#9c8a84' : 'rgba(255,255,255,.65)',
+                      color: updated ? '#5f4f47' : 'rgba(255,255,255,.65)',
                       transition: 'color .4s',
                       animation: updated ? 'fd-stockFlash .5s ease' : 'none' }}>{qty}</div>
-                    {updated && <div style={{ fontSize: '.58rem', color: '#9c8a84', fontWeight: 700 }}>▼ auto-updated</div>}
+                    {updated && <div style={{ fontSize: '.58rem', color: '#5f4f47', fontWeight: 700 }}>▼ auto-updated</div>}
                   </div>
                 </div>
               );

@@ -420,7 +420,7 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
           {/* ── Header ── */}
           <Box sx={{ background: '#ffffff', borderBottom: '1px solid #ece2db', px: 2.5, py: 1.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box sx={{ bgcolor: '#9c8a84', borderRadius: 1.5, p: 0.6, display: 'flex' }}>
+              <Box sx={{ bgcolor: '#5f4f47', borderRadius: 1.5, p: 0.6, display: 'flex' }}>
                 {editingItem ? <Edit2 size={16} color="#5c1f22" /> : <Plus size={16} color="#5c1f22" />}
               </Box>
               <Box>
@@ -428,14 +428,14 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                   {editingItem ? 'Edit Item' : 'Add New Item'}
                 </Typography>
                 {editingItem && (
-                  <Typography sx={{ color: '#6b5550', fontSize: '0.7rem', lineHeight: 1.3 }}>
+                  <Typography sx={{ color: '#57433e', fontSize: '0.7rem', lineHeight: 1.3 }}>
                     {editingItem.name}
                   </Typography>
                 )}
               </Box>
             </Box>
             <IconButton size="small" onClick={onClose}
-              sx={{ color: '#6b5550', '&:hover': { bgcolor: 'rgba(92,31,34,0.08)' } }}>
+              sx={{ color: '#57433e', '&:hover': { bgcolor: 'rgba(92,31,34,0.08)' } }}>
               <CloseIcon size={17} />
             </IconButton>
           </Box>
@@ -832,7 +832,7 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                     bgcolor: hasRecipe ? alpha(primary, 0.06) : 'background.paper',
                   }}
                 >
-                  <Layers size={16} color={hasRecipe ? primary : '#9c8a84'} />
+                  <Layers size={16} color={hasRecipe ? primary : '#5f4f47'} />
                   <Box sx={{ flex: 1 }}>
                     <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: hasRecipe ? primary : 'text.primary' }}>
                       Made from other items (recipe)

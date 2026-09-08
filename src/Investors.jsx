@@ -132,7 +132,7 @@ const InvestorsPage = () => {
             </Box>
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 800, color: '#5c1f22', lineHeight: 1.1 }}>Investors</Typography>
-              <Typography variant="body2" sx={{ color: '#6b5550', mt: 0.25 }}>Ownership, capital & profit/loss split</Typography>
+              <Typography variant="body2" sx={{ color: '#57433e', mt: 0.25 }}>Ownership, capital & profit/loss split</Typography>
             </Box>
           </Box>
         </Box>
@@ -144,7 +144,7 @@ const InvestorsPage = () => {
             { label: 'Net Capital', value: fmtAmt(totalGiven - totalReceived), color: '#bbf7d0' },
           ].map(({ label, value, color }) => (
             <Box key={label} sx={{ bgcolor: 'rgba(92,31,34,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #ece2db' }}>
-              <Typography sx={{ color: '#6b5550', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>
+              <Typography sx={{ color: '#57433e', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>
                 {label}
               </Typography>
               <Typography sx={{ color, fontWeight: 800, fontSize: { xs: '0.9rem', sm: '1.05rem' } }}>{value}</Typography>
@@ -317,7 +317,7 @@ const InvestorsTab = ({ investors, primary, netCapitalFor, addItem, updateItem, 
                       </TableCell>
                       <TableCell align="center">
                         <Chip label={i.status === 'active' ? 'Active' : 'Inactive'} size="small"
-                          sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: i.status === 'active' ? alpha('#5c1f22', 0.1) : alpha('#9c8a84', 0.15), color: i.status === 'active' ? '#5c1f22' : '#6b5550' }} />
+                          sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: i.status === 'active' ? alpha('#5c1f22', 0.1) : alpha('#5f4f47', 0.15), color: i.status === 'active' ? '#5c1f22' : '#57433e' }} />
                       </TableCell>
                       <TableCell>
                         <IconButton size="small" onClick={(e) => { setMenuAnchor(e.currentTarget); setMenuInvestor(i); }}>
@@ -528,7 +528,7 @@ const CapitalLedgerTab = ({ investors, primary, capitalFor, addItem, updateItem,
                   border: '1.5px solid', transition: 'all 0.12s',
                   borderColor: form.type === v ? primary : '#e5e7eb',
                   bgcolor: form.type === v ? alpha(primary, 0.08) : '#fafafa',
-                  color: form.type === v ? primary : '#6b5550',
+                  color: form.type === v ? primary : '#57433e',
                 }}>
                 {label}
               </Box>
@@ -544,7 +544,7 @@ const CapitalLedgerTab = ({ investors, primary, capitalFor, addItem, updateItem,
                   border: '1.5px solid', transition: 'all 0.12s',
                   borderColor: form.paymentMode === mode ? primary : '#e5e7eb',
                   bgcolor: form.paymentMode === mode ? alpha(primary, 0.08) : '#fafafa',
-                  color: form.paymentMode === mode ? primary : '#6b5550',
+                  color: form.paymentMode === mode ? primary : '#57433e',
                 }}>
                 {mode}
               </Box>
@@ -645,7 +645,7 @@ const ProfitLossSplitTab = ({ investors, primary, sales, purchases, expenses, ca
       label: 'Unallocated (retained by business)',
       percent: `${unallocatedPercent}%`,
       share: fmtAmt(netProfit * unallocatedPercent / 100),
-      _color: '#9c8a84',
+      _color: '#5f4f47',
     }] : [];
     return {
       columns,
@@ -782,7 +782,7 @@ const ProfitLossSplitTab = ({ investors, primary, sales, purchases, expenses, ca
               {unallocatedPercent > 0 && (
                 <TableRow>
                   <TableCell sx={{ fontStyle: 'italic', color: 'text.disabled', fontSize: '0.8rem' }}>Unallocated (retained by business)</TableCell>
-                  <TableCell align="center"><Chip label={`${unallocatedPercent}%`} size="small" sx={{ fontWeight: 700, bgcolor: alpha('#9c8a84', 0.12), color: '#6b5550' }} /></TableCell>
+                  <TableCell align="center"><Chip label={`${unallocatedPercent}%`} size="small" sx={{ fontWeight: 700, bgcolor: alpha('#5f4f47', 0.12), color: '#57433e' }} /></TableCell>
                   <TableCell align="right" sx={{ color: 'text.disabled', fontSize: '0.85rem' }}>{fmtAmt(netProfit * unallocatedPercent / 100)}</TableCell>
                 </TableRow>
               )}

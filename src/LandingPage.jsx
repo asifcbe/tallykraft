@@ -59,7 +59,7 @@ const PLAN_FEATURES = [
 /* ── carousel examples ── */
 const EXAMPLES = [
   {
-    badge:'OPTICALS SHOP', icon:Eye, color:'#6b5550',
+    badge:'OPTICALS SHOP', icon:Eye, color:'#57433e',
     sectionTitle:'Eye Examination', heading:'Eye Exam + Order Tracking',
     desc:'Track every prescription linked to the customer. Store Right/Left eye readings, PD, Add power, frame choice, and lens type — printable as a prescription slip.',
     tabs:['Exam Details','Order Details'],
@@ -273,8 +273,8 @@ export default function LandingPage({ onLoginClick }) {
     border:       '#e8ddd6',
     text:         '#3f1417',
     soft:         '#5c1f22',
-    muted:        '#6b5550',
-    dim:          '#9c8a84',
+    muted:        '#57433e',
+    dim:          '#5f4f47',
     faint:        '#ddd0c9',
     navBg:        'rgba(255,255,255,0.92)',
     navBorder:    '#e8ddd6',
@@ -289,8 +289,8 @@ export default function LandingPage({ onLoginClick }) {
     heroBg:       'linear-gradient(135deg,#faf7f4 0%,#f6efe9 55%,#f3ece4 100%)',
     sectionAlt:   '#ffffff',
     cardShadow:   '0 2px 12px rgba(63,20,23,0.07)',
-    footerText:   '#9c8a84',
-    footerBrand:  '#6b5550',
+    footerText:   '#5f4f47',
+    footerBrand:  '#57433e',
     mockBg:       '#1e2130',
     mockField:    'rgba(255,255,255,0.07)',
     mockFieldBdr: 'rgba(255,255,255,0.12)',
@@ -309,9 +309,9 @@ export default function LandingPage({ onLoginClick }) {
     mockSubtitle: 'rgba(255,255,255,0.38)',
     pillInact:    'rgba(63,20,23,0.05)',
     pillInactBdr: '#e8ddd6',
-    pillInactTxt: '#6b5550',
-    priceLbl:     '#6b5550',
-    priceSub:     '#9c8a84',
+    pillInactTxt: '#57433e',
+    priceLbl:     '#57433e',
+    priceSub:     '#5f4f47',
   };
 
   return (
@@ -374,7 +374,7 @@ export default function LandingPage({ onLoginClick }) {
 
         /* shimmer headline */
         .grad-text {
-          background: linear-gradient(90deg,#c8a04e,#e6d3a8,#9c8a84,#c8a04e);
+          background: linear-gradient(90deg,#c8a04e,#e6d3a8,#5f4f47,#c8a04e);
           background-size: 300% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
@@ -548,7 +548,7 @@ export default function LandingPage({ onLoginClick }) {
         <div className="hero-chip" style={{ position:'absolute', top:'18%', right:'7%', background:isDark?'rgba(15,17,26,.85)':'rgba(255,255,255,.88)', backdropFilter:'blur(12px)', border:'1px solid rgba(92,31,34,.3)', borderRadius:14, padding:'10px 16px', boxShadow:'0 8px 28px rgba(92,31,34,.18)', animation:'floatChip 7s ease-in-out infinite', pointerEvents:'none', zIndex:1 }}>
           <div style={{ fontSize:'.62rem', color:P, fontWeight:700, letterSpacing:'.07em', marginBottom:3 }}>INVOICE CREATED</div>
           <div style={{ fontSize:'.88rem', fontWeight:800, color:isDark?'#fff':'#3f1417' }}>₹1,24,500</div>
-          <div style={{ fontSize:'.65rem', color:isDark?'rgba(255,255,255,.4)':'#9c8a84', marginTop:2 }}>INV-2025-0042 · GST 18%</div>
+          <div style={{ fontSize:'.65rem', color:isDark?'rgba(255,255,255,.4)':'#5f4f47', marginTop:2 }}>INV-2025-0042 · GST 18%</div>
         </div>
 
         <div className="hero-chip" style={{ position:'absolute', bottom:'24%', left:'5%', background:isDark?'rgba(15,17,26,.85)':'rgba(255,255,255,.88)', backdropFilter:'blur(12px)', border:'1px solid rgba(37,211,102,.35)', borderRadius:14, padding:'10px 16px', boxShadow:'0 8px 28px rgba(37,211,102,.15)', animation:'floatChip2 9s ease-in-out 1.2s infinite', pointerEvents:'none', zIndex:1 }}>

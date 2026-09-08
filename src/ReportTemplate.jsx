@@ -56,7 +56,7 @@ const ReportTemplate = forwardRef(({ reportData, business, filters, title, paper
       </div>
 
       <div style={{ backgroundColor: '#f6efe9', padding: '10px', borderRadius: '4px', marginBottom: '20px', border: '1px solid #e8ddd6' }}>
-        <h4 style={{ margin: '0 0 5px 0', fontSize: '11px', color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Report Period & Filters</h4>
+        <h4 style={{ margin: '0 0 5px 0', fontSize: '11px', color: '#57433e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Report Period & Filters</h4>
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
           {filters.periodLabel ? (
             <div><strong>Period:</strong> {filters.periodLabel}</div>
@@ -128,7 +128,7 @@ const ReportTemplate = forwardRef(({ reportData, business, filters, title, paper
       </table>
 
       {/* Footer */}
-      <div style={{ marginTop: 'auto', paddingTop: '40px', textAlign: 'center', color: '#9c8a84', fontSize: '10px' }}>
+      <div style={{ marginTop: 'auto', paddingTop: '40px', textAlign: 'center', color: '#5f4f47', fontSize: '10px' }}>
         <p>This is a computer-generated report and does not require a physical signature.</p>
         <p>© DIGITZEBRA Accounting Software</p>
       </div>

@@ -351,7 +351,7 @@ const SOURCES = [
 ];
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────
-const TYPE_COLORS = { items: '#5c1f22', customers: '#5c1f22', vendors: '#7c3aed', parties: '#7c3aed', sales: '#2563eb', purchases: '#dc2626', skip: '#9c8a84', unknown: '#9c8a84' };
+const TYPE_COLORS = { items: '#5c1f22', customers: '#5c1f22', vendors: '#7c3aed', parties: '#7c3aed', sales: '#2563eb', purchases: '#dc2626', skip: '#5f4f47', unknown: '#5f4f47' };
 const TYPE_ICONS  = { items: Package, customers: Users, vendors: Users, parties: Users, sales: TrendingUp, purchases: ShoppingCart, skip: X, unknown: Info };
 const TYPE_LABELS = { items: 'Items', customers: 'Customers', vendors: 'Vendors', parties: 'Parties', sales: 'Sales', purchases: 'Purchases', skip: 'Skip', unknown: 'Unknown' };
 const ALL_TYPES   = ['items', 'customers', 'vendors', 'parties', 'sales', 'purchases', 'skip'];
@@ -616,7 +616,7 @@ export default function MigrateData() {
         </Box>
         <Box sx={{ flex: 1 }}>
           <Typography sx={{ fontWeight: 800, color: '#5c1f22', fontSize: '1.05rem', lineHeight: 1.2 }}>Migrate from Another App</Typography>
-          <Typography sx={{ color: '#6b5550', fontSize: '0.78rem' }}>
+          <Typography sx={{ color: '#57433e', fontSize: '0.78rem' }}>
             Import your data from Vyapar, My Bill Book, or any Excel/CSV file
           </Typography>
         </Box>
@@ -714,7 +714,7 @@ export default function MigrateData() {
               '&:hover': { borderColor: '#5c1f22', bgcolor: alpha('#5c1f22', 0.03) },
             }}
           >
-            <Upload size={40} color="#9c8a84" style={{ marginBottom: 12 }} />
+            <Upload size={40} color="#5f4f47" style={{ marginBottom: 12 }} />
             <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 0.5 }}>
               Drop your Excel / CSV files here
             </Typography>
@@ -770,8 +770,8 @@ export default function MigrateData() {
                   const Icon = TYPE_ICONS[type] || Info;
                   return (
                     <Box key={sname} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.875, borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 'none' } }}>
-                      <Box sx={{ p: 0.625, borderRadius: 1, bgcolor: alpha(TYPE_COLORS[type] || '#9c8a84', 0.1), display: 'flex' }}>
-                        <Icon size={14} color={TYPE_COLORS[type] || '#9c8a84'} />
+                      <Box sx={{ p: 0.625, borderRadius: 1, bgcolor: alpha(TYPE_COLORS[type] || '#5f4f47', 0.1), display: 'flex' }}>
+                        <Icon size={14} color={TYPE_COLORS[type] || '#5f4f47'} />
                       </Box>
                       <Typography sx={{ flex: 1, fontSize: '0.82rem', fontWeight: 600 }}>{sname}</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>{rowCount} rows</Typography>

@@ -221,13 +221,13 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
                 {title}
               </Typography>
               {editingParty?.partyId && (
-                <Typography sx={{ color: '#6b5550', fontSize: '0.68rem', fontFamily: 'monospace' }}>
+                <Typography sx={{ color: '#57433e', fontSize: '0.68rem', fontFamily: 'monospace' }}>
                   {editingParty.partyId}
                 </Typography>
               )}
             </Box>
             <IconButton size="small" onClick={onClose}
-              sx={{ color: '#6b5550', '&:hover': { bgcolor: 'rgba(92,31,34,0.08)' } }}>
+              sx={{ color: '#57433e', '&:hover': { bgcolor: 'rgba(92,31,34,0.08)' } }}>
               <X size={17} />
             </IconButton>
           </Box>
@@ -459,7 +459,7 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
                       {[
-                        { dir: 'collect', label: 'To Collect', color: '#5c1f22', bg: '#6b5550' },
+                        { dir: 'collect', label: 'To Collect', color: '#5c1f22', bg: '#57433e' },
                         { dir: 'pay',     label: 'To Pay',     color: '#dc2626', bg: '#ef4444' },
                       ].map(({ dir, label, color, bg }) => {
                         const active = balanceDir === dir;

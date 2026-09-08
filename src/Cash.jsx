@@ -365,7 +365,7 @@ const Cash = () => {
             p: 1, borderRadius: 2, display: 'flex',
             background: activeTab === 'cash'
               ? `linear-gradient(135deg, ${cashColor}, #22d3ee)`
-              : `linear-gradient(135deg, ${bankColor}, #6b5550)`,
+              : `linear-gradient(135deg, ${bankColor}, #57433e)`,
             boxShadow: `0 4px 12px ${alpha(activeTab === 'cash' ? cashColor : bankColor, 0.35)}`,
             transition: 'all 0.25s ease',
           }}>

@@ -176,7 +176,7 @@ const ColumnOrderEditor = ({ bpo, getChecked, primary, dragKeyRef, onChange }) =
             }}
           >
             <GripVertical size={14} color="#b0b8c1" style={{ flexShrink: 0 }} />
-            <Typography sx={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: isOn ? '#3f1417' : '#9c8a84' }}>
+            <Typography sx={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: isOn ? '#3f1417' : '#5f4f47' }}>
               {COLUMN_LABELS[key]}
             </Typography>
             {!isOn && (
@@ -238,7 +238,7 @@ const CustomTemplateEditor = ({ customTemplate, primary, dragKeyRef, onChange })
           >
             <GripVertical size={16} color="#b0b8c1" style={{ flexShrink: 0 }} />
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: isOn ? '#3f1417' : '#9c8a84', lineHeight: 1.3 }}>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: isOn ? '#3f1417' : '#5f4f47', lineHeight: 1.3 }}>
                 {meta?.label || s.key}
               </Typography>
               <Typography sx={{ fontSize: '0.7rem', color: isOn ? 'text.secondary' : '#c0c7d1', lineHeight: 1.3 }}>
@@ -928,8 +928,8 @@ const SettingsPage = () => {
       <Switch size="small" checked={checked} disabled={disabled}
         onChange={e => { e.stopPropagation(); onChange(e.target.checked); }} sx={{ flexShrink: 0 }} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', lineHeight: 1.2, color: checked ? '#3f1417' : '#6b5550' }}>{label}</Typography>
-        {desc && <Typography variant="caption" sx={{ color: '#9c8a84', lineHeight: 1.2, fontSize: '0.72rem' }}>{desc}</Typography>}
+        <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', lineHeight: 1.2, color: checked ? '#3f1417' : '#57433e' }}>{label}</Typography>
+        {desc && <Typography variant="caption" sx={{ color: '#5f4f47', lineHeight: 1.2, fontSize: '0.72rem' }}>{desc}</Typography>}
       </Box>
     </Box>
   );
@@ -941,7 +941,7 @@ const SettingsPage = () => {
         <Icon size={15} color={primary} style={{ flexShrink: 0, opacity: 0.8 }} />
         <Box>
           <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.3, color: '#3f1417' }}>{title}</Typography>
-          {subtitle && <Typography variant="caption" sx={{ color: '#6b5550', lineHeight: 1.4, display: 'block' }}>{subtitle}</Typography>}
+          {subtitle && <Typography variant="caption" sx={{ color: '#57433e', lineHeight: 1.4, display: 'block' }}>{subtitle}</Typography>}
         </Box>
       </Box>
       {action}
@@ -1074,7 +1074,7 @@ const SettingsPage = () => {
         <Box>
           <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.2, color: '#3f1417' }}>Settings</Typography>
           {currentBusiness && (
-            <Typography sx={{ color: '#6b5550', fontSize: '0.82rem' }}>{currentBusiness.name}</Typography>
+            <Typography sx={{ color: '#57433e', fontSize: '0.82rem' }}>{currentBusiness.name}</Typography>
           )}
         </Box>
       </Box>
@@ -1119,7 +1119,7 @@ const SettingsPage = () => {
               {/* Search */}
               <Box sx={{ px: 1.5, pt: 1.5, pb: 0.75 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.875, borderRadius: '10px', bgcolor: '#f6efe9', border: '1px solid #e8ddd6' }}>
-                  <Search size={13} color="#9c8a84" />
+                  <Search size={13} color="#5f4f47" />
                   <Box component="input"
                     placeholder="Search…"
                     value={navSearch}
@@ -1155,7 +1155,7 @@ const SettingsPage = () => {
             {/* Quick Toggles */}
             <Box sx={{ bgcolor: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', overflow: 'hidden' }}>
               <Box sx={{ px: 1.75, py: 1.25, borderBottom: '1px solid #f6efe9' }}>
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick Toggles</Typography>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick Toggles</Typography>
               </Box>
               <Box sx={{ px: 1.5, py: 0.75 }}>
                 {[
@@ -1170,8 +1170,8 @@ const SettingsPage = () => {
                     <Box key={key} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.6, cursor: 'pointer' }}
                       onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        <Icon size={12} color={on ? primary : '#9c8a84'} />
-                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 500, color: on ? '#3f1417' : '#6b5550' }}>{label}</Typography>
+                        <Icon size={12} color={on ? primary : '#5f4f47'} />
+                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 500, color: on ? '#3f1417' : '#57433e' }}>{label}</Typography>
                       </Box>
                       <Switch size="small" checked={on} disabled={featuresSaving}
                         onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }}
@@ -1226,7 +1226,7 @@ const SettingsPage = () => {
                           {STATE_NAMES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                         </Select>
                       </FormControl>
-                      <Typography variant="caption" sx={{ color: '#9c8a84', fontSize: '0.68rem', display: 'block', mt: 0.375 }}>
+                      <Typography variant="caption" sx={{ color: '#5f4f47', fontSize: '0.68rem', display: 'block', mt: 0.375 }}>
                         Used as the GST "Place of Supply" on every bill
                       </Typography>
                     </Grid>
@@ -1262,7 +1262,7 @@ const SettingsPage = () => {
                         <Landmark size={13} color={primary} style={{ opacity: 0.7 }} />
                         <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#3f1417' }}>Bank & UPI Details</Typography>
                       </Box>
-                      <Typography variant="caption" sx={{ color: '#9c8a84', fontSize: '0.7rem', display: 'block', mt: 0.25 }}>
+                      <Typography variant="caption" sx={{ color: '#5f4f47', fontSize: '0.7rem', display: 'block', mt: 0.25 }}>
                         Shown on printed bills when "Bank Details" is enabled in Invoice settings — the payment QR appears with the UPI ID/number below it.
                       </Typography>
                     </Grid>
@@ -1281,7 +1281,7 @@ const SettingsPage = () => {
                               <QrCode size={20} color={alpha(primary, 0.45)} />
                             </Box>
                           )}
-                          <Typography sx={{ fontSize: '0.62rem', color: '#9c8a84', fontWeight: 600, mt: 0.375, lineHeight: 1.2 }}>
+                          <Typography sx={{ fontSize: '0.62rem', color: '#5f4f47', fontWeight: 600, mt: 0.375, lineHeight: 1.2 }}>
                             {formData.upiId ? 'Payment QR' : 'Add UPI ID →'}
                           </Typography>
                         </Box>
@@ -1337,7 +1337,7 @@ const SettingsPage = () => {
                 </Box>
                 <CardContent sx={{ p: 2 }}>
                   <Box sx={{ maxWidth: 200, mx: 'auto', border: '1px dashed #d1d5db', borderRadius: '10px', p: 1.5, textAlign: 'center' }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#6b5550', display: 'block', mb: 1, fontSize: '0.72rem' }}>LOGO</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#57433e', display: 'block', mb: 1, fontSize: '0.72rem' }}>LOGO</Typography>
                     {currentBusiness?.logo ? (
                       <Box>
                         <img src={currentBusiness.logo} alt="Logo" style={{ maxHeight: 56, maxWidth: '100%', objectFit: 'contain', display: 'block', margin: '0 auto 8px' }} />
@@ -1412,13 +1412,13 @@ const SettingsPage = () => {
           <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Package size={13} color={primary} style={{ opacity: 0.7 }} />
             <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Sections & Modules</Typography>
-            <Typography variant="caption" sx={{ color: '#9c8a84', ml: 0.5 }}>
+            <Typography variant="caption" sx={{ color: '#5f4f47', ml: 0.5 }}>
               — hidden when off · applies to {currentBusiness?.name || 'this business'} only
             </Typography>
           </Box>
           <CardContent sx={{ p: 1.5 }}>
             {/* Core */}
-            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75 }}>Core</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75 }}>Core</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 0.5, mb: 1.5 }}>
               {[
                 { key: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
@@ -1439,8 +1439,8 @@ const SettingsPage = () => {
                 return (
                   <Box key={key} onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}
                     sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f6efe9' } }}>
-                    <Icon size={13} color={on ? primary : '#9c8a84'} style={{ flexShrink: 0 }} />
-                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#9c8a84', lineHeight: 1.2 }}>{label}</Typography>
+                    <Icon size={13} color={on ? primary : '#5f4f47'} style={{ flexShrink: 0 }} />
+                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#5f4f47', lineHeight: 1.2 }}>{label}</Typography>
                     <Switch size="small" checked={on} disabled={featuresSaving} onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }} sx={{ transform: 'scale(0.8)', mr: -0.5 }} />
                   </Box>
                 );
@@ -1448,7 +1448,7 @@ const SettingsPage = () => {
             </Box>
             <Divider sx={{ my: 1 }} />
             {/* Optional */}
-            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75, mt: 1 }}>Optional Modules</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75, mt: 1 }}>Optional Modules</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 0.5 }}>
               {[
                 { key: 'estimates',     icon: FileSearch,   label: 'Estimates' },
@@ -1467,8 +1467,8 @@ const SettingsPage = () => {
                 return (
                   <Box key={key} onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}
                     sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f6efe9' } }}>
-                    <Icon size={13} color={on ? primary : '#9c8a84'} style={{ flexShrink: 0 }} />
-                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#9c8a84', lineHeight: 1.2 }}>{label}</Typography>
+                    <Icon size={13} color={on ? primary : '#5f4f47'} style={{ flexShrink: 0 }} />
+                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#5f4f47', lineHeight: 1.2 }}>{label}</Typography>
                     <Switch size="small" checked={on} disabled={featuresSaving} onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }} sx={{ transform: 'scale(0.8)', mr: -0.5 }} />
                   </Box>
                 );
@@ -1476,7 +1476,7 @@ const SettingsPage = () => {
             </Box>
             <Divider sx={{ my: 1 }} />
             {/* Sales & POS options */}
-            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75, mt: 1 }}>Sales & POS Options</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75, mt: 1 }}>Sales & POS Options</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 0.5 }}>
               {[
                 { key: 'customerPreview',        icon: Users,       label: 'Customer Preview Panel' },
@@ -1493,8 +1493,8 @@ const SettingsPage = () => {
                 return (
                   <Box key={key} onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}
                     sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f6efe9' } }}>
-                    <Icon size={13} color={on ? primary : '#9c8a84'} style={{ flexShrink: 0 }} />
-                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#9c8a84', lineHeight: 1.2 }}>{label}</Typography>
+                    <Icon size={13} color={on ? primary : '#5f4f47'} style={{ flexShrink: 0 }} />
+                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#5f4f47', lineHeight: 1.2 }}>{label}</Typography>
                     <Switch size="small" checked={on} disabled={featuresSaving} onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }} sx={{ transform: 'scale(0.8)', mr: -0.5 }} />
                   </Box>
                 );
@@ -1515,7 +1515,7 @@ const SettingsPage = () => {
               { key: 'gst', icon: Percent, label: 'GST Defaults', dirty: isDirty.gst },
             ].map(({ key, icon: Icon, label, dirty }) => (
               <Box key={key} onClick={() => setAdvancedTab(key)}
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, cursor: 'pointer', borderBottom: advancedTab === key ? `2px solid ${primary}` : '2px solid transparent', color: advancedTab === key ? primary : '#6b5550', transition: 'all 0.15s', '&:hover': { color: primary } }}>
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, cursor: 'pointer', borderBottom: advancedTab === key ? `2px solid ${primary}` : '2px solid transparent', color: advancedTab === key ? primary : '#57433e', transition: 'all 0.15s', '&:hover': { color: primary } }}>
                 <Icon size={13} />
                 <Typography sx={{ fontSize: '0.82rem', fontWeight: advancedTab === key ? 700 : 500 }}>{label}</Typography>
                 {dirty && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'warning.main' }} />}
@@ -1815,7 +1815,7 @@ const SettingsPage = () => {
                       value={loyaltyEff.programName ?? 'Reward Points'}
                       onChange={e => setLoyaltyDraft(d => ({ ...(d ?? config.loyalty ?? {}), programName: e.target.value }))} sx={fieldSx} />
                     <Box sx={{ p: 1.5, borderRadius: '10px', border: '1px solid #e5e7eb', bgcolor: '#fafafa' }}>
-                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1 }}>Earn Rule</Typography>
+                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#57433e', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1 }}>Earn Rule</Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
                         <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>Customer earns</Typography>
                         <TextField size="small" type="number" value={loyaltyEff.pointsPerRupee ?? 1}
@@ -1834,7 +1834,7 @@ const SettingsPage = () => {
                       </Typography>
                     </Box>
                     <Box sx={{ p: 1.5, borderRadius: '10px', border: '1px solid #e5e7eb', bgcolor: '#fafafa' }}>
-                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1 }}>Redeem Rule</Typography>
+                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#57433e', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1 }}>Redeem Rule</Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.75 }}>
                         <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>1 pt =</Typography>
                         <TextField size="small" type="number" value={loyaltyEff.rupeePerPoint ?? 0.25}
@@ -1906,12 +1906,12 @@ const SettingsPage = () => {
                       return (
                         <Box sx={{ display: 'flex', gap: 1, p: 1, borderRadius: '10px', bgcolor: '#f6efe9', border: '1px solid #e5e7eb' }}>
                           <Box sx={{ flex: 1, textAlign: 'center', py: 0.5 }}>
-                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.04em' }}>CGST</Typography>
+                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#57433e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>CGST</Typography>
                             <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#3f1417' }}>{half}%</Typography>
                           </Box>
                           <Box sx={{ width: '1px', bgcolor: '#e5e7eb' }} />
                           <Box sx={{ flex: 1, textAlign: 'center', py: 0.5 }}>
-                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{secondLabel}</Typography>
+                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#57433e', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{secondLabel}</Typography>
                             <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#3f1417' }}>{half}%</Typography>
                           </Box>
                         </Box>
@@ -1971,7 +1971,7 @@ const SettingsPage = () => {
                           cursor: 'pointer', transition: 'background 0.12s',
                           '&:hover': { bgcolor: '#f6efe9' },
                         }}>
-                        <Typography sx={{ fontWeight: 500, fontSize: '0.82rem', color: on ? '#3f1417' : '#9c8a84', lineHeight: 1.2 }}>{label}</Typography>
+                        <Typography sx={{ fontWeight: 500, fontSize: '0.82rem', color: on ? '#3f1417' : '#5f4f47', lineHeight: 1.2 }}>{label}</Typography>
                         <Switch size="small" checked={on} onChange={e => { e.stopPropagation(); setBarcodeDraft(d => ({ ...(d ?? config.barcodeLabel ?? {}), [key]: e.target.checked })); }} />
                       </Box>
                     );
@@ -2254,7 +2254,7 @@ const SettingsPage = () => {
           <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Package size={13} color={primary} style={{ opacity: 0.7 }} />
             <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Custom Sections</Typography>
-            <Typography variant="caption" sx={{ color: '#9c8a84', ml: 0.5 }}>
+            <Typography variant="caption" sx={{ color: '#5f4f47', ml: 0.5 }}>
               — applies to {currentBusiness?.name || 'this business'} only
             </Typography>
           </Box>
@@ -2358,7 +2358,7 @@ const SettingsPage = () => {
                         return (
                           <Box key={value} onClick={() => saveConfig({ ...config, [key]: value })}
                             sx={{ px: 1.5, py: 0.4, cursor: 'pointer', fontWeight: 700, fontSize: '0.75rem', transition: 'all 0.12s', userSelect: 'none',
-                              bgcolor: active ? primary : 'transparent', color: active ? '#fff' : '#6b5550',
+                              bgcolor: active ? primary : 'transparent', color: active ? '#fff' : '#57433e',
                               '&:hover': { bgcolor: active ? primary : '#f6efe9' } }}>
                             {lbl}
                           </Box>
@@ -2372,7 +2372,7 @@ const SettingsPage = () => {
 
             {/* Invoice Numbering */}
             <Box sx={{ pt: 1.5, borderTop: '1px solid #f6efe9' }}>
-              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#6b5550', mb: 1.25, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Numbering</Typography>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#57433e', mb: 1.25, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Numbering</Typography>
               <Grid container spacing={1.5}>
                 {[
                   { label: 'Sales', typeKey: 'salesType', prefixKey: 'salesPrefix', numKey: 'salesStartingNumber', prefixDef: 'INV', resetKey: 'salesCounterOverride' },
@@ -2723,8 +2723,8 @@ const SettingsPage = () => {
                                     }}>
                                     <Switch size="small" checked={isChecked} onChange={() => toggle(key)} sx={{ flexShrink: 0 }} />
                                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                                      <Typography sx={{ fontWeight: 500, fontSize: '0.82rem', lineHeight: 1.2, color: isChecked ? '#3f1417' : '#6b5550' }}>{label}</Typography>
-                                      <Typography variant="caption" sx={{ color: '#9c8a84', lineHeight: 1.2, fontSize: '0.72rem' }}>{desc}</Typography>
+                                      <Typography sx={{ fontWeight: 500, fontSize: '0.82rem', lineHeight: 1.2, color: isChecked ? '#3f1417' : '#57433e' }}>{label}</Typography>
+                                      <Typography variant="caption" sx={{ color: '#5f4f47', lineHeight: 1.2, fontSize: '0.72rem' }}>{desc}</Typography>
                                     </Box>
                                   </Box>
                                 );
@@ -2827,7 +2827,7 @@ const SettingsPage = () => {
               {/* Business Code */}
               {scopedBiz?.businessCode && (
                 <Box sx={{ flex: '1 1 200px', px: 2, py: 1.5, borderRight: { sm: '1px solid #f6efe9' }, borderBottom: { xs: '1px solid #f6efe9', sm: 'none' } }}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Business Code</Typography>
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Business Code</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 1, borderRadius: '8px', bgcolor: alpha(primary, 0.05), border: `1px solid ${alpha(primary, 0.12)}` }}>
                     <Typography sx={{ fontWeight: 900, letterSpacing: 5, fontFamily: 'monospace', color: primary, fontSize: '1.2rem', flex: 1 }}>
                       {scopedBiz.businessCode}
@@ -2838,14 +2838,14 @@ const SettingsPage = () => {
                       </IconButton>
                     </Tooltip>
                   </Box>
-                  <Typography variant="caption" sx={{ color: '#9c8a84', mt: 0.75, display: 'block' }}>Share with staff for login to this business</Typography>
+                  <Typography variant="caption" sx={{ color: '#5f4f47', mt: 0.75, display: 'block' }}>Share with staff for login to this business</Typography>
                 </Box>
               )}
 
               {/* Admin Password */}
               <Box sx={{ flex: '2 1 320px', px: 2, py: 1.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Admin Password</Typography>
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Admin Password</Typography>
                   {scopedBiz?.adminPassword && <Chip label="Active" size="small" sx={{ height: 16, fontSize: '0.65rem', bgcolor: alpha('#16a34a', 0.1), color: '#16a34a', fontWeight: 700 }} />}
                 </Box>
                 {adminPwdMsg.text && (
@@ -2891,7 +2891,7 @@ const SettingsPage = () => {
                 <Lock size={13} color={primary} style={{ opacity: 0.7, flexShrink: 0 }} />
                 <Box>
                   <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Business Switch Lock</Typography>
-                  <Typography variant="caption" sx={{ color: '#9c8a84' }}>
+                  <Typography variant="caption" sx={{ color: '#5f4f47' }}>
                     {config.features?.businessSwitchLock
                       ? 'Switching businesses requires the admin password.'
                       : 'Off — anyone can switch businesses freely.'}
@@ -2933,7 +2933,7 @@ const SettingsPage = () => {
                 {staffList.length === 0 ? (
                   <Box sx={{ py: 5, textAlign: 'center', px: 2 }}>
                     <Users size={28} color={alpha(primary, 0.2)} style={{ margin: '0 auto 8px' }} />
-                    <Typography variant="caption" sx={{ color: '#9c8a84', display: 'block', fontWeight: 600 }}>No staff yet</Typography>
+                    <Typography variant="caption" sx={{ color: '#5f4f47', display: 'block', fontWeight: 600 }}>No staff yet</Typography>
                   </Box>
                 ) : (
                   <Box sx={{ p: 1 }}>
@@ -2957,8 +2957,8 @@ const SettingsPage = () => {
                               {s.name}
                             </Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: s.active !== false ? '#16a34a' : '#9c8a84', flexShrink: 0 }} />
-                              <Typography sx={{ fontSize: '0.7rem', color: '#9c8a84', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{s.username}</Typography>
+                              <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: s.active !== false ? '#16a34a' : '#5f4f47', flexShrink: 0 }} />
+                              <Typography sx={{ fontSize: '0.7rem', color: '#5f4f47', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{s.username}</Typography>
                             </Box>
                           </Box>
                           <Tooltip title="Delete">
@@ -2978,14 +2978,14 @@ const SettingsPage = () => {
               {/* Right: staff form */}
               <Box sx={{ flex: 1, p: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: '#57433e', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {selectedStaff ? `Editing — ${selectedStaff.name}` : 'New Staff Account'}
                   </Typography>
                 </Box>
 
                 {/* Identity row — login credentials */}
                 <Box sx={{ mb: 1 }}>
-                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Login Credentials</Typography>
+                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Login Credentials</Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     <TextField size="small" label="Full Name *" value={staffForm.name} placeholder="e.g. Rahul Kumar"
                       onChange={e => setStaffForm(f => ({ ...f, name: e.target.value }))} sx={{ ...fieldSx, flex: '1 1 140px' }} />
@@ -3007,7 +3007,7 @@ const SettingsPage = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: '#fafafa', flexShrink: 0, height: 40 }}>
                       <Switch size="small" checked={staffForm.active} color="success"
                         onChange={e => setStaffForm(f => ({ ...f, active: e.target.checked }))} />
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: staffForm.active ? '#16a34a' : '#9c8a84', whiteSpace: 'nowrap' }}>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: staffForm.active ? '#16a34a' : '#5f4f47', whiteSpace: 'nowrap' }}>
                         {staffForm.active ? 'Active' : 'Inactive'}
                       </Typography>
                     </Box>
@@ -3016,7 +3016,7 @@ const SettingsPage = () => {
 
                 {/* HR details */}
                 <Box sx={{ pt: 1, borderTop: '1px solid #f6efe9', mb: 1 }}>
-                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>HR Details</Typography>
+                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>HR Details</Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     <TextField size="small" select label="Role" value={staffForm.role || 'Sales Staff'}
                       onChange={e => setStaffForm(f => ({ ...f, role: e.target.value }))} sx={{ ...fieldSx, flex: '1 1 120px' }}>
@@ -3042,7 +3042,7 @@ const SettingsPage = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: '#fafafa', height: 40, flexShrink: 0 }}>
                       <Switch size="small" checked={!!staffForm.showInSalesSelector}
                         onChange={e => setStaffForm(f => ({ ...f, showInSalesSelector: e.target.checked }))} />
-                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b5550', whiteSpace: 'nowrap' }}>Show in Sales/POS</Typography>
+                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#57433e', whiteSpace: 'nowrap' }}>Show in Sales/POS</Typography>
                     </Box>
                   </Box>
                 </Box>
@@ -3050,12 +3050,12 @@ const SettingsPage = () => {
                 {/* Permissions */}
                 <Box sx={{ pt: 1, borderTop: '1px solid #f6efe9' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Permissions</Typography>
+                    <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Permissions</Typography>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
                       <Button size="small" onClick={() => setStaffForm(f => ({ ...f, features: STAFF_FEATURE_KEYS.reduce((a, k) => ({ ...a, [k]: true }), {}) }))}
                         sx={{ fontSize: '0.68rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: primary, '&:hover': { bgcolor: alpha(primary, 0.06) } }}>All On</Button>
                       <Button size="small" onClick={() => setStaffForm(f => ({ ...f, features: STAFF_FEATURE_KEYS.reduce((a, k) => ({ ...a, [k]: false }), {}) }))}
-                        sx={{ fontSize: '0.68rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#9c8a84', '&:hover': { bgcolor: '#f6efe9' } }}>All Off</Button>
+                        sx={{ fontSize: '0.68rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#5f4f47', '&:hover': { bgcolor: '#f6efe9' } }}>All Off</Button>
                     </Box>
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
@@ -3076,7 +3076,7 @@ const SettingsPage = () => {
                                   '&:hover': { bgcolor: on ? alpha(primary, 0.08) : '#f6efe9' },
                                 }}>
                                 <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: on ? primary : '#e8ddd6', flexShrink: 0, transition: 'background 0.12s' }} />
-                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: on ? primary : '#6b5550', lineHeight: 1.2, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: on ? primary : '#57433e', lineHeight: 1.2, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {STAFF_FEATURE_LABELS[key] || key}
                                 </Typography>
                               </Box>
@@ -3128,7 +3128,7 @@ const SettingsPage = () => {
           <CardContent sx={{ p: 2 }}>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 5, md: 4 }}>
-                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#6b5550', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.language')}</Typography>
+                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#57433e', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.language')}</Typography>
                 <TextField select size="small" fullWidth value={lang} onChange={(e) => setLang(e.target.value)} sx={fieldSx}>
                   {languages.map((l) => (
                     <MenuItem key={l.code} value={l.code}>{l.native}{l.native !== l.label ? ` · ${l.label}` : ''}</MenuItem>
@@ -3136,7 +3136,7 @@ const SettingsPage = () => {
                 </TextField>
               </Grid>
               <Grid size={{ xs: 12, sm: 7, md: 8 }}>
-                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#6b5550', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Display Options</Typography>
+                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#57433e', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Display Options</Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                   {[
                     { key: 'compactTables', label: 'Compact Tables', desc: 'Smaller row height in lists' },
@@ -3179,7 +3179,7 @@ const SettingsPage = () => {
             </Button>
           </Box>
           <CardContent sx={{ p: 2 }}>
-            <Typography sx={{ fontSize: '0.78rem', color: '#6b5550', mb: 1.5 }}>
+            <Typography sx={{ fontSize: '0.78rem', color: '#57433e', mb: 1.5 }}>
               Drag items to rearrange the left navigation menu. Section labels stay attached to whichever item is above them.
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxWidth: 420 }}>
@@ -3190,7 +3190,7 @@ const SettingsPage = () => {
                 return (
                   <React.Fragment key={item.path}>
                     {showGroupLabel && (
-                      <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mt: idx > 0 ? 1 : 0, mb: 0.25 }}>
+                      <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.06em', mt: idx > 0 ? 1 : 0, mb: 0.25 }}>
                         {item._group}
                       </Typography>
                     )}
@@ -3208,7 +3208,7 @@ const SettingsPage = () => {
                       }}
                     >
                       <GripVertical size={14} color="#b0b8c1" style={{ flexShrink: 0 }} />
-                      {Icon && <Icon size={15} color="#6b5550" style={{ flexShrink: 0 }} />}
+                      {Icon && <Icon size={15} color="#57433e" style={{ flexShrink: 0 }} />}
                       <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#3f1417' }}>{item.text}</Typography>
                     </Box>
                   </React.Fragment>

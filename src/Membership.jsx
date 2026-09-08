@@ -319,7 +319,7 @@ const MembershipPage = () => {
             </Box>
             <Box>
               <Typography variant="h5" sx={{ fontWeight: 800, color: '#5c1f22', lineHeight: 1.1 }}>Memberships</Typography>
-              <Typography variant="body2" sx={{ color: '#6b5550', mt: 0.25 }}>Recurring subscriptions & billing</Typography>
+              <Typography variant="body2" sx={{ color: '#57433e', mt: 0.25 }}>Recurring subscriptions & billing</Typography>
             </Box>
           </Box>
           <Button variant="contained" disableElevation startIcon={<Plus size={15} />} onClick={openAdd}
@@ -335,7 +335,7 @@ const MembershipPage = () => {
             { label: 'Monthly Revenue', value: fmtAmt(monthlyMRR), color: '#bbf7d0' },
           ].map(({ label, value, color }) => (
             <Box key={label} sx={{ bgcolor: 'rgba(92,31,34,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #ece2db' }}>
-              <Typography sx={{ color: '#6b5550', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>
+              <Typography sx={{ color: '#57433e', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>
                 {label}
               </Typography>
               <Typography sx={{ color, fontWeight: 800, fontSize: { xs: '0.9rem', sm: '1.05rem' } }}>{value}</Typography>

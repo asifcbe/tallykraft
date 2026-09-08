@@ -72,13 +72,13 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
       {/* Patient Info */}
       <div style={{ marginBottom: '40px', backgroundColor: '#f6efe9', padding: '15px', borderRadius: '8px' }}>
         <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
-          <div><span style={{ color: '#6b5550', fontSize: '12px', textTransform: 'uppercase' }}>Patient Name:</span> <br/> <strong style={{ fontSize: '18px' }}>{patientName}</strong></div>
-          <div><span style={{ color: '#6b5550', fontSize: '12px', textTransform: 'uppercase' }}>Phone:</span> <br/> <strong style={{ fontSize: '18px' }}>{phone || 'N/A'}</strong></div>
+          <div><span style={{ color: '#57433e', fontSize: '12px', textTransform: 'uppercase' }}>Patient Name:</span> <br/> <strong style={{ fontSize: '18px' }}>{patientName}</strong></div>
+          <div><span style={{ color: '#57433e', fontSize: '12px', textTransform: 'uppercase' }}>Phone:</span> <br/> <strong style={{ fontSize: '18px' }}>{phone || 'N/A'}</strong></div>
           {gender && (
-            <div><span style={{ color: '#6b5550', fontSize: '12px', textTransform: 'uppercase' }}>Gender:</span> <br/> <strong style={{ fontSize: '18px' }}>{gender}</strong></div>
+            <div><span style={{ color: '#57433e', fontSize: '12px', textTransform: 'uppercase' }}>Gender:</span> <br/> <strong style={{ fontSize: '18px' }}>{gender}</strong></div>
           )}
           {age && (
-            <div><span style={{ color: '#6b5550', fontSize: '12px', textTransform: 'uppercase' }}>Age:</span> <br/> <strong style={{ fontSize: '18px' }}>{age} yrs</strong></div>
+            <div><span style={{ color: '#57433e', fontSize: '12px', textTransform: 'uppercase' }}>Age:</span> <br/> <strong style={{ fontSize: '18px' }}>{age} yrs</strong></div>
           )}
         </div>
       </div>
@@ -124,18 +124,18 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
       {/* Recommendations */}
       <div style={{ display: 'flex', gap: '30px', marginBottom: '40px' }}>
         <div style={{ flex: 1 }}>
-          <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b5550', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Frame Recommended</h4>
+          <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#57433e', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Frame Recommended</h4>
           <div style={{ padding: '10px', border: '1px solid #e8ddd6', borderRadius: '4px', minHeight: '40px' }}>{frameType || 'N/A'}</div>
         </div>
         <div style={{ flex: 1 }}>
-          <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b5550', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Lens Recommended</h4>
+          <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#57433e', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Lens Recommended</h4>
           <div style={{ padding: '10px', border: '1px solid #e8ddd6', borderRadius: '4px', minHeight: '40px' }}>{lensType || 'N/A'}</div>
         </div>
       </div>
 
       {/* Clinical Notes */}
       <div style={{ marginBottom: '60px' }}>
-        <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b5550', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Clinical Notes & Advice</h4>
+        <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#57433e', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Clinical Notes & Advice</h4>
         <div style={{ padding: '15px', border: '1px solid #e8ddd6', borderRadius: '4px', minHeight: '80px', fontSize: '14px', color: '#5c1f22' }}>
           {notes || 'No additional notes.'}
         </div>
@@ -143,7 +143,7 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
 
       {/* Footer */}
       <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '40px' }}>
-        <div style={{ fontSize: '10px', color: '#9c8a84' }}>
+        <div style={{ fontSize: '10px', color: '#5f4f47' }}>
           <p>© DIGITZEBRA Optical Management</p>
           <p>This prescription is valid for 6 months from the date of examination.</p>
         </div>

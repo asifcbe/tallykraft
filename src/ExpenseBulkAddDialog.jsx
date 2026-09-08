@@ -81,10 +81,10 @@ export default function ExpenseBulkAddDialog({ open, onClose, onSuccess }) {
           <TrendingDown size={18} color="#5c1f22" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="overline" sx={{ color: '#6b5550', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>EXPENSES</Typography>
+          <Typography variant="overline" sx={{ color: '#57433e', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>EXPENSES</Typography>
           <Typography variant="h6" sx={{ color: '#5c1f22', fontWeight: 800, lineHeight: 1.2 }}>Bulk Add Expenses</Typography>
         </Box>
-        <IconButton onClick={onClose} disabled={saving} sx={{ color: '#6b5550' }}><X size={20} /></IconButton>
+        <IconButton onClick={onClose} disabled={saving} sx={{ color: '#57433e' }}><X size={20} /></IconButton>
       </Box>
 
       <DialogContent sx={{ p: 0, overflow: 'auto' }}>

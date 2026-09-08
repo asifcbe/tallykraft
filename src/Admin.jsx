@@ -1026,7 +1026,7 @@ const Admin = () => {
               <StatCard icon={Award}        label="Admin Granted"   value={stats.adminGranted} color="#8b5cf6" />
             </Grid>
             <Grid item xs={6} sm={4} md={2.4}>
-              <StatCard icon={BarChart3}    label="No Subscription" value={stats.noSub}        color="#6b5550" />
+              <StatCard icon={BarChart3}    label="No Subscription" value={stats.noSub}        color="#57433e" />
             </Grid>
           </Grid>
 
@@ -1994,14 +1994,14 @@ const Admin = () => {
                       title: 'Light Theme',
                       desc: 'Clean white background with soft shadows. Modern and professional.',
                       color: '#1976d2',
-                      preview: { bg: '#f6efe9', text: '#3f1417', accent: '#6b5550' },
+                      preview: { bg: '#f6efe9', text: '#3f1417', accent: '#57433e' },
                     },
                     {
                       value: 'dark',
                       title: 'Dark Theme',
                       desc: 'Deep dark background with glowing accents. Sleek and dramatic.',
                       color: '#7c3aed',
-                      preview: { bg: '#090a0f', text: '#ffffff', accent: '#9c8a84' },
+                      preview: { bg: '#090a0f', text: '#ffffff', accent: '#5f4f47' },
                     },
                   ].map(opt => {
                     const selected = landingTheme === opt.value;

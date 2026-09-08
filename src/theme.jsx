@@ -78,9 +78,9 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
       warning: { main: '#d97706', light: '#fffbeb', dark: '#b45309', contrastText: '#fff' },
       info: { main: '#0284c7', light: '#e0f2fe', dark: '#0369a1', contrastText: '#fff' },
       text: {
-        primary: isLight ? '#2a2320' : '#f6efe9',
-        secondary: isLight ? '#6b5550' : '#b9a9a2',
-        disabled: isLight ? '#a89b95' : '#8a7a73',
+        primary: isLight ? '#241f1c' : '#f6efe9',
+        secondary: isLight ? '#4a3a35' : '#c9bcb5',
+        disabled: isLight ? '#7a6d66' : '#a89a92',
       },
       divider: borderColor,
       action: {
@@ -224,7 +224,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
           head: {
             fontWeight: 600, fontSize: '0.6875rem', textTransform: 'uppercase',
             letterSpacing: '0.07em', backgroundColor: isLight ? '#f7f2ee' : '#0d1526',
-            color: isLight ? '#6b5550' : '#9c8a84', padding: '8px 12px', lineHeight: 1.3,
+            color: isLight ? '#57433e' : '#5f4f47', padding: '8px 12px', lineHeight: 1.3,
             borderBottom: `1.5px solid ${borderStrong}`, whiteSpace: 'nowrap',
           },
           stickyHeader: { backgroundColor: isLight ? '#f7f2ee' : '#0d1526' },
@@ -272,7 +272,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
             fontSize: '0.8125rem',
             minHeight: 44,
             padding: '0 16px',
-            color: isLight ? '#6b5550' : '#9c8a84',
+            color: isLight ? '#57433e' : '#5f4f47',
             '&.Mui-selected': {
               fontWeight: 600,
               color: palette.primary.main,
@@ -446,7 +446,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
             fontSize: '0.8125rem',
             fontWeight: 500,
             border: `1px solid ${borderColor}`,
-            color: isLight ? '#6b5550' : '#9c8a84',
+            color: isLight ? '#57433e' : '#5f4f47',
             '&.Mui-selected': {
               backgroundColor: palette.primary.main,
               color: '#ffffff',
@@ -498,7 +498,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
           },
           noOptions: {
             fontSize: '0.8125rem',
-            color: isLight ? '#6b5550' : '#9c8a84',
+            color: isLight ? '#57433e' : '#5f4f47',
           },
         },
       },
@@ -549,7 +549,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
       },
       MuiInputAdornment: {
         styleOverrides: {
-          root: { color: isLight ? '#9c8a84' : '#7a2e30' },
+          root: { color: isLight ? '#5f4f47' : '#7a2e30' },
         },
       },
       MuiFormLabel: {

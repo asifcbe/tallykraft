@@ -371,7 +371,7 @@ const LedgerPage = () => {
           <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex' }}><BookOpen size={20} color="#5c1f22" /></Box>
           <Box>
             <Typography variant="h5" sx={{ fontWeight: 800, color: '#5c1f22', lineHeight: 1.1 }}>Ledger</Typography>
-            <Typography variant="body2" sx={{ color: '#6b5550' }}>Party-wise account statement</Typography>
+            <Typography variant="body2" sx={{ color: '#57433e' }}>Party-wise account statement</Typography>
           </Box>
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1.5 }}>
@@ -382,7 +382,7 @@ const LedgerPage = () => {
             { label: 'Closing Balance', value: fmtAmt(Math.abs(closingBalance)), color: closingBalance >= 0 ? '#fde68a' : '#f9a8d4' },
           ].map(({ label, value, color }) => (
             <Box key={label} sx={{ bgcolor: 'rgba(92,31,34,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #ece2db' }}>
-              <Typography variant="caption" sx={{ color: '#6b5550', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block' }}>{label}</Typography>
+              <Typography variant="caption" sx={{ color: '#57433e', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block' }}>{label}</Typography>
               <Typography sx={{ color, fontWeight: 800, fontSize: { xs: '0.9rem', sm: '1rem' }, mt: 0.5 }}>{value}</Typography>
             </Box>
           ))}

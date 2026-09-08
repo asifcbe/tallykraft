@@ -201,7 +201,7 @@ export default function PrivacyPolicy({ onBack }) {
           </div>
         </Section>
 
-        <p style={{ textAlign: 'center', color: '#9c8a84', fontSize: '0.78rem', marginTop: 32 }}>
+        <p style={{ textAlign: 'center', color: '#5f4f47', fontSize: '0.78rem', marginTop: 32 }}>
           © {new Date().getFullYear()} TallyKraft. All rights reserved. · {SITE}
         </p>
       </div>

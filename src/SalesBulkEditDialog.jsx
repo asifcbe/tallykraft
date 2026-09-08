@@ -79,7 +79,7 @@ export default function SalesBulkEditDialog({ open, onClose, isSale }) {
           <Edit2 size={18} color="#5c1f22" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="overline" sx={{ color: '#6b5550', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+          <Typography variant="overline" sx={{ color: '#57433e', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>
             {isSale ? 'SALES' : 'PURCHASES'}
           </Typography>
           <Typography variant="h6" sx={{ color: '#5c1f22', fontWeight: 800, lineHeight: 1.2 }}>
@@ -89,7 +89,7 @@ export default function SalesBulkEditDialog({ open, onClose, isSale }) {
         <Chip
           label={`${rows.length} record${rows.length !== 1 ? 's' : ''}`}
           size="small"
-          sx={{ bgcolor: '#9c8a84', color: '#5c1f22', fontWeight: 700 }}
+          sx={{ bgcolor: '#5f4f47', color: '#5c1f22', fontWeight: 700 }}
         />
         <IconButton onClick={onClose} disabled={saving} sx={{ color: '#5c1f22' }}>
           <X size={20} />
