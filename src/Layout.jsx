@@ -1597,7 +1597,7 @@ const Layout = () => {
             },
             {
               title: 'Sales & Invoicing',
-              color: '#4f46e5',
+              color: '#6366f1',
               items: [
                 { keys: ['G', 'N'], label: 'New sales invoice (in list view)', seq: true },
                 { keys: ['G', 'B'], label: 'New purchase bill (in list view)', seq: true },

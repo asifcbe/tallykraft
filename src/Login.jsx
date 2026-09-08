@@ -104,7 +104,7 @@ const Login = ({ onBack }) => {
     inputBg:          'rgba(255,255,255,0.055)',
     inputBorder:      'rgba(255,255,255,0.09)',
     inputBorderHov:   'rgba(255,255,255,0.2)',
-    inputFocus:       '#818cf8',
+    inputFocus:       '#a5b4fc',
     inputText:        '#f1f5f9',
     eyeColor:         'rgba(255,255,255,0.35)',
     googleBg:         'rgba(255,255,255,0.07)',
@@ -119,34 +119,34 @@ const Login = ({ onBack }) => {
     backHovColor:     'rgba(255,255,255,0.85)',
   } : {
     panelBg:          '#f0f4ff',
-    panelDot:         'rgba(99,102,241,0.06)',
+    panelDot:         'rgba(129,140,248,0.06)',
     cardBg:           '#ffffff',
-    cardBorder:       'rgba(99,102,241,0.13)',
-    cardShadow:       '0 0 0 1px rgba(99,102,241,0.07), 0 24px 64px rgba(99,102,241,0.11)',
+    cardBorder:       'rgba(129,140,248,0.13)',
+    cardShadow:       '0 0 0 1px rgba(129,140,248,0.07), 0 24px 64px rgba(129,140,248,0.11)',
     title:            '#0f172a',
     sub:              '#64748b',
     tabWrap:          '#e8edff',
     tabText:          '#94a3b8',
     tabActiveBg:      '#ffffff',
-    tabActiveText:    '#6366f1',
-    tabActiveShadow:  '0 2px 10px rgba(99,102,241,0.14)',
+    tabActiveText:    '#818cf8',
+    tabActiveShadow:  '0 2px 10px rgba(129,140,248,0.14)',
     lbl:              '#64748b',
     inputBg:          '#f8faff',
-    inputBorder:      'rgba(99,102,241,0.16)',
-    inputBorderHov:   'rgba(99,102,241,0.38)',
-    inputFocus:       '#6366f1',
+    inputBorder:      'rgba(129,140,248,0.16)',
+    inputBorderHov:   'rgba(129,140,248,0.38)',
+    inputFocus:       '#818cf8',
     inputText:        '#0f172a',
     eyeColor:         '#94a3b8',
     googleBg:         '#ffffff',
     googleBorder:     'rgba(0,0,0,0.1)',
     googleText:       '#1e293b',
     googleHov:        '#f8faff',
-    divider:          'rgba(99,102,241,0.1)',
+    divider:          'rgba(129,140,248,0.1)',
     caption:          '#94a3b8',
     footerText:       '#cbd5e1',
     backColor:        '#94a3b8',
-    backHovBg:        'rgba(99,102,241,0.07)',
-    backHovColor:     '#6366f1',
+    backHovBg:        'rgba(129,140,248,0.07)',
+    backHovColor:     '#818cf8',
   };
 
   const inputSx = {
@@ -198,7 +198,7 @@ const Login = ({ onBack }) => {
         flexShrink:    0,
         position:      'relative',
         overflow:      'hidden',
-        background:    'linear-gradient(155deg, #1e1b4b 0%, #312e81 42%, #4c1d95 100%)',
+        background:    'linear-gradient(155deg, #1e1b4b 0%, #3730a3 42%, #4c1d95 100%)',
         p:             5,
       }}>
         {/* Grid overlay */}
@@ -243,7 +243,7 @@ const Login = ({ onBack }) => {
               backdropFilter: 'blur(12px)',
               border: '1px solid rgba(255,255,255,0.22)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 8px 40px rgba(99,102,241,0.45)',
+              boxShadow: '0 8px 40px rgba(129,140,248,0.45)',
             }}>
               <TallyKraftLogo size={80} />
             </Box>
@@ -278,7 +278,7 @@ const Login = ({ onBack }) => {
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   <svg width="11" height="9" viewBox="0 0 12 10" fill="none">
-                    <path d="M1 5l3.5 3.5L11 1" stroke="#a5b4fc" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M1 5l3.5 3.5L11 1" stroke="#c7d2fe" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </Box>
                 <Typography sx={{ color: 'rgba(199,210,254,0.88)', fontSize: '0.84rem', fontWeight: 500, lineHeight: 1.45 }}>
@@ -343,9 +343,9 @@ const Login = ({ onBack }) => {
         }}>
           <Box sx={{
             width: 56, height: 56, borderRadius: '18px',
-            background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+            background: 'linear-gradient(135deg, #818cf8 0%, #8b5cf6 100%)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            boxShadow: '0 8px 24px rgba(99,102,241,0.4)', mb: 1.5,
+            boxShadow: '0 8px 24px rgba(129,140,248,0.4)', mb: 1.5,
           }}>
             <TallyKraftLogo size={52} />
           </Box>
@@ -453,9 +453,9 @@ const Login = ({ onBack }) => {
                   py: 1.2, borderRadius: '12px', textTransform: 'none',
                   fontSize: '0.88rem', fontWeight: 600,
                   color: T.tabActiveText,
-                  border: `1.5px solid ${isDark ? 'rgba(129,140,248,0.22)' : 'rgba(99,102,241,0.25)'}`,
+                  border: `1.5px solid ${isDark ? 'rgba(129,140,248,0.22)' : 'rgba(129,140,248,0.25)'}`,
                   bgcolor: 'transparent',
-                  '&:hover': { bgcolor: isDark ? 'rgba(129,140,248,0.07)' : 'rgba(99,102,241,0.05)' },
+                  '&:hover': { bgcolor: isDark ? 'rgba(129,140,248,0.07)' : 'rgba(129,140,248,0.05)' },
                 }}
               >
                 Use Business Code + Password instead
@@ -502,12 +502,12 @@ const Login = ({ onBack }) => {
                 type="submit" disabled={loading} fullWidth disableElevation
                 sx={{
                   mt: 0.5, py: 1.6, borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                  background: 'linear-gradient(135deg, #818cf8 0%, #8b5cf6 100%)',
                   color: 'white', textTransform: 'none',
                   fontSize: '0.95rem', fontWeight: 700,
-                  boxShadow: '0 4px 20px rgba(99,102,241,0.38)',
+                  boxShadow: '0 4px 20px rgba(129,140,248,0.38)',
                   transition: 'all 0.22s',
-                  '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 8px 28px rgba(99,102,241,0.48)', filter: 'brightness(1.06)' },
+                  '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 8px 28px rgba(129,140,248,0.48)', filter: 'brightness(1.06)' },
                   '&:active': { transform: 'translateY(0)' },
                   '&.Mui-disabled': { opacity: 0.55, color: 'rgba(255,255,255,0.7)' },
                 }}
@@ -576,14 +576,14 @@ const Login = ({ onBack }) => {
                 type="submit" disabled={loading} fullWidth disableElevation
                 sx={{
                   mt: 0.5, py: 1.6, borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                  background: 'linear-gradient(135deg, #818cf8 0%, #8b5cf6 100%)',
                   color: 'white', textTransform: 'none',
                   fontSize: '0.95rem', fontWeight: 700,
-                  boxShadow: '0 4px 20px rgba(99,102,241,0.38)',
+                  boxShadow: '0 4px 20px rgba(129,140,248,0.38)',
                   transition: 'all 0.22s',
                   '&:hover': {
                     transform: 'translateY(-1px)',
-                    boxShadow: '0 8px 28px rgba(99,102,241,0.48)',
+                    boxShadow: '0 8px 28px rgba(129,140,248,0.48)',
                     filter: 'brightness(1.06)',
                   },
                   '&:active': { transform: 'translateY(0)' },

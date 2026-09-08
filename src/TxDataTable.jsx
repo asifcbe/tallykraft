@@ -381,7 +381,7 @@ const TxDataTable = ({
                   </TableCell>
                   <TableCell sx={{ fontSize: '0.8rem', maxWidth: 200, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                     {a.isCash(r) ? (
-                      <Chip size="small" label={a.party(r) || 'Cash'} sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20, bgcolor: 'rgba(99,102,241,0.08)', color: 'success.dark', border: '1px solid rgba(99,102,241,0.22)' }} />
+                      <Chip size="small" label={a.party(r) || 'Cash'} sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20, bgcolor: 'rgba(129,140,248,0.08)', color: 'success.dark', border: '1px solid rgba(129,140,248,0.22)' }} />
                     ) : (a.party(r) || '—')}
                   </TableCell>
                   {hasCol.phone && <TableCell sx={{ fontSize: '0.8rem', whiteSpace: 'nowrap' }}>{a.phone(r) || '—'}</TableCell>}

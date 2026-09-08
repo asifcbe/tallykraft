@@ -47,8 +47,8 @@ const featureLabels = {
 
 // --- Subscription plan helpers ---
 const PLAN_META = {
-  monthly_pro:  { label: '₹299/mo',          short: 'Plan',   color: '#4f46e5', tier: 'pro' },
-  yearly_pro:   { label: '₹2999/yr',         short: 'Plan',   color: '#4f46e5', tier: 'pro' },
+  monthly_pro:  { label: '₹299/mo',          short: 'Plan',   color: '#6366f1', tier: 'pro' },
+  yearly_pro:   { label: '₹2999/yr',         short: 'Plan',   color: '#6366f1', tier: 'pro' },
   trial:        { label: 'Trial',            short: 'Trial',  color: '#f59e0b', tier: 'trial' },
   admin_granted:{ label: 'Admin Granted',    short: 'Admin',  color: '#8b5cf6', tier: 'admin' },
 };
@@ -65,8 +65,8 @@ const isProPlan = (plan) => plan === 'monthly_pro' || plan === 'yearly_pro';
 
 const GRANT_PLAN_OPTIONS = [
   { value: 'trial',       label: 'Trial',      desc: '3-day free trial (all features)',            color: '#f59e0b' },
-  { value: 'monthly_pro', label: '₹299/mo',    desc: 'All features + cloud backup, 1 business',    color: '#4f46e5' },
-  { value: 'yearly_pro',  label: '₹2999/yr',   desc: 'All features + cloud backup, 1 business',    color: '#4f46e5' },
+  { value: 'monthly_pro', label: '₹299/mo',    desc: 'All features + cloud backup, 1 business',    color: '#6366f1' },
+  { value: 'yearly_pro',  label: '₹2999/yr',   desc: 'All features + cloud backup, 1 business',    color: '#6366f1' },
 ];
 
 const DURATION_OPTIONS = [
@@ -477,7 +477,7 @@ const Admin = () => {
     const planDistribution = [
       // "Basic" is a legacy tier (no longer sold); fold any remaining legacy
       // Basic subs into the single paid bucket so the chart isn't misleading.
-      { name: 'Paid (₹299 / ₹2999)', value: proActive + basicActive, color: '#4f46e5' },
+      { name: 'Paid (₹299 / ₹2999)', value: proActive + basicActive, color: '#6366f1' },
       { name: 'Trial', value: stats.trial, color: '#f59e0b' },
       { name: 'Expired', value: stats.expired, color: '#ef4444' },
     ].filter((s) => s.value > 0);
@@ -935,10 +935,10 @@ const Admin = () => {
               <HeroMetric icon={IndianRupee} label="MRR" value={inr(analytics.mrr)} color="#0891b2" sublabel="Monthly recurring revenue" />
             </Grid>
             <Grid item xs={6} md={3}>
-              <HeroMetric icon={Wallet} label="Total Collected" value={inr(analytics.lifetimeRevenue)} color="#4f46e5" sublabel="All payments to date" />
+              <HeroMetric icon={Wallet} label="Total Collected" value={inr(analytics.lifetimeRevenue)} color="#6366f1" sublabel="All payments to date" />
             </Grid>
             <Grid item xs={6} md={3}>
-              <HeroMetric icon={Users} label="Paying Customers" value={analytics.payingCustomers} color="#4f46e5" sublabel="Active paid plans" />
+              <HeroMetric icon={Users} label="Paying Customers" value={analytics.payingCustomers} color="#6366f1" sublabel="Active paid plans" />
             </Grid>
             <Grid item xs={6} md={3}>
               <HeroMetric icon={TrendingUp} label="On Trial" value={stats.trial} color="#f59e0b" sublabel="Evaluating the app" />
@@ -949,7 +949,7 @@ const Admin = () => {
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>Paid subscriptions</Typography>
           <Grid container spacing={2.5} sx={{ mb: 3 }}>
             <Grid item xs={12} sm={6}>
-              <TierCard tier="Paid" priceLabel="₹299/mo · ₹2999/yr · cloud backup" color="#4f46e5" icon={Cloud}
+              <TierCard tier="Paid" priceLabel="₹299/mo · ₹2999/yr · cloud backup" color="#6366f1" icon={Cloud}
                 activeCount={analytics.proActive + analytics.basicActive} mrr={analytics.proMrr + analytics.basicMrr}
                 share={100} />
             </Grid>
@@ -980,7 +980,7 @@ const Admin = () => {
               </ChartCard>
             </Grid>
             <Grid item xs={12} md={5}>
-              <ChartCard title="Plan distribution" subtitle="Current mix" icon={BarChart3} color="#4f46e5"
+              <ChartCard title="Plan distribution" subtitle="Current mix" icon={BarChart3} color="#6366f1"
                 empty={analytics.planDistribution.length === 0}>
                 <ResponsiveContainer width="100%" height={240}>
                   <PieChart>
@@ -995,7 +995,7 @@ const Admin = () => {
               </ChartCard>
             </Grid>
             <Grid item xs={12}>
-              <ChartCard title="New subscriptions" subtitle="Paid activations per month (last 6 months)" icon={TrendingUp} color="#4f46e5"
+              <ChartCard title="New subscriptions" subtitle="Paid activations per month (last 6 months)" icon={TrendingUp} color="#6366f1"
                 empty={analytics.months.every((m) => m.signups === 0)}>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={analytics.months} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
@@ -1003,7 +1003,7 @@ const Admin = () => {
                     <XAxis dataKey="label" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
                     <ReTooltip formatter={(v) => [v, 'New subs']} />
-                    <Bar dataKey="signups" fill="#4f46e5" radius={[4, 4, 0, 0]} maxBarSize={48} />
+                    <Bar dataKey="signups" fill="#6366f1" radius={[4, 4, 0, 0]} maxBarSize={48} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -1017,7 +1017,7 @@ const Admin = () => {
               <StatCard icon={Users}        label="Total Users"     value={stats.total}        color="#1976d2" />
             </Grid>
             <Grid item xs={6} sm={4} md={2.4}>
-              <StatCard icon={CheckCircle2} label="Active Plans"    value={stats.active}       color="#4f46e5" />
+              <StatCard icon={CheckCircle2} label="Active Plans"    value={stats.active}       color="#6366f1" />
             </Grid>
             <Grid item xs={6} sm={4} md={2.4}>
               <StatCard icon={XCircle}      label="Expired"         value={stats.expired}      color="#ef4444" />
@@ -1035,7 +1035,7 @@ const Admin = () => {
           <Grid container spacing={2} sx={{ mb: 4 }}>
             {[
               { label: 'Manage Users',       desc: 'Edit access, features & limits',    tab: 'users',         icon: Users,        color: '#1976d2' },
-              { label: 'Grant Subscription', desc: 'Manually activate plans for users', tab: 'subscriptions', icon: Gift,         color: '#4f46e5' },
+              { label: 'Grant Subscription', desc: 'Manually activate plans for users', tab: 'subscriptions', icon: Gift,         color: '#6366f1' },
               { label: 'Build Sections',     desc: 'Create custom data sections',       tab: 'sections',      icon: Layers,       color: '#7c3aed' },
               { label: 'Global Settings',    desc: 'Landing page and app settings',     tab: 'global',        icon: Globe,        color: '#0891b2' },
             ].map(a => (
@@ -1434,12 +1434,12 @@ const Admin = () => {
           {/* Stats row */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {[
-              { label: 'Active Plans',    value: stats.active,       color: '#4f46e5', icon: CheckCircle2 },
+              { label: 'Active Plans',    value: stats.active,       color: '#6366f1', icon: CheckCircle2 },
               { label: 'On Trial',        value: stats.trial,        color: '#f59e0b', icon: TrendingUp },
               { label: 'Expired',         value: stats.expired,      color: '#ef4444', icon: XCircle },
               { label: 'Admin Granted',   value: stats.adminGranted, color: '#8b5cf6', icon: Award },
               { label: 'Total Collected', value: inr(analytics.lifetimeRevenue), color: '#0891b2', icon: IndianRupee },
-              { label: 'Paying Customers',value: analytics.payingCustomers, color: '#4f46e5', icon: Users },
+              { label: 'Paying Customers',value: analytics.payingCustomers, color: '#6366f1', icon: Users },
             ].map(s => (
               <Grid item xs={6} sm={4} md={2} key={s.label}>
                 <Card elevation={0} sx={{ border: '1px solid', borderColor: alpha(s.color, 0.2), borderRadius: 2, bgcolor: alpha(s.color, 0.04) }}>
@@ -1545,7 +1545,7 @@ const Admin = () => {
                                           label={`${pays.length} pay${pays.length !== 1 ? 's' : ''} · ${inr(paidTotal)}`}
                                           size="small" onClick={() => setExpandedPayHistory(m => ({ ...m, [key]: !m[key] }))}
                                           sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, cursor: 'pointer',
-                                            bgcolor: alpha('#4f46e5', 0.1), color: '#4f46e5' }}
+                                            bgcolor: alpha('#6366f1', 0.1), color: '#6366f1' }}
                                         />
                                       )}
                                       <Chip
@@ -1616,7 +1616,7 @@ const Admin = () => {
                         <Button
                           size="small" variant="contained" startIcon={<Gift size={14} />}
                           onClick={() => openGrantDialog(email)}
-                          sx={{ borderRadius: 2, fontSize: '0.75rem', textTransform: 'none', bgcolor: '#4f46e5', '&:hover': { bgcolor: '#4338ca' } }}>
+                          sx={{ borderRadius: 2, fontSize: '0.75rem', textTransform: 'none', bgcolor: '#6366f1', '&:hover': { bgcolor: '#4f46e5' } }}>
                           Grant Subscription
                         </Button>
                         {sub?.adminGrantedAll ? (
@@ -1994,14 +1994,14 @@ const Admin = () => {
                       title: 'Light Theme',
                       desc: 'Clean white background with soft shadows. Modern and professional.',
                       color: '#1976d2',
-                      preview: { bg: '#f1f5f9', text: '#0f172a', accent: '#6366f1' },
+                      preview: { bg: '#f1f5f9', text: '#0f172a', accent: '#818cf8' },
                     },
                     {
                       value: 'dark',
                       title: 'Dark Theme',
                       desc: 'Deep dark background with glowing accents. Sleek and dramatic.',
                       color: '#7c3aed',
-                      preview: { bg: '#090a0f', text: '#ffffff', accent: '#818cf8' },
+                      preview: { bg: '#090a0f', text: '#ffffff', accent: '#a5b4fc' },
                     },
                   ].map(opt => {
                     const selected = landingTheme === opt.value;
@@ -2077,8 +2077,8 @@ const Admin = () => {
       >
         <DialogTitle sx={{ pb: 1 }}>
           <Stack direction="row" alignItems="center" spacing={1.5}>
-            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha('#4f46e5', 0.1) }}>
-              <Gift size={20} color="#4f46e5" />
+            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha('#6366f1', 0.1) }}>
+              <Gift size={20} color="#6366f1" />
             </Box>
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>Grant Subscription</Typography>
@@ -2164,8 +2164,8 @@ const Admin = () => {
               )}
 
               {grantForm.durationType !== 'custom' && (
-                <Box sx={{ p: 1.25, borderRadius: 1.5, bgcolor: alpha('#4f46e5', 0.07), border: `1px solid ${alpha('#4f46e5', 0.15)}` }}>
-                  <Typography variant="caption" sx={{ color: '#4f46e5', fontWeight: 600 }}>
+                <Box sx={{ p: 1.25, borderRadius: 1.5, bgcolor: alpha('#6366f1', 0.07), border: `1px solid ${alpha('#6366f1', 0.15)}` }}>
+                  <Typography variant="caption" sx={{ color: '#6366f1', fontWeight: 600 }}>
                     Expires: {(() => {
                       const end = computeEndDate(grantForm.durationType, '');
                       return end ? end.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
@@ -2186,7 +2186,7 @@ const Admin = () => {
             onClick={handleGrantSubscription}
             disabled={grantSaving}
             startIcon={grantSaving ? <RefreshCw size={16} /> : <Gift size={16} />}
-            sx={{ bgcolor: '#4f46e5', '&:hover': { bgcolor: '#4338ca' } }}
+            sx={{ bgcolor: '#6366f1', '&:hover': { bgcolor: '#4f46e5' } }}
           >
             {grantSaving ? 'Granting…' : 'Grant Subscription'}
           </Button>

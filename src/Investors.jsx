@@ -121,7 +121,7 @@ const InvestorsPage = () => {
       {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <Box sx={{
         borderRadius: 3,
-        background: 'linear-gradient(135deg, #312e81 0%, #3730a3 50%, #4f46e5 100%)',
+        background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)',
         p: { xs: 2.5, md: 3 }, mb: 3, position: 'relative', overflow: 'hidden',
       }}>
         <Box sx={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
@@ -312,12 +312,12 @@ const InvestorsTab = ({ investors, primary, netCapitalFor, addItem, updateItem, 
                       <TableCell align="center">
                         <Chip label={`${i.ownershipPercent}%`} size="small" sx={{ fontWeight: 800, bgcolor: alpha(primary, 0.1), color: primary }} />
                       </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.85rem', color: net >= 0 ? '#4f46e5' : '#dc2626' }}>
+                      <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.85rem', color: net >= 0 ? '#6366f1' : '#dc2626' }}>
                         {fmtAmt(net)}
                       </TableCell>
                       <TableCell align="center">
                         <Chip label={i.status === 'active' ? 'Active' : 'Inactive'} size="small"
-                          sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: i.status === 'active' ? alpha('#4f46e5', 0.1) : alpha('#94a3b8', 0.15), color: i.status === 'active' ? '#4f46e5' : '#64748b' }} />
+                          sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: i.status === 'active' ? alpha('#6366f1', 0.1) : alpha('#94a3b8', 0.15), color: i.status === 'active' ? '#6366f1' : '#64748b' }} />
                       </TableCell>
                       <TableCell>
                         <IconButton size="small" onClick={(e) => { setMenuAnchor(e.currentTarget); setMenuInvestor(i); }}>
@@ -495,11 +495,11 @@ const CapitalLedgerTab = ({ investors, primary, capitalFor, addItem, updateItem,
                       <Chip
                         icon={t.type === 'PaymentIn' ? <ArrowDownCircle size={13} /> : <ArrowUpCircle size={13} />}
                         label={t.type === 'PaymentIn' ? 'Given' : 'Received'} size="small"
-                        sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: t.type === 'PaymentIn' ? alpha('#4f46e5', 0.1) : alpha('#dc2626', 0.1), color: t.type === 'PaymentIn' ? '#4f46e5' : '#dc2626' }} />
+                        sx={{ fontWeight: 700, fontSize: '0.68rem', bgcolor: t.type === 'PaymentIn' ? alpha('#6366f1', 0.1) : alpha('#dc2626', 0.1), color: t.type === 'PaymentIn' ? '#6366f1' : '#dc2626' }} />
                     </TableCell>
                     <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>{t.paymentMode}</TableCell>
                     <TableCell sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>{t.notes || '—'}</TableCell>
-                    <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.85rem', color: t.type === 'PaymentIn' ? '#4f46e5' : '#dc2626' }}>
+                    <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.85rem', color: t.type === 'PaymentIn' ? '#6366f1' : '#dc2626' }}>
                       {t.type === 'PaymentIn' ? '+' : '−'}{fmtAmt(t.totalAmount)}
                     </TableCell>
                     <TableCell align="right" sx={{ fontWeight: 700, fontSize: '0.85rem' }}>{fmtAmt(t.runningBalance)}</TableCell>
@@ -633,7 +633,7 @@ const ProfitLossSplitTab = ({ investors, primary, sales, purchases, expenses, ca
       { label: 'Revenue', percent: '', share: fmtAmt(revenue), _bold: true, _section: true },
       { label: 'Purchases', percent: '', share: fmtAmt(cogs), _section: true },
       { label: 'Expenses', percent: '', share: fmtAmt(totalExpenses), _section: true },
-      { label: isLoss ? 'Net Loss' : 'Net Profit', percent: '', share: fmtAmt(Math.abs(netProfit)), _bold: true, _color: isLoss ? '#dc2626' : '#4f46e5', _section: true },
+      { label: isLoss ? 'Net Loss' : 'Net Profit', percent: '', share: fmtAmt(Math.abs(netProfit)), _bold: true, _color: isLoss ? '#dc2626' : '#6366f1', _section: true },
     ];
     const investorRows = splitRows.map(r => ({
       label: r.investor.name,
@@ -741,12 +741,12 @@ const ProfitLossSplitTab = ({ investors, primary, sales, purchases, expenses, ca
       {/* Profit/Loss banner */}
       <Box sx={{
         p: 2, borderRadius: 2, mb: 2.5, display: 'flex', alignItems: 'center', gap: 1.5,
-        bgcolor: isLoss ? alpha('#dc2626', 0.06) : alpha('#4f46e5', 0.06),
-        border: '1px solid', borderColor: isLoss ? alpha('#dc2626', 0.2) : alpha('#4f46e5', 0.2),
+        bgcolor: isLoss ? alpha('#dc2626', 0.06) : alpha('#6366f1', 0.06),
+        border: '1px solid', borderColor: isLoss ? alpha('#dc2626', 0.2) : alpha('#6366f1', 0.2),
       }}>
-        {isLoss ? <TrendingDown size={24} color="#dc2626" /> : <TrendingUp size={24} color="#4f46e5" />}
+        {isLoss ? <TrendingDown size={24} color="#dc2626" /> : <TrendingUp size={24} color="#6366f1" />}
         <Box>
-          <Typography sx={{ fontWeight: 800, fontSize: '1.1rem', color: isLoss ? '#dc2626' : '#4f46e5' }}>
+          <Typography sx={{ fontWeight: 800, fontSize: '1.1rem', color: isLoss ? '#dc2626' : '#6366f1' }}>
             {isLoss ? 'Net Loss' : 'Net Profit'}: {fmtAmt(Math.abs(netProfit))}
           </Typography>
           <Typography variant="caption" color="text.secondary">
@@ -774,7 +774,7 @@ const ProfitLossSplitTab = ({ investors, primary, sales, purchases, expenses, ca
                   <TableCell align="center">
                     <Chip label={`${r.percent}%`} size="small" sx={{ fontWeight: 800, bgcolor: alpha(primary, 0.1), color: primary }} />
                   </TableCell>
-                  <TableCell align="right" sx={{ fontWeight: 800, fontSize: '0.9rem', color: r.share < 0 ? '#dc2626' : '#4f46e5' }}>
+                  <TableCell align="right" sx={{ fontWeight: 800, fontSize: '0.9rem', color: r.share < 0 ? '#dc2626' : '#6366f1' }}>
                     {r.share < 0 ? `(${fmtAmt(Math.abs(r.share))})` : fmtAmt(r.share)}
                   </TableCell>
                 </TableRow>

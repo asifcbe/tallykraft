@@ -154,7 +154,7 @@ const defaultConfig = {
     dateFormat: 'DD/MM/YYYY',
     autoRoundOff: false,
     invoiceTheme: 'classic',
-    themeColor: '#4f46e5',
+    themeColor: '#6366f1',
     termsText: '',
   },
 };

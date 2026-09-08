@@ -74,7 +74,7 @@ const Cell = memo(function Cell({
     return (
       <Box sx={{ display: 'flex', gap: 0.3, p: 0.25, bgcolor: 'action.hover', borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
         {[
-          { value: 'collect', label: 'Collect', activeColor: '#4f46e5', activeBg: 'rgba(99,102,241,0.1)', activeBorder: 'rgba(99,102,241,0.35)' },
+          { value: 'collect', label: 'Collect', activeColor: '#6366f1', activeBg: 'rgba(129,140,248,0.1)', activeBorder: 'rgba(129,140,248,0.35)' },
           { value: 'pay',     label: 'Pay',     activeColor: '#dc2626', activeBg: 'rgba(239,68,68,0.1)',   activeBorder: 'rgba(239,68,68,0.35)' },
         ].map(opt => {
           const active = (value || 'collect') === opt.value;
@@ -500,8 +500,8 @@ const BulkAddDialog = ({ open, onClose, type = 'customer', onSuccess }) => {
       PaperProps={{ sx: { borderRadius: 3, maxHeight: '92vh', position: 'relative', width: Math.min(totalWidth + 48, window.innerWidth - 32) } }}
     >
       <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.75)', flexDirection: 'column', gap: 1.5 }}>
-        <CircularProgress size={40} sx={{ color: '#4f46e5' }} />
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#4f46e5' }}>
+        <CircularProgress size={40} sx={{ color: '#6366f1' }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#6366f1' }}>
           Saving {filledCount} {isParty ? (type === 'customer' ? 'customers' : 'vendors') : 'items'}…
         </Typography>
       </Backdrop>

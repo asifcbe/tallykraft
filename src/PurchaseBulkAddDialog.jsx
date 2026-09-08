@@ -109,12 +109,12 @@ export default function PurchaseBulkAddDialog({ open, onClose, onSuccess, genera
       PaperProps={{ sx: { borderRadius: 3, maxHeight: '90vh', position: 'relative' } }}
     >
       <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.75)', flexDirection: 'column', gap: 1.5 }}>
-        <CircularProgress size={40} sx={{ color: '#4f46e5' }} />
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#4f46e5' }}>Saving {filledRows.length} bills…</Typography>
+        <CircularProgress size={40} sx={{ color: '#6366f1' }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#6366f1' }}>Saving {filledRows.length} bills…</Typography>
       </Backdrop>
       <Box
         sx={{
-          background: 'linear-gradient(135deg, #312e81 0%, #3730a3 45%, #4f46e5 100%)',
+          background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 45%, #818cf8 100%)',
           px: 3, py: 2,
           display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0,
         }}
@@ -161,7 +161,7 @@ export default function PurchaseBulkAddDialog({ open, onClose, onSuccess, genera
             </TableHead>
             <TableBody>
               {rows.map((row, idx) => (
-                <TableRow key={row._key} sx={{ '&:hover': { bgcolor: 'rgba(79,70,229,0.03)' } }}>
+                <TableRow key={row._key} sx={{ '&:hover': { bgcolor: 'rgba(99,102,241,0.03)' } }}>
                   <TableCell sx={{ pl: 2, color: 'text.secondary', fontSize: '0.75rem' }}>{idx + 1}</TableCell>
                   <TableCell>
                     <PartySelect
@@ -260,7 +260,7 @@ export default function PurchaseBulkAddDialog({ open, onClose, onSuccess, genera
                     />
                   </TableCell>
                   <TableCell align="right">
-                    <Typography variant="body2" sx={{ fontWeight: 800, color: '#4f46e5', whiteSpace: 'nowrap' }}>
+                    <Typography variant="body2" sx={{ fontWeight: 800, color: '#6366f1', whiteSpace: 'nowrap' }}>
                       ₹{calcAmount(row).toFixed(2)}
                     </Typography>
                   </TableCell>
@@ -284,17 +284,17 @@ export default function PurchaseBulkAddDialog({ open, onClose, onSuccess, genera
           onClick={addRow}
           variant="outlined"
           size="small"
-          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', borderColor: 'rgba(79,70,229,0.3)', color: '#4f46e5', mr: 'auto' }}
+          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', borderColor: 'rgba(99,102,241,0.3)', color: '#6366f1', mr: 'auto' }}
         >
           Add Row
         </Button>
         <Chip
           label={`${filledRows.length} row${filledRows.length !== 1 ? 's' : ''}`}
           size="small"
-          sx={{ fontWeight: 700, bgcolor: 'rgba(79,70,229,0.08)', color: '#4f46e5' }}
+          sx={{ fontWeight: 700, bgcolor: 'rgba(99,102,241,0.08)', color: '#6366f1' }}
         />
-        <Box sx={{ px: 2, py: 0.5, bgcolor: 'rgba(79,70,229,0.08)', borderRadius: '8px', border: '1px solid rgba(79,70,229,0.2)' }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#4f46e5' }}>
+        <Box sx={{ px: 2, py: 0.5, bgcolor: 'rgba(99,102,241,0.08)', borderRadius: '8px', border: '1px solid rgba(99,102,241,0.2)' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#6366f1' }}>
             Total ₹{totalAmount.toFixed(2)}
           </Typography>
         </Box>
@@ -308,8 +308,8 @@ export default function PurchaseBulkAddDialog({ open, onClose, onSuccess, genera
           disabled={saving || filledRows.length === 0}
           sx={{
             fontWeight: 700, textTransform: 'none', borderRadius: '8px',
-            background: 'linear-gradient(135deg, #3730a3 0%, #4f46e5 100%)',
-            boxShadow: '0 4px 12px rgba(79,70,229,0.28)',
+            background: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)',
+            boxShadow: '0 4px 12px rgba(99,102,241,0.28)',
           }}
         >
           {saving ? 'Saving…' : `Save ${filledRows.length} Bill${filledRows.length !== 1 ? 's' : ''}`}

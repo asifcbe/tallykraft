@@ -466,7 +466,7 @@ const StatPill = ({ label, value, color = "primary", tokens }) => (
       bgcolor: color === "primary" ? tokens.primarySoft : tokens.successSoft,
       border: "1px solid",
       borderColor:
-        color === "primary" ? tokens.primaryBorder : "rgba(99,102,241,0.18)",
+        color === "primary" ? tokens.primaryBorder : "rgba(129,140,248,0.18)",
     }}
   >
     <Typography
@@ -3840,7 +3840,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                         <Chip
                           size="small"
                           label="Cash Purchase"
-                          sx={{ mt: 0.75, fontWeight: 700, fontSize: '0.7rem', bgcolor: tokens.successSoft, color: 'success.dark', border: '1px solid rgba(99,102,241,0.25)', height: 20 }}
+                          sx={{ mt: 0.75, fontWeight: 700, fontSize: '0.7rem', bgcolor: tokens.successSoft, color: 'success.dark', border: '1px solid rgba(129,140,248,0.25)', height: 20 }}
                         />
                       )}
                       {/* The Customer/Vendor Preview Panel further down is
@@ -4688,7 +4688,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             </Box>
                           )}
                           {Number(advance) > 0 && (
-                            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.25, pt: 1.25, borderTop: "1px dashed rgba(99,102,241,0.3)" }}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.25, pt: 1.25, borderTop: "1px dashed rgba(129,140,248,0.3)" }}>
                               <Typography variant="body2" sx={{ fontWeight: 700, color: tokens.error }}>
                                 {isSale ? "Balance Due" : "Balance Payable"}
                               </Typography>
@@ -5364,7 +5364,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           p: 1.5,
                           borderRadius: tokens.radius.md,
                           bgcolor: tokens.successSoft,
-                          border: `1px solid rgba(99,102,241,0.2)`,
+                          border: `1px solid rgba(129,140,248,0.2)`,
                         }}
                       >
                         <Box
@@ -5448,7 +5448,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                               justifyContent: "space-between",
                               mt: 1.25,
                               pt: 1.25,
-                              borderTop: "1px dashed rgba(99,102,241,0.3)",
+                              borderTop: "1px dashed rgba(129,140,248,0.3)",
                             }}
                           >
                             <Typography
@@ -6511,7 +6511,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{tx.partyName}</Typography>
                         ) : (
                           <Chip size="small" label={tx.partyName || (isSale ? 'Cash & Carry' : 'Cash Purchase')}
-                            sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(99,102,241,0.08)', color: 'success.dark', border: '1px solid rgba(99,102,241,0.22)' }} />
+                            sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(129,140,248,0.08)', color: 'success.dark', border: '1px solid rgba(129,140,248,0.22)' }} />
                         )}
                         {tx.partyPhone && (
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }} noWrap>{tx.partyPhone}</Typography>
@@ -6648,7 +6648,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{tx.partyName}</Typography>
                         ) : (
                           <Chip size="small" label={tx.partyName || (isSale ? 'Cash & Carry' : 'Cash Purchase')}
-                            sx={{ fontWeight: 700, fontSize: '0.68rem', height: 20, bgcolor: 'rgba(99,102,241,0.08)', color: 'success.dark', border: '1px solid rgba(99,102,241,0.22)' }} />
+                            sx={{ fontWeight: 700, fontSize: '0.68rem', height: 20, bgcolor: 'rgba(129,140,248,0.08)', color: 'success.dark', border: '1px solid rgba(129,140,248,0.22)' }} />
                         )}
                         {config.features?.billPaymentStatusChip !== false && <PaidStatusChip status={tx.status} overdue={overdue} />}
                         {tx.sourceEstimateId && (

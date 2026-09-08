@@ -110,10 +110,10 @@ export const getJsPdfFormat = (paperSize) => {
 };
 
 export const THEME_COLORS = [
-  { label: 'Teal',    value: '#4f46e5' },
-  { label: 'Indigo',  value: '#4f46e5' },
+  { label: 'Teal',    value: '#6366f1' },
+  { label: 'Indigo',  value: '#6366f1' },
   { label: 'Blue',    value: '#2563eb' },
-  { label: 'Emerald', value: '#4f46e5' },
+  { label: 'Emerald', value: '#6366f1' },
   { label: 'Purple',  value: '#7c3aed' },
   { label: 'Rose',    value: '#e11d48' },
   { label: 'Orange',  value: '#ea580c' },
@@ -207,7 +207,7 @@ const DEFAULT_PRINT_OPTIONS = {
   autoRoundOff: false,
   dateFormat: 'DD/MM/YYYY',
   invoiceTheme: 'classic',
-  themeColor: '#4f46e5',
+  themeColor: '#6366f1',
   termsText: '',
   columnOrder: [],
   // Outer document padding — user-configurable per side (Settings → Invoice
@@ -629,7 +629,7 @@ const TotalsBlock = ({ transaction, opts, isSale, accentColor, showBalanceSectio
       {advanceAmount > 0 && (
         <>
           <div style={{ borderTop: '1px dashed #bbb', margin: '10px 0 6px' }} />
-          {row(isSale ? 'Advance Received' : 'Advance Paid', `-₹${advanceAmount.toFixed(2)}`, false, '#4f46e5')}
+          {row(isSale ? 'Advance Received' : 'Advance Paid', `-₹${advanceAmount.toFixed(2)}`, false, '#6366f1')}
           <div style={{ borderTop: '1px solid #999', margin: '6px 0' }} />
           <div style={{ display: 'flex', justifyContent: 'space-between' }}>
             <span style={{ fontSize: '14px', fontWeight: '700', color: '#dc2626' }}>{isSale ? 'Balance Due' : 'Balance Payable'}</span>
@@ -705,28 +705,28 @@ const LoyaltyBlock = ({ transaction, opts, thermal = false }) => {
   const row = (label, value, color) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '3px 0', borderBottom: '1px solid #e0f2f1' }}>
       <span style={{ fontSize: '11px', color: '#4b5563' }}>{label}</span>
-      <span style={{ fontSize: '11.5px', fontWeight: '700', color: color || '#3730a3' }}>{value}</span>
+      <span style={{ fontSize: '11.5px', fontWeight: '700', color: color || '#4338ca' }}>{value}</span>
     </div>
   );
 
   return (
-    <div style={{ marginTop: '16px', border: '1px solid #c7d2fe', borderRadius: '8px', overflow: 'hidden', fontSize: '12px' }}>
-      <div style={{ background: 'linear-gradient(135deg, #3730a3, #4f46e5)', padding: '7px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+    <div style={{ marginTop: '16px', border: '1px solid #ddd6fe', borderRadius: '8px', overflow: 'hidden', fontSize: '12px' }}>
+      <div style={{ background: 'linear-gradient(135deg, #6366f1, #818cf8)', padding: '7px 14px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span style={{ color: '#fff', fontWeight: '800', fontSize: '11.5px', letterSpacing: '0.03em' }}>🎁 {programName}</span>
         {balance > 0 && <span style={{ color: '#e0e7ff', fontSize: '10.5px', fontWeight: '600' }}>{balance.toLocaleString('en-IN')} pts balance</span>}
       </div>
       <div style={{ background: '#f0fdfb', padding: '10px 14px', display: 'flex', gap: '12px' }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          {earned > 0   && row('Points earned this bill', `+${earned.toLocaleString('en-IN')} pts`, '#4f46e5')}
+          {earned > 0   && row('Points earned this bill', `+${earned.toLocaleString('en-IN')} pts`, '#6366f1')}
           {redeemed > 0 && row('Points redeemed', `−${redeemed.toLocaleString('en-IN')} pts (₹${redeemVal.toFixed(2)} off)`, '#b45309')}
-          {balance > 0  && row('Your point balance', `${balance.toLocaleString('en-IN')} pts`, '#3730a3')}
+          {balance > 0  && row('Your point balance', `${balance.toLocaleString('en-IN')} pts`, '#4338ca')}
           {earned === 0 && redeemed === 0 && balance === 0 && (
             <div style={{ fontSize: '11px', color: '#6b7280', fontStyle: 'italic' }}>No points on this bill</div>
           )}
         </div>
         {(earnRuleText || redeemRuleText) && (
-          <div style={{ borderLeft: '1px dashed #c7d2fe', paddingLeft: '12px', flexShrink: 0, maxWidth: '160px', display: 'flex', flexDirection: 'column', gap: '6px', justifyContent: 'center' }}>
-            <div style={{ fontSize: '9.5px', fontWeight: '700', color: '#3730a3', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>How it works</div>
+          <div style={{ borderLeft: '1px dashed #ddd6fe', paddingLeft: '12px', flexShrink: 0, maxWidth: '160px', display: 'flex', flexDirection: 'column', gap: '6px', justifyContent: 'center' }}>
+            <div style={{ fontSize: '9.5px', fontWeight: '700', color: '#4338ca', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '2px' }}>How it works</div>
             {earnRuleText   && <div style={{ fontSize: '10.5px', color: '#374151', lineHeight: 1.4 }}>📈 {earnRuleText}</div>}
             {redeemRuleText && <div style={{ fontSize: '10.5px', color: '#374151', lineHeight: 1.4 }}>💰 {redeemRuleText}</div>}
           </div>
@@ -1014,7 +1014,7 @@ const TableHead = ({ thStyle, showHSN, showDisc, useCGSTSGST, useIGST, useUTGST,
 
 const ClassicTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
   const showDisc = opts.showDiscountColumn && transaction.items?.some(i => Number(i.discountPercent) > 0);
@@ -1088,7 +1088,7 @@ const ClassicTemplate = (p) => {
 
 const ModernTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const lightAcc = lighten(acc, 0.52);
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
@@ -1169,7 +1169,7 @@ const ModernTemplate = (p) => {
 
 const CompactTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
   const showDisc = opts.showDiscountColumn && transaction.items?.some(i => Number(i.discountPercent) > 0);
@@ -1239,7 +1239,7 @@ const CompactTemplate = (p) => {
 
 const ElegantTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const lightAcc = lighten(acc, 0.56);
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
@@ -1315,7 +1315,7 @@ const ElegantTemplate = (p) => {
 
 const BoldTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const lightAcc = lighten(acc, 0.54);
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
@@ -1397,7 +1397,7 @@ const BoldTemplate = (p) => {
 
 const MinimalTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
   const showDisc = opts.showDiscountColumn && transaction.items?.some(i => Number(i.discountPercent) > 0);
@@ -1510,7 +1510,7 @@ const MinimalTemplate = (p) => {
         {advanceAmount > 0 && (
           <>
             <div style={divLine} />
-            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#4f46e5', fontSize: '13px', marginBottom: '4px' }}><span>{isSale ? 'Advance Received' : 'Advance Paid'}</span><span>-₹{advanceAmount.toFixed(2)}</span></div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#6366f1', fontSize: '13px', marginBottom: '4px' }}><span>{isSale ? 'Advance Received' : 'Advance Paid'}</span><span>-₹{advanceAmount.toFixed(2)}</span></div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626', fontWeight: '700', fontSize: '14px' }}><span>{isSale ? 'Balance Due' : 'Balance Payable'}</span><span>₹{balanceDue.toFixed(2)}</span></div>
           </>
         )}
@@ -1545,7 +1545,7 @@ const MinimalTemplate = (p) => {
 
 const CorporateTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const lightAcc = lighten(acc, 0.58);
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
@@ -1670,7 +1670,7 @@ const CorporateTemplate = (p) => {
 
 const VividTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const lightAcc = lighten(acc, 0.55);
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
@@ -1769,7 +1769,7 @@ const VividTemplate = (p) => {
           </div>
           {advanceAmount > 0 && (
             <>
-              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 14px', fontSize: '13px', borderTop: '1px solid #eee', color: '#4f46e5' }}><span>Advance</span><span>-₹{advanceAmount.toFixed(2)}</span></div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 14px', fontSize: '13px', borderTop: '1px solid #eee', color: '#6366f1' }}><span>Advance</span><span>-₹{advanceAmount.toFixed(2)}</span></div>
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 14px', fontSize: '13px', fontWeight: '700', color: '#dc2626' }}><span>{isSale ? 'Balance Due' : 'Balance Payable'}</span><span>₹{balanceDue.toFixed(2)}</span></div>
             </>
           )}
@@ -1977,7 +1977,7 @@ const DotMatrixTemplate = ({ transaction, business, opts }) => {
 
 const ReceiptTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
   const showDisc = opts.showDiscountColumn && transaction.items?.some(i => Number(i.discountPercent) > 0);
@@ -2061,7 +2061,7 @@ const ReceiptTemplate = (p) => {
 
 const PremiumTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const darkAcc = lighten(acc, -0.12);
   const lightAcc = lighten(acc, 0.54);
   const showGST = opts.showGSTColumn && !transaction.noGST;
@@ -2270,7 +2270,7 @@ const MonoTemplate = (p) => {
 
 const StripeTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const lightAcc = lighten(acc, 0.56);
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
@@ -2409,7 +2409,7 @@ const StripeTemplate = (p) => {
 
 const CustomTemplate = (p) => {
   const { transaction, business, dim, opts, isSale, headerTitle, showBalanceSection, currentBillTotal, balanceNum, openingBalance } = p;
-  const acc = opts.themeColor || '#4f46e5';
+  const acc = opts.themeColor || '#6366f1';
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
   const showDisc = opts.showDiscountColumn && transaction.items?.some(i => Number(i.discountPercent) > 0);

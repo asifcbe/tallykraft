@@ -22,7 +22,7 @@ const STATUS_COLORS = {
   Pending: { color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
   Confirmed: { color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
   Processing: { color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-  Ready: { color: '#4f46e5', bg: '#eef2ff', border: '#c7d2fe' },
+  Ready: { color: '#6366f1', bg: '#eef2ff', border: '#ddd6fe' },
   Delivered: { color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
   Cancelled: { color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
 };
@@ -95,7 +95,7 @@ const OrderSlipTemplate = forwardRef(({ order, business, paperSize = 'A4' }, ref
       fontFamily: 'Arial, sans-serif', lineHeight: 1.5, boxSizing: 'border-box',
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '2px solid #4f46e5', paddingBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '2px solid #6366f1', paddingBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
           {business.logo && <img src={business.logo} alt="Logo" style={{ maxHeight: '56px', maxWidth: '130px', objectFit: 'contain' }} />}
           <div>
@@ -129,8 +129,8 @@ const OrderSlipTemplate = forwardRef(({ order, business, paperSize = 'A4' }, ref
           <div style={{ fontSize: '15px', fontWeight: 'bold' }}>{order.partyName || '—'}</div>
           {order.partyPhone && <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>{order.partyPhone}</div>}
         </div>
-        <div style={{ flex: 1, minWidth: '200px', padding: '14px', backgroundColor: '#eef2ff', borderRadius: '8px', border: '1px solid #c7d2fe' }}>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#4f46e5', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Delivery Details</div>
+        <div style={{ flex: 1, minWidth: '200px', padding: '14px', backgroundColor: '#eef2ff', borderRadius: '8px', border: '1px solid #ddd6fe' }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Delivery Details</div>
           {order.deliveryAddress ? (
             <div style={{ fontSize: '13px', fontWeight: 600, whiteSpace: 'pre-wrap' }}>{order.deliveryAddress}</div>
           ) : (
@@ -138,7 +138,7 @@ const OrderSlipTemplate = forwardRef(({ order, business, paperSize = 'A4' }, ref
           )}
           {order.deliveryPhone && <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}>Contact: {order.deliveryPhone}</div>}
           {order.deliveryInstructions && (
-            <div style={{ fontSize: '11.5px', color: '#3730a3', marginTop: '6px', fontStyle: 'italic' }}>{order.deliveryInstructions}</div>
+            <div style={{ fontSize: '11.5px', color: '#4338ca', marginTop: '6px', fontStyle: 'italic' }}>{order.deliveryInstructions}</div>
           )}
         </div>
       </div>
@@ -171,7 +171,7 @@ const OrderSlipTemplate = forwardRef(({ order, business, paperSize = 'A4' }, ref
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
         <div style={{ minWidth: '220px', padding: '10px 16px', backgroundColor: '#f8fafc', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>TOTAL</span>
-          <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#4f46e5' }}>₹{total.toFixed(2)}</span>
+          <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#6366f1' }}>₹{total.toFixed(2)}</span>
         </div>
       </div>
 

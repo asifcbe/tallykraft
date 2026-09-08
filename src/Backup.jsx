@@ -277,7 +277,7 @@ const Backup = () => {
       <Box sx={{
         display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
         p: 2, mb: 2.5, borderRadius: 2.5,
-        background: 'linear-gradient(135deg, #312e81 0%, #3730a3 50%, #4f46e5 100%)',
+        background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)',
       }}>
         <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', flexShrink: 0 }}>
           <RefreshCw size={20} color="white" />

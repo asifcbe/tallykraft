@@ -24,9 +24,9 @@ const SoloBooksLogo = ({ size = 36, variant = 'icon' }) => {
         {/* Spine */}
         <rect x="19.5" y="9" width="1" height="19.5" fill="rgba(255,255,255,0.3)"/>
         {/* Ledger lines — left page */}
-        <line x1="11" y1="16.5" x2="18.5" y2="15.8" stroke="rgba(79,70,229,0.6)" strokeWidth="1.4" strokeLinecap="round"/>
-        <line x1="11" y1="20"   x2="18.5" y2="19.3" stroke="rgba(79,70,229,0.6)" strokeWidth="1.4" strokeLinecap="round"/>
-        <line x1="11" y1="23.5" x2="18.5" y2="22.8" stroke="rgba(79,70,229,0.4)" strokeWidth="1.1" strokeLinecap="round"/>
+        <line x1="11" y1="16.5" x2="18.5" y2="15.8" stroke="rgba(99,102,241,0.6)" strokeWidth="1.4" strokeLinecap="round"/>
+        <line x1="11" y1="20"   x2="18.5" y2="19.3" stroke="rgba(99,102,241,0.6)" strokeWidth="1.4" strokeLinecap="round"/>
+        <line x1="11" y1="23.5" x2="18.5" y2="22.8" stroke="rgba(99,102,241,0.4)" strokeWidth="1.1" strokeLinecap="round"/>
         {/* Trend line — right page */}
         <polyline points="21.5,27 24.5,22 27,24 30.5,17.5"
           stroke="rgba(124,58,237,0.7)" strokeWidth="1.5"
@@ -60,7 +60,7 @@ const SoloBooksLogo = ({ size = 36, variant = 'icon' }) => {
       {/* Open book — right page (slightly transparent for depth) */}
       <path d="M20 9C23 9 27.5 10.2 31 11.8L31 30.5C27.5 29 23 27.8 20 28.5V9Z" fill="white" opacity="0.6"/>
       {/* Spine shadow */}
-      <rect x="19.5" y="9" width="1" height="19.5" fill="rgba(79,70,229,0.25)"/>
+      <rect x="19.5" y="9" width="1" height="19.5" fill="rgba(99,102,241,0.25)"/>
 
       {/* Ledger lines — left page */}
       <line x1="11" y1="16.5" x2="18.5" y2="15.8" stroke="#4F46E5" strokeWidth="1.4" strokeLinecap="round" opacity="0.65"/>

@@ -418,7 +418,7 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
 
           {/* ── Header ── */}
-          <Box sx={{ background: 'linear-gradient(135deg, #3730a3 0%, #6366f1 100%)', px: 2.5, py: 1.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <Box sx={{ background: 'linear-gradient(135deg, #6366f1 0%, #a5b4fc 100%)', px: 2.5, py: 1.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
               <Box sx={{ bgcolor: 'rgba(255,255,255,0.2)', borderRadius: 1.5, p: 0.6, display: 'flex' }}>
                 {editingItem ? <Edit2 size={16} color="white" /> : <Plus size={16} color="white" />}
@@ -967,7 +967,7 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
             <Button type="submit" variant="contained"
               sx={{
                 borderRadius: 1.5,
-                background: 'linear-gradient(135deg, #3730a3 0%, #6366f1 100%)',
+                background: 'linear-gradient(135deg, #6366f1 0%, #a5b4fc 100%)',
                 boxShadow: `0 3px 10px ${alpha(primary, 0.3)}`,
                 fontWeight: 700, px: 3,
                 '&:hover': { opacity: 0.9, boxShadow: `0 4px 14px ${alpha(primary, 0.4)}` },

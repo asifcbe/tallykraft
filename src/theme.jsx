@@ -3,7 +3,7 @@ import { createTheme } from '@mui/material/styles';
 const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
   const colorPalettes = {
     indigo: {
-      primary: { main: '#4f46e5', light: '#818cf8', dark: '#3730a3' },
+      primary: { main: '#6366f1', light: '#a5b4fc', dark: '#4338ca' },
       secondary: { main: '#64748b' },
     },
     blue: {
@@ -22,7 +22,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
 
   const palette = colorPalettes[primaryColor] || colorPalettes.indigo;
   const isLight = mode === 'light';
-  const primaryRgb = primaryColor === 'indigo' ? '79,70,229' : primaryColor === 'blue' ? '37,99,235' : primaryColor === 'green' ? '5,150,105' : '124,58,237';
+  const primaryRgb = primaryColor === 'indigo' ? '99,102,241' : primaryColor === 'blue' ? '37,99,235' : primaryColor === 'green' ? '5,150,105' : '124,58,237';
 
   // Refined shadows — flat, Slate-toned
   const shadows = [
@@ -571,20 +571,22 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
 // the KEY names are kept for import compatibility, but the VALUES are
 // TallyKraft's indigo brand so the shared components render in this app's
 // palette without per-file edits. Do not rename the keys.
-const TK_PRIMARY = '#4f46e5';       // indigo-600
-const TK_PRIMARY_DARK = '#3730a3';  // indigo-800
-const TK_PRIMARY_LIGHT = '#818cf8'; // indigo-400
-const TK_ACCENT = '#6366f1';        // indigo-500
-const TK_DEEP = '#312e81';          // indigo-900
+const TK_PRIMARY = '#6366f1';       // indigo-500 (main accent — kept fairly light)
+const TK_PRIMARY_DARK = '#4f46e5';  // indigo-600 (hover / dark accents)
+const TK_PRIMARY_LIGHT = '#a5b4fc'; // indigo-300
+const TK_ACCENT = '#818cf8';        // indigo-400
+const TK_DEEP = '#4338ca';          // indigo-700 (deepest gradient anchor — was indigo-900, too dark)
 export const BRAND = {
   teal: TK_PRIMARY,
   tealDark: TK_PRIMARY_DARK,
   tealLight: TK_PRIMARY_LIGHT,
   tealDeep: TK_DEEP,
   emerald: TK_ACCENT,
-  emeraldLight: '#a5b4fc',
-  ink: '#1e1b4b',
-  gradient: `linear-gradient(135deg, ${TK_DEEP} 0%, ${TK_PRIMARY_DARK} 45%, ${TK_PRIMARY} 100%)`,
+  emeraldLight: '#c7d2fe',
+  ink: '#312e81',
+  // Softer header/hero gradient — starts at indigo-600 (not indigo-900) so
+  // top bars and dialog headers read as vivid indigo rather than near-navy.
+  gradient: `linear-gradient(135deg, ${TK_PRIMARY_DARK} 0%, ${TK_PRIMARY} 55%, ${TK_ACCENT} 100%)`,
   gradientVivid: `linear-gradient(135deg, ${TK_PRIMARY} 0%, ${TK_ACCENT} 100%)`,
   gradientSoft: `linear-gradient(135deg, ${TK_PRIMARY} 0%, ${TK_PRIMARY_LIGHT} 100%)`,
 };

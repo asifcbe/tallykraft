@@ -211,7 +211,7 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
           <Box sx={{
             background: isVendor
               ? 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)'
-              : 'linear-gradient(135deg, #3730a3 0%, #6366f1 100%)',
+              : 'linear-gradient(135deg, #6366f1 0%, #a5b4fc 100%)',
             px: 2.5, py: 1.75,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             flexShrink: 0,
@@ -459,7 +459,7 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
                       {[
-                        { dir: 'collect', label: 'To Collect', color: '#4f46e5', bg: '#6366f1' },
+                        { dir: 'collect', label: 'To Collect', color: '#6366f1', bg: '#818cf8' },
                         { dir: 'pay',     label: 'To Pay',     color: '#dc2626', bg: '#ef4444' },
                       ].map(({ dir, label, color, bg }) => {
                         const active = balanceDir === dir;
@@ -503,7 +503,7 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
                 borderRadius: 1.5, fontWeight: 700, px: 3,
                 background: isVendor
                   ? 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)'
-                  : 'linear-gradient(135deg, #3730a3 0%, #6366f1 100%)',
+                  : 'linear-gradient(135deg, #6366f1 0%, #a5b4fc 100%)',
                 '&:hover': { opacity: 0.9 },
               }}>
               {saving ? 'Saving…' : (editingParty ? `Update ${partyType}` : `Save ${partyType}`)}

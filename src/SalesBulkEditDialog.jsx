@@ -65,12 +65,12 @@ export default function SalesBulkEditDialog({ open, onClose, isSale }) {
       PaperProps={{ sx: { borderRadius: 3, maxHeight: '90vh', position: 'relative' } }}
     >
       <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.8)', flexDirection: 'column', gap: 1.5 }}>
-        <CircularProgress size={40} sx={{ color: '#4f46e5' }} />
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#4f46e5' }}>Saving changes…</Typography>
+        <CircularProgress size={40} sx={{ color: '#6366f1' }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#6366f1' }}>Saving changes…</Typography>
       </Backdrop>
       <Box
         sx={{
-          background: 'linear-gradient(135deg, #312e81 0%, #3730a3 45%, #4f46e5 100%)',
+          background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 45%, #818cf8 100%)',
           px: 3, py: 2,
           display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0,
         }}
@@ -118,8 +118,8 @@ export default function SalesBulkEditDialog({ open, onClose, isSale }) {
                   <TableRow
                     key={row.id}
                     sx={{
-                      '&:hover': { bgcolor: 'rgba(79,70,229,0.03)' },
-                      bgcolor: changedKeys.has(row.id) ? 'rgba(79,70,229,0.04)' : undefined,
+                      '&:hover': { bgcolor: 'rgba(99,102,241,0.03)' },
+                      bgcolor: changedKeys.has(row.id) ? 'rgba(99,102,241,0.04)' : undefined,
                     }}
                   >
                     <TableCell>
@@ -201,7 +201,7 @@ export default function SalesBulkEditDialog({ open, onClose, isSale }) {
           <Chip
             label={`${changedKeys.size} row${changedKeys.size !== 1 ? 's' : ''} changed`}
             size="small"
-            sx={{ fontWeight: 700, bgcolor: 'rgba(79,70,229,0.08)', color: '#4f46e5', mr: 'auto' }}
+            sx={{ fontWeight: 700, bgcolor: 'rgba(99,102,241,0.08)', color: '#6366f1', mr: 'auto' }}
           />
         )}
         <Button onClick={onClose} disabled={saving} sx={{ fontWeight: 700, textTransform: 'none' }}>
@@ -214,7 +214,7 @@ export default function SalesBulkEditDialog({ open, onClose, isSale }) {
           disabled={saving}
           sx={{
             fontWeight: 700, textTransform: 'none', borderRadius: '8px',
-            background: 'linear-gradient(135deg, #3730a3 0%, #4f46e5 100%)',
+            background: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)',
           }}
         >
           {saving ? 'Saving…' : `Save Changes${changedKeys.size > 0 ? ` (${changedKeys.size})` : ''}`}

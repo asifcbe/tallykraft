@@ -144,7 +144,7 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
   const statRows = heroStats ? [
     { label: 'Sales',        value: heroStats.totalSales,     color: accentColorHex, trend: heroStats.salesTrend,    actions: onQuickNew ? [{ label: 'Invoice',  fn: () => onQuickNew('/sales', 'New Invoice', 'createNew') }] : [] },
     { label: 'Purchases',    value: heroStats.totalPurchases, color: '#a78bfa',      trend: heroStats.purchaseTrend, actions: onQuickNew ? [{ label: 'Purchase', fn: () => onQuickNew('/purchases', 'New Purchase', 'createNew') }] : [] },
-    { label: 'Receivable',   value: heroStats.toGet,          color: '#818cf8',      trend: null,                   actions: onQuickNew ? [{ label: 'Receive',  fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-in', 'Payment In', 'viewOutstanding') }] : [] },
+    { label: 'Receivable',   value: heroStats.toGet,          color: '#a5b4fc',      trend: null,                   actions: onQuickNew ? [{ label: 'Receive',  fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-in', 'Payment In', 'viewOutstanding') }] : [] },
     { label: 'Payable',      value: heroStats.toGive,         color: '#fbbf24',      trend: null,                   actions: onQuickNew ? [{ label: 'Pay',      fn: () => onQuickNew('/payment-out', 'Payment Out', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-out', 'Payment Out', 'viewOutstanding') }] : [] },
     { label: 'Expenses',     value: heroStats.totalExpenses,  color: '#fb7185',      trend: null,                   actions: onQuickNew ? [{ label: 'Expense',  fn: () => onQuickNew('/expenses', 'Expenses', 'openAdd') }] : [] },
     { label: 'Cash in Hand', value: cash?.balance ?? 0,       color: '#22d3ee',      cashIn: lastCashAmounts?.lastIn ?? 0, cashOut: lastCashAmounts?.lastOut ?? 0,
@@ -638,7 +638,7 @@ const Dashboard = () => {
       const cat = e.category || e.type || 'Other';
       expenseByCat[cat] = (expenseByCat[cat] || 0) + e.amount;
     });
-    const DONUT_COLORS = ['#4f46e5', '#4f46e5', '#4f46e5', '#d97706', '#e11d48', '#0891b2', '#7c3aed', '#be123c'];
+    const DONUT_COLORS = ['#6366f1', '#6366f1', '#6366f1', '#d97706', '#e11d48', '#0891b2', '#7c3aed', '#be123c'];
     const expenseDonut = Object.entries(expenseByCat)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 7)
@@ -877,7 +877,7 @@ const Dashboard = () => {
         <ClockCalendarWidget
           now={now}
           accentColor={BRAND.teal}
-          accentColorHex="#6366f1"
+          accentColorHex="#818cf8"
           bgColor={BRAND.gradient}
           textOnBg="#fff"
           stats={stats}
@@ -894,9 +894,9 @@ const Dashboard = () => {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         PaperProps={{ sx: { borderRadius: 2, mt: 1, minWidth: 220 } }}>
         <MenuItem dense onClick={() => quickNew('/sales', 'New Invoice', 'createNew')}><ReceiptText size={15} style={{ marginRight: 10, color: BRAND.teal }} />New Sales Invoice</MenuItem>
-        <MenuItem dense onClick={() => quickNew('/purchases', 'New Purchase', 'createNew')}><ShoppingBag size={15} style={{ marginRight: 10, color: '#4f46e5' }} />New Purchase Bill</MenuItem>
+        <MenuItem dense onClick={() => quickNew('/purchases', 'New Purchase', 'createNew')}><ShoppingBag size={15} style={{ marginRight: 10, color: '#6366f1' }} />New Purchase Bill</MenuItem>
         <MenuItem dense onClick={() => quickNew('/expenses', 'Expenses', 'openAdd')}><DollarSign size={15} style={{ marginRight: 10, color: '#e11d48' }} />Add Expense</MenuItem>
-        <MenuItem dense onClick={() => quickNew('/payment-in', 'Payment In', 'openAdd')}><Download size={15} style={{ marginRight: 10, color: '#4f46e5' }} />Payment Received</MenuItem>
+        <MenuItem dense onClick={() => quickNew('/payment-in', 'Payment In', 'openAdd')}><Download size={15} style={{ marginRight: 10, color: '#6366f1' }} />Payment Received</MenuItem>
         <MenuItem dense onClick={() => quickNew('/payment-out', 'Payment Out', 'openAdd')}><Upload size={15} style={{ marginRight: 10, color: '#d97706' }} />Payment Made</MenuItem>
       </Menu>
 
@@ -917,7 +917,7 @@ const Dashboard = () => {
                 </Box>
               </Stack>
               <Stack direction="row" spacing={2}>
-                {[{ color: BRAND.teal, label: 'Sales' }, { color: '#4f46e5', label: 'Purchase' }].map(({ color, label }) => (
+                {[{ color: BRAND.teal, label: 'Sales' }, { color: '#6366f1', label: 'Purchase' }].map(({ color, label }) => (
                   <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                     <Box sx={{ width: 10, height: 3, borderRadius: 1.5, bgcolor: color }} />
                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.7rem' }}>{label}</Typography>
@@ -935,8 +935,8 @@ const Dashboard = () => {
                         <stop offset="100%" stopColor={BRAND.teal} stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="gPurch" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#4f46e5" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#4f46e5" stopOpacity={0} />
+                        <stop offset="0%" stopColor="#6366f1" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="#6366f1" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.text.primary, 0.06)} />
@@ -944,7 +944,7 @@ const Dashboard = () => {
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.disabled, fontSize: 11 }} tickFormatter={v => v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`} />
                     <ReTooltip content={<AreaTooltip />} />
                     <Area type="monotone" dataKey="sales" stroke={BRAND.teal} strokeWidth={2.5} fill="url(#gSales)" name="Sales" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
-                    <Area type="monotone" dataKey="purchases" stroke="#4f46e5" strokeWidth={2} fill="url(#gPurch)" name="Purchase" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                    <Area type="monotone" dataKey="purchases" stroke="#6366f1" strokeWidth={2} fill="url(#gPurch)" name="Purchase" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               </ChartMountGuard>
@@ -1057,7 +1057,7 @@ const Dashboard = () => {
               ) : (
                 recentTx.map((tx, idx) => {
                   const isSale = tx.type === 'Sales';
-                  const clr = isSale ? BRAND.teal : '#4f46e5';
+                  const clr = isSale ? BRAND.teal : '#6366f1';
                   const IcoComp = isSale ? ReceiptText : ShoppingBag;
                   return (
                     <Box key={tx.id}
@@ -1077,7 +1077,7 @@ const Dashboard = () => {
                           <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.79rem', lineHeight: 1.3 }} noWrap>
                             {tx.partyName || (isSale ? 'Cash & Carry' : 'Cash Purchase')}
                           </Typography>
-                          <Typography sx={{ fontSize: '0.8rem', fontWeight: 800, color: isSale ? BRAND.teal : '#4f46e5', ml: 1, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                          <Typography sx={{ fontSize: '0.8rem', fontWeight: 800, color: isSale ? BRAND.teal : '#6366f1', ml: 1, flexShrink: 0, whiteSpace: 'nowrap' }}>
                             {isSale ? '+' : '−'}₹{tx.totalAmount?.toLocaleString('en-IN') ?? '0'}
                           </Typography>
                         </Stack>
