@@ -30,7 +30,7 @@ const inputSx = {
   '& .MuiOutlinedInput-root': { borderRadius: 1, fontSize: '0.8125rem' },
   '& .MuiOutlinedInput-notchedOutline': { border: 'none' },
   '&:hover .MuiOutlinedInput-notchedOutline': { border: '1px solid', borderColor: 'divider' },
-  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: '1px solid #0d9488' },
+  '&.Mui-focused .MuiOutlinedInput-notchedOutline': { border: '1px solid #4f46e5' },
 };
 
 export default function PaymentBulkAddDialog({ open, onClose, onSuccess, defaultType = 'PaymentIn' }) {
@@ -121,7 +121,7 @@ export default function PaymentBulkAddDialog({ open, onClose, onSuccess, default
     <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth
       PaperProps={{ sx: { borderRadius: 3, position: 'relative' } }}>
       <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, bgcolor: 'rgba(255,255,255,0.75)', borderRadius: 3 }}>
-        <CircularProgress size={36} sx={{ color: '#0d9488' }} />
+        <CircularProgress size={36} sx={{ color: '#4f46e5' }} />
       </Backdrop>
 
       <DialogTitle sx={{ pb: 1.5, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -141,7 +141,7 @@ export default function PaymentBulkAddDialog({ open, onClose, onSuccess, default
         <Box ref={tableRef} sx={{ overflowX: 'auto' }}>
           <Table size="small" sx={{ minWidth: 880, borderCollapse: 'collapse' }}>
             <TableHead>
-              <TableRow sx={{ bgcolor: alpha('#0d9488', 0.06) }}>
+              <TableRow sx={{ bgcolor: alpha('#4f46e5', 0.06) }}>
                 <TableCell sx={{ ...cellSx, width: 36 }} />
                 {COLS.map(c => (
                   <TableCell key={c.key} sx={{ ...cellSx, width: c.width, fontWeight: 700, fontSize: '0.78rem', py: 1, color: 'text.secondary', whiteSpace: 'nowrap' }}>
@@ -152,7 +152,7 @@ export default function PaymentBulkAddDialog({ open, onClose, onSuccess, default
             </TableHead>
             <TableBody>
               {rows.map((row, idx) => (
-                <TableRow key={row.key} hover sx={{ '&:hover': { bgcolor: alpha('#0d9488', 0.02) } }}>
+                <TableRow key={row.key} hover sx={{ '&:hover': { bgcolor: alpha('#4f46e5', 0.02) } }}>
                   <TableCell sx={{ ...cellSx, width: 36, color: 'text.disabled', fontSize: '0.75rem', textAlign: 'center' }}>
                     {idx + 1}
                   </TableCell>
@@ -228,7 +228,7 @@ export default function PaymentBulkAddDialog({ open, onClose, onSuccess, default
 
         <Box sx={{ px: 2, py: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
           <Button size="small" startIcon={<Plus size={14} />} onClick={addRow}
-            sx={{ textTransform: 'none', color: '#0d9488', fontWeight: 600, fontSize: '0.8125rem' }}>
+            sx={{ textTransform: 'none', color: '#4f46e5', fontWeight: 600, fontSize: '0.8125rem' }}>
             Add Row
           </Button>
         </Box>
@@ -241,7 +241,7 @@ export default function PaymentBulkAddDialog({ open, onClose, onSuccess, default
         <Button onClick={onClose} disabled={saving} sx={{ textTransform: 'none', fontWeight: 600 }}>Cancel</Button>
         <Button onClick={handleSave} disabled={saving || !rows.some(r => r.partyName.trim() && parseFloat(r.amount) > 0)}
           variant="contained" disableElevation
-          sx={{ textTransform: 'none', fontWeight: 700, bgcolor: '#0d9488', '&:hover': { bgcolor: '#0f766e' }, borderRadius: 2, px: 3 }}>
+          sx={{ textTransform: 'none', fontWeight: 700, bgcolor: '#4f46e5', '&:hover': { bgcolor: '#3730a3' }, borderRadius: 2, px: 3 }}>
           Save Payments
         </Button>
       </DialogActions>

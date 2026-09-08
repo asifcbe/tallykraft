@@ -2526,7 +2526,7 @@ const SettingsPage = () => {
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2.5 }}>
                 {THEME_COLORS.map(c => {
-                  const isSel = (printOptsEff.themeColor || '#0d9488') === c.value;
+                  const isSel = (printOptsEff.themeColor || '#4f46e5') === c.value;
                   return (
                     <Tooltip key={c.value} title={c.label}>
                       <Box
@@ -2549,7 +2549,7 @@ const SettingsPage = () => {
                 })}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 0.5 }}>
                   <Box component="input" type="color"
-                    value={printOptsEff.themeColor || '#0d9488'}
+                    value={printOptsEff.themeColor || '#4f46e5'}
                     onChange={e => setPrintOptsDraft(d => ({ ...(d ?? config.billPrintOptions ?? {}), themeColor: e.target.value }))}
                     style={{ width: 28, height: 28, border: 'none', padding: 0, cursor: 'pointer', borderRadius: '50%', background: 'none' }}
                   />
@@ -3236,7 +3236,7 @@ const SettingsPage = () => {
                 onClick: () => { const biz = currentBusiness; if (!biz) return; exportFullBusinessToExcel({ businessName: biz.name, businessId: biz.id, allData: data, customSections: config.customSections || [] }); },
               },
               {
-                icon: FileDown, iconColor: '#059669',
+                icon: FileDown, iconColor: '#4f46e5',
                 title: 'Export to Tally XML',
                 desc: 'Sales & Purchase vouchers as Tally-compatible XML. Import via Gateway → Import Data → Vouchers',
                 label: 'Export XML',

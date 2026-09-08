@@ -216,8 +216,8 @@ const ImportDialog = ({ open, onClose, type, existingItems = [], onBatchImport }
     <Dialog open={open} onClose={importing ? undefined : handleClose} maxWidth="md" fullWidth
       PaperProps={{ sx: { position: 'relative' } }}>
       <Backdrop open={importing} sx={{ position: 'absolute', zIndex: 10, borderRadius: 1, bgcolor: 'rgba(255,255,255,0.85)', flexDirection: 'column', gap: 1.5 }}>
-        <CircularProgress size={40} sx={{ color: '#0d9488' }} />
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0d9488' }}>
+        <CircularProgress size={40} sx={{ color: '#4f46e5' }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#4f46e5' }}>
           Importing {validRows.length} rows…
         </Typography>
       </Backdrop>

@@ -570,7 +570,7 @@ const TxListView = ({
                           <Typography variant="caption" sx={{ fontWeight: 600 }} noWrap>{a.party(r)}</Typography>
                         ) : (
                           <Chip size="small" label={a.party(r) || 'Cash'}
-                            sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, alignSelf: 'flex-start', bgcolor: 'rgba(16,185,129,0.08)', color: 'success.dark', border: '1px solid rgba(16,185,129,0.22)' }} />
+                            sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, alignSelf: 'flex-start', bgcolor: 'rgba(99,102,241,0.08)', color: 'success.dark', border: '1px solid rgba(99,102,241,0.22)' }} />
                         )}
                         <Typography variant="caption" color="text.secondary">
                           {fmtDate(a.date(r))}{formatCreatedTime(r) ? ` · ${formatCreatedTime(r)}` : ''}
@@ -635,7 +635,7 @@ const TxListView = ({
                           <Typography variant="caption" sx={{ fontWeight: 600 }} noWrap>{a.party(r)}</Typography>
                         ) : (
                           <Chip size="small" label={a.party(r) || 'Cash'}
-                            sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, alignSelf: 'flex-start', bgcolor: 'rgba(16,185,129,0.08)', color: 'success.dark', border: '1px solid rgba(16,185,129,0.22)' }} />
+                            sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, alignSelf: 'flex-start', bgcolor: 'rgba(99,102,241,0.08)', color: 'success.dark', border: '1px solid rgba(99,102,241,0.22)' }} />
                         )}
                         <Typography variant="caption" color="text.secondary">
                           {fmtDate(a.date(r))}{formatCreatedTime(r) ? ` · ${formatCreatedTime(r)}` : ''}

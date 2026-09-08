@@ -129,9 +129,9 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
 
   const isPaymentIn = tabValue === 0;
   // Payment-In reads as money coming in (emerald); Payment-Out as money leaving (amber).
-  const accentColor = isPaymentIn ? '#059669' : '#d97706';
+  const accentColor = isPaymentIn ? '#4f46e5' : '#d97706';
   const accentGradient = isPaymentIn
-    ? 'linear-gradient(135deg, #047857 0%, #10b981 100%)'
+    ? 'linear-gradient(135deg, #4338ca 0%, #6366f1 100%)'
     : 'linear-gradient(135deg, #b45309 0%, #f59e0b 100%)';
 
   const parties = getItems('parties').filter(p => p.businessId === currentBusiness?.id);
@@ -389,7 +389,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         {/* Tab strip */}
         <Box sx={{ display: 'flex', borderBottom: `1px solid ${alpha(accentColor, 0.12)}`, bgcolor: alpha(accentColor, 0.02) }}>
           {[
-            { label: t('pay.paymentIn'), sub: 'Money Received', icon: <ArrowDownRight size={14} />, color: '#059669' },
+            { label: t('pay.paymentIn'), sub: 'Money Received', icon: <ArrowDownRight size={14} />, color: '#4f46e5' },
             { label: t('pay.paymentOut'), sub: 'Money Paid Out', icon: <ArrowUpRight size={14} />, color: '#d97706' },
           ].map((tab, i) => (
             <Box key={i} onClick={() => { setTabValue(i); setFormData(f => ({ ...f, partyId: '' })); }}

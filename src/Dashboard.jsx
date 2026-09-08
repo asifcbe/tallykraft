@@ -144,7 +144,7 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
   const statRows = heroStats ? [
     { label: 'Sales',        value: heroStats.totalSales,     color: accentColorHex, trend: heroStats.salesTrend,    actions: onQuickNew ? [{ label: 'Invoice',  fn: () => onQuickNew('/sales', 'New Invoice', 'createNew') }] : [] },
     { label: 'Purchases',    value: heroStats.totalPurchases, color: '#a78bfa',      trend: heroStats.purchaseTrend, actions: onQuickNew ? [{ label: 'Purchase', fn: () => onQuickNew('/purchases', 'New Purchase', 'createNew') }] : [] },
-    { label: 'Receivable',   value: heroStats.toGet,          color: '#34d399',      trend: null,                   actions: onQuickNew ? [{ label: 'Receive',  fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-in', 'Payment In', 'viewOutstanding') }] : [] },
+    { label: 'Receivable',   value: heroStats.toGet,          color: '#818cf8',      trend: null,                   actions: onQuickNew ? [{ label: 'Receive',  fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-in', 'Payment In', 'viewOutstanding') }] : [] },
     { label: 'Payable',      value: heroStats.toGive,         color: '#fbbf24',      trend: null,                   actions: onQuickNew ? [{ label: 'Pay',      fn: () => onQuickNew('/payment-out', 'Payment Out', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-out', 'Payment Out', 'viewOutstanding') }] : [] },
     { label: 'Expenses',     value: heroStats.totalExpenses,  color: '#fb7185',      trend: null,                   actions: onQuickNew ? [{ label: 'Expense',  fn: () => onQuickNew('/expenses', 'Expenses', 'openAdd') }] : [] },
     { label: 'Cash in Hand', value: cash?.balance ?? 0,       color: '#22d3ee',      cashIn: lastCashAmounts?.lastIn ?? 0, cashOut: lastCashAmounts?.lastOut ?? 0,
@@ -638,7 +638,7 @@ const Dashboard = () => {
       const cat = e.category || e.type || 'Other';
       expenseByCat[cat] = (expenseByCat[cat] || 0) + e.amount;
     });
-    const DONUT_COLORS = ['#0d9488', '#4f46e5', '#059669', '#d97706', '#e11d48', '#0891b2', '#7c3aed', '#be123c'];
+    const DONUT_COLORS = ['#4f46e5', '#4f46e5', '#4f46e5', '#d97706', '#e11d48', '#0891b2', '#7c3aed', '#be123c'];
     const expenseDonut = Object.entries(expenseByCat)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 7)
@@ -877,7 +877,7 @@ const Dashboard = () => {
         <ClockCalendarWidget
           now={now}
           accentColor={BRAND.teal}
-          accentColorHex="#14b8a6"
+          accentColorHex="#6366f1"
           bgColor={BRAND.gradient}
           textOnBg="#fff"
           stats={stats}
@@ -896,7 +896,7 @@ const Dashboard = () => {
         <MenuItem dense onClick={() => quickNew('/sales', 'New Invoice', 'createNew')}><ReceiptText size={15} style={{ marginRight: 10, color: BRAND.teal }} />New Sales Invoice</MenuItem>
         <MenuItem dense onClick={() => quickNew('/purchases', 'New Purchase', 'createNew')}><ShoppingBag size={15} style={{ marginRight: 10, color: '#4f46e5' }} />New Purchase Bill</MenuItem>
         <MenuItem dense onClick={() => quickNew('/expenses', 'Expenses', 'openAdd')}><DollarSign size={15} style={{ marginRight: 10, color: '#e11d48' }} />Add Expense</MenuItem>
-        <MenuItem dense onClick={() => quickNew('/payment-in', 'Payment In', 'openAdd')}><Download size={15} style={{ marginRight: 10, color: '#059669' }} />Payment Received</MenuItem>
+        <MenuItem dense onClick={() => quickNew('/payment-in', 'Payment In', 'openAdd')}><Download size={15} style={{ marginRight: 10, color: '#4f46e5' }} />Payment Received</MenuItem>
         <MenuItem dense onClick={() => quickNew('/payment-out', 'Payment Out', 'openAdd')}><Upload size={15} style={{ marginRight: 10, color: '#d97706' }} />Payment Made</MenuItem>
       </Menu>
 

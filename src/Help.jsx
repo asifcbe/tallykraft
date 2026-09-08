@@ -66,7 +66,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: 'sales', icon: ReceiptText, color: '#059669',
+    id: 'sales', icon: ReceiptText, color: '#4f46e5',
     title: 'Sales Invoices',
     summary: 'Create, print, and manage all your sales bills.',
     steps: [
@@ -197,7 +197,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: 'backup', icon: Download, color: '#059669',
+    id: 'backup', icon: Download, color: '#4f46e5',
     title: 'Backup & Restore',
     summary: 'Keep your data safe — download a backup and restore it any time.',
     steps: [

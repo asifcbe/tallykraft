@@ -259,7 +259,7 @@ function StockDemo({ isDark, C }) {
   const phase = useLoop([2200, 1200, 2100]); // 0=normal 1=billing 2=updated
 
   return (
-    <DemoCard isDark={isDark} C={C} accent='#34d399'
+    <DemoCard isDark={isDark} C={C} accent='#818cf8'
       label="Real-Time Inventory"
       title="Stock Updates on Every Sale"
       desc="When you create an invoice, stock levels drop automatically. Always know your exact inventory without manual counting."
@@ -269,7 +269,7 @@ function StockDemo({ isDark, C }) {
             borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ background: 'rgba(52,211,153,.12)', padding: '7px 12px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#34d399', letterSpacing: '.05em' }}>INVENTORY</span>
+              <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#818cf8', letterSpacing: '.05em' }}>INVENTORY</span>
               <span style={{ fontSize: '.62rem', color: 'rgba(52,211,153,.6)', fontWeight: 600 }}>
                 {phase === 1 ? '⟳ Updating…' : 'Live'}
               </span>
@@ -288,10 +288,10 @@ function StockDemo({ isDark, C }) {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '.86rem', fontWeight: 800,
-                      color: updated ? '#34d399' : 'rgba(255,255,255,.65)',
+                      color: updated ? '#818cf8' : 'rgba(255,255,255,.65)',
                       transition: 'color .4s',
                       animation: updated ? 'fd-stockFlash .5s ease' : 'none' }}>{qty}</div>
-                    {updated && <div style={{ fontSize: '.58rem', color: '#34d399', fontWeight: 700 }}>▼ auto-updated</div>}
+                    {updated && <div style={{ fontSize: '.58rem', color: '#818cf8', fontWeight: 700 }}>▼ auto-updated</div>}
                   </div>
                 </div>
               );

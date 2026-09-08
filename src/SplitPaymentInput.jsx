@@ -12,7 +12,7 @@ const SplitPaymentInput = ({
   cash, onCashChange,
   bank, onBankChange,
   total,
-  accentColor = '#0d9488',
+  accentColor = '#4f46e5',
 }) => {
   const cashNum = Number(cash) || 0;
   const bankNum = Number(bank) || 0;

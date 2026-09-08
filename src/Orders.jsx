@@ -35,7 +35,7 @@ const ORDER_STATUSES = [
   { value: 'Pending',    label: 'Pending',    icon: Clock,        color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
   { value: 'Confirmed',  label: 'Confirmed',  icon: CircleDot,    color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
   { value: 'Processing', label: 'Processing', icon: PackageCheck, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-  { value: 'Ready',      label: 'Ready',      icon: CheckCircle2, color: '#0d9488', bg: '#f0fdfa', border: '#99f6e4' },
+  { value: 'Ready',      label: 'Ready',      icon: CheckCircle2, color: '#4f46e5', bg: '#eef2ff', border: '#c7d2fe' },
   { value: 'Delivered',  label: 'Delivered',  icon: Truck,        color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
   { value: 'Cancelled',  label: 'Cancelled',  icon: XCircle,      color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
 ];

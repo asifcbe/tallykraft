@@ -935,7 +935,7 @@ const Admin = () => {
               <HeroMetric icon={IndianRupee} label="MRR" value={inr(analytics.mrr)} color="#0891b2" sublabel="Monthly recurring revenue" />
             </Grid>
             <Grid item xs={6} md={3}>
-              <HeroMetric icon={Wallet} label="Total Collected" value={inr(analytics.lifetimeRevenue)} color="#059669" sublabel="All payments to date" />
+              <HeroMetric icon={Wallet} label="Total Collected" value={inr(analytics.lifetimeRevenue)} color="#4f46e5" sublabel="All payments to date" />
             </Grid>
             <Grid item xs={6} md={3}>
               <HeroMetric icon={Users} label="Paying Customers" value={analytics.payingCustomers} color="#4f46e5" sublabel="Active paid plans" />
@@ -995,7 +995,7 @@ const Admin = () => {
               </ChartCard>
             </Grid>
             <Grid item xs={12}>
-              <ChartCard title="New subscriptions" subtitle="Paid activations per month (last 6 months)" icon={TrendingUp} color="#059669"
+              <ChartCard title="New subscriptions" subtitle="Paid activations per month (last 6 months)" icon={TrendingUp} color="#4f46e5"
                 empty={analytics.months.every((m) => m.signups === 0)}>
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={analytics.months} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
@@ -1003,7 +1003,7 @@ const Admin = () => {
                     <XAxis dataKey="label" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
                     <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} width={32} allowDecimals={false} />
                     <ReTooltip formatter={(v) => [v, 'New subs']} />
-                    <Bar dataKey="signups" fill="#059669" radius={[4, 4, 0, 0]} maxBarSize={48} />
+                    <Bar dataKey="signups" fill="#4f46e5" radius={[4, 4, 0, 0]} maxBarSize={48} />
                   </BarChart>
                 </ResponsiveContainer>
               </ChartCard>
@@ -1017,7 +1017,7 @@ const Admin = () => {
               <StatCard icon={Users}        label="Total Users"     value={stats.total}        color="#1976d2" />
             </Grid>
             <Grid item xs={6} sm={4} md={2.4}>
-              <StatCard icon={CheckCircle2} label="Active Plans"    value={stats.active}       color="#059669" />
+              <StatCard icon={CheckCircle2} label="Active Plans"    value={stats.active}       color="#4f46e5" />
             </Grid>
             <Grid item xs={6} sm={4} md={2.4}>
               <StatCard icon={XCircle}      label="Expired"         value={stats.expired}      color="#ef4444" />
@@ -1035,7 +1035,7 @@ const Admin = () => {
           <Grid container spacing={2} sx={{ mb: 4 }}>
             {[
               { label: 'Manage Users',       desc: 'Edit access, features & limits',    tab: 'users',         icon: Users,        color: '#1976d2' },
-              { label: 'Grant Subscription', desc: 'Manually activate plans for users', tab: 'subscriptions', icon: Gift,         color: '#059669' },
+              { label: 'Grant Subscription', desc: 'Manually activate plans for users', tab: 'subscriptions', icon: Gift,         color: '#4f46e5' },
               { label: 'Build Sections',     desc: 'Create custom data sections',       tab: 'sections',      icon: Layers,       color: '#7c3aed' },
               { label: 'Global Settings',    desc: 'Landing page and app settings',     tab: 'global',        icon: Globe,        color: '#0891b2' },
             ].map(a => (
@@ -1434,7 +1434,7 @@ const Admin = () => {
           {/* Stats row */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {[
-              { label: 'Active Plans',    value: stats.active,       color: '#059669', icon: CheckCircle2 },
+              { label: 'Active Plans',    value: stats.active,       color: '#4f46e5', icon: CheckCircle2 },
               { label: 'On Trial',        value: stats.trial,        color: '#f59e0b', icon: TrendingUp },
               { label: 'Expired',         value: stats.expired,      color: '#ef4444', icon: XCircle },
               { label: 'Admin Granted',   value: stats.adminGranted, color: '#8b5cf6', icon: Award },
@@ -1545,7 +1545,7 @@ const Admin = () => {
                                           label={`${pays.length} pay${pays.length !== 1 ? 's' : ''} · ${inr(paidTotal)}`}
                                           size="small" onClick={() => setExpandedPayHistory(m => ({ ...m, [key]: !m[key] }))}
                                           sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, cursor: 'pointer',
-                                            bgcolor: alpha('#059669', 0.1), color: '#059669' }}
+                                            bgcolor: alpha('#4f46e5', 0.1), color: '#4f46e5' }}
                                         />
                                       )}
                                       <Chip
@@ -1616,7 +1616,7 @@ const Admin = () => {
                         <Button
                           size="small" variant="contained" startIcon={<Gift size={14} />}
                           onClick={() => openGrantDialog(email)}
-                          sx={{ borderRadius: 2, fontSize: '0.75rem', textTransform: 'none', bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}>
+                          sx={{ borderRadius: 2, fontSize: '0.75rem', textTransform: 'none', bgcolor: '#4f46e5', '&:hover': { bgcolor: '#4338ca' } }}>
                           Grant Subscription
                         </Button>
                         {sub?.adminGrantedAll ? (
@@ -2077,8 +2077,8 @@ const Admin = () => {
       >
         <DialogTitle sx={{ pb: 1 }}>
           <Stack direction="row" alignItems="center" spacing={1.5}>
-            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha('#059669', 0.1) }}>
-              <Gift size={20} color="#059669" />
+            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha('#4f46e5', 0.1) }}>
+              <Gift size={20} color="#4f46e5" />
             </Box>
             <Box>
               <Typography variant="h6" sx={{ fontWeight: 700 }}>Grant Subscription</Typography>
@@ -2164,8 +2164,8 @@ const Admin = () => {
               )}
 
               {grantForm.durationType !== 'custom' && (
-                <Box sx={{ p: 1.25, borderRadius: 1.5, bgcolor: alpha('#059669', 0.07), border: `1px solid ${alpha('#059669', 0.15)}` }}>
-                  <Typography variant="caption" sx={{ color: '#059669', fontWeight: 600 }}>
+                <Box sx={{ p: 1.25, borderRadius: 1.5, bgcolor: alpha('#4f46e5', 0.07), border: `1px solid ${alpha('#4f46e5', 0.15)}` }}>
+                  <Typography variant="caption" sx={{ color: '#4f46e5', fontWeight: 600 }}>
                     Expires: {(() => {
                       const end = computeEndDate(grantForm.durationType, '');
                       return end ? end.toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }) : '—';
@@ -2186,7 +2186,7 @@ const Admin = () => {
             onClick={handleGrantSubscription}
             disabled={grantSaving}
             startIcon={grantSaving ? <RefreshCw size={16} /> : <Gift size={16} />}
-            sx={{ bgcolor: '#059669', '&:hover': { bgcolor: '#047857' } }}
+            sx={{ bgcolor: '#4f46e5', '&:hover': { bgcolor: '#4338ca' } }}
           >
             {grantSaving ? 'Granting…' : 'Grant Subscription'}
           </Button>

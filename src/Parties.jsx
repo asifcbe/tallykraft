@@ -319,12 +319,12 @@ const PartiesPage = () => {
     if (bal === 0) return { label: 'Settled', bgcolor: alpha('#64748b', 0.1), color: '#475569', border: alpha('#64748b', 0.25) };
     if (party.type === 'Customer') {
       return bal > 0
-        ? { label: `To Collect  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#10b981', 0.1), color: '#059669', border: alpha('#10b981', 0.25) }
+        ? { label: `To Collect  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#6366f1', 0.1), color: '#4f46e5', border: alpha('#6366f1', 0.25) }
         : { label: `To Pay  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#ef4444', 0.1), color: '#dc2626', border: alpha('#ef4444', 0.25) };
     } else {
       return bal < 0
         ? { label: `To Pay  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#ef4444', 0.1), color: '#dc2626', border: alpha('#ef4444', 0.25) }
-        : { label: `To Collect  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#10b981', 0.1), color: '#059669', border: alpha('#10b981', 0.25) };
+        : { label: `To Collect  ₹${Math.abs(bal).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, bgcolor: alpha('#6366f1', 0.1), color: '#4f46e5', border: alpha('#6366f1', 0.25) };
     }
   };
 
@@ -333,7 +333,7 @@ const PartiesPage = () => {
       {/* Hero Header */}
       <Box sx={{
         borderRadius: 3,
-        background: 'linear-gradient(135deg, #134e4a 0%, #0f766e 50%, #0d9488 100%)',
+        background: 'linear-gradient(135deg, #312e81 0%, #3730a3 50%, #4f46e5 100%)',
         p: { xs: 2.5, md: 3.5 }, mb: 3,
         position: 'relative', overflow: 'hidden',
       }}>
@@ -387,7 +387,7 @@ const PartiesPage = () => {
           {[
             { label: 'Customers', value: customers.length, icon: UserCheck, color: '#a5b4fc' },
             { label: 'Vendors', value: vendors.length, icon: Store, color: '#93c5fd' },
-            { label: t('parties.receivable'), value: `₹${totalReceivable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#6ee7b7' },
+            { label: t('parties.receivable'), value: `₹${totalReceivable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#a5b4fc' },
             { label: t('parties.payable'), value: `₹${totalPayable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingDown, color: '#fca5a5' },
           ].map(({ label, value, icon: Icon, color }) => (
             <Box key={label} sx={{ bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, p: 1.5, border: '1px solid rgba(255,255,255,0.1)' }}>
@@ -466,19 +466,19 @@ const PartiesPage = () => {
                   px: 1.5, py: 0.5, borderRadius: 1.5, cursor: 'pointer', userSelect: 'none',
                   fontSize: '0.8rem', fontWeight: 600, transition: 'all 0.15s', whiteSpace: 'nowrap',
                   bgcolor: filters.balanceType === opt.value ? (
-                    opt.value === 'collect' ? alpha('#10b981', 0.12) :
+                    opt.value === 'collect' ? alpha('#6366f1', 0.12) :
                     opt.value === 'pay' ? alpha('#ef4444', 0.12) :
                     'background.paper'
                   ) : 'transparent',
                   color: filters.balanceType === opt.value ? (
-                    opt.value === 'collect' ? '#059669' :
+                    opt.value === 'collect' ? '#4f46e5' :
                     opt.value === 'pay' ? '#dc2626' :
                     'primary.main'
                   ) : 'text.secondary',
                   boxShadow: filters.balanceType === opt.value ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
                   border: '1px solid',
                   borderColor: filters.balanceType === opt.value ? (
-                    opt.value === 'collect' ? alpha('#10b981', 0.3) :
+                    opt.value === 'collect' ? alpha('#6366f1', 0.3) :
                     opt.value === 'pay' ? alpha('#ef4444', 0.3) :
                     'divider'
                   ) : 'transparent',
@@ -592,7 +592,7 @@ const PartiesPage = () => {
                               <Chip label={party.category} size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.08), color: 'primary.main' }} />
                             )}
                             {party.gstNumber && (
-                              <Chip label="GST" size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#059669', 0.08), color: '#059669' }} />
+                              <Chip label="GST" size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#4f46e5', 0.08), color: '#4f46e5' }} />
                             )}
                           </Box>
                           <Chip label={chip.label} size="small" sx={{ height: 20, fontWeight: 700, fontSize: '0.68rem', bgcolor: chip.bgcolor, color: chip.color, border: `1px solid ${chip.border}` }} />
@@ -993,15 +993,15 @@ const PartiesPage = () => {
                         sx={{
                           flex: 1, py: 1, px: 1.5, borderRadius: 2, cursor: 'pointer',
                           border: '1.5px solid',
-                          borderColor: active ? (isCollect ? '#059669' : '#dc2626') : 'divider',
-                          bgcolor: active ? (isCollect ? alpha('#10b981', 0.08) : alpha('#ef4444', 0.08)) : 'background.paper',
+                          borderColor: active ? (isCollect ? '#4f46e5' : '#dc2626') : 'divider',
+                          bgcolor: active ? (isCollect ? alpha('#6366f1', 0.08) : alpha('#ef4444', 0.08)) : 'background.paper',
                           display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.75,
                           transition: 'all 0.15s',
                           userSelect: 'none',
                         }}
                       >
-                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: active ? (isCollect ? '#059669' : '#dc2626') : 'text.disabled', flexShrink: 0 }} />
-                        <Typography variant="body2" sx={{ fontWeight: 700, color: active ? (isCollect ? '#059669' : '#dc2626') : 'text.secondary', fontSize: '0.8rem' }}>
+                        <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: active ? (isCollect ? '#4f46e5' : '#dc2626') : 'text.disabled', flexShrink: 0 }} />
+                        <Typography variant="body2" sx={{ fontWeight: 700, color: active ? (isCollect ? '#4f46e5' : '#dc2626') : 'text.secondary', fontSize: '0.8rem' }}>
                           {isCollect ? 'To Collect' : 'To Pay'}
                         </Typography>
                       </Box>

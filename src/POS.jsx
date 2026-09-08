@@ -105,7 +105,7 @@ const playAddSound = () => {
 
 // Stable palette of category accent colors
 const CAT_COLORS = [
-  '#0d9488', '#059669', '#0284c7', '#7c3aed',
+  '#4f46e5', '#4f46e5', '#0284c7', '#7c3aed',
   '#db2777', '#ea580c', '#ca8a04', '#16a34a',
 ];
 const getCatColor = (cat, categories) => {
