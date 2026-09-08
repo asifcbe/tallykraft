@@ -1,3 +1,26 @@
+export const GST_RATES = [
+  { value: 0,    label: '0% — Exempt / Nil rated' },
+  { value: 0.1,  label: '0.1% — Gold, diamonds (special)' },
+  { value: 0.25, label: '0.25% — Cut & semi-polished stones' },
+  { value: 1,    label: '1% — Composite scheme (turnover)' },
+  { value: 1.5,  label: '1.5% — Composite (manufacturer)' },
+  { value: 3,    label: '3% — Gold, silver, jewellery' },
+  { value: 5,    label: '5% — Essential goods, basic food' },
+  { value: 6,    label: '6% — Composite (service providers)' },
+  { value: 7.5,  label: '7.5% — Specified goods & services' },
+  { value: 12,   label: '12% — Processed food, business travel' },
+  { value: 18,   label: '18% — Standard rate (most goods)' },
+  { value: 28,   label: '28% — Luxury / demerit goods' },
+  { value: 28.5, label: '28% + 0.5% Cess' },
+  { value: 29,   label: '28% + 1% Cess — Tobacco, pan masala' },
+  { value: 30,   label: '28% + 2% Cess — Small cars' },
+  { value: 31,   label: '28% + 3% Cess — Cars / motor vehicles' },
+  { value: 33,   label: '28% + 5% Cess — Aerated drinks' },
+  { value: 38,   label: '28% + 10% Cess — Luxury cars' },
+  { value: 43,   label: '28% + 15% Cess — SUVs' },
+  { value: 65,   label: '28% + 37% Cess — Bidis' },
+];
+
 // GST helpers for subscription billing.
 // Place of supply for a SaaS service = the customer's state. If the customer's
 // state matches the seller's (admin's) state → intra-state → CGST + SGST.

@@ -3,17 +3,16 @@ import {
   Dialog, DialogTitle, DialogContent, DialogActions,
   Button, Box, Typography, Alert, Stepper, Step, StepLabel,
   Table, TableHead, TableBody, TableRow, TableCell, TableContainer,
-  Paper, Chip, LinearProgress, IconButton, Tooltip,
+  Paper, Chip, IconButton, Tooltip, Backdrop, CircularProgress,
 } from '@mui/material';
 import { Upload, FileText, CheckCircle, AlertTriangle, X, Download } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { COUNTRY_CODES, CUSTOMER_CATEGORIES, VENDOR_CATEGORIES, generatePartyId, loadCustomCategories } from './partyUtils';
 
-// Schema definitions for each import type
 const SCHEMAS = {
   items: {
     label: 'Items / Inventory',
     requiredCols: ['name'],
-    allCols: ['name', 'itemCode', 'category', 'color', 'size', 'unit', 'salePrice', 'purchasePrice', 'taxRate', 'hsnCode', 'stock', 'minStock', 'description', 'barcode'],
+    allCols: ['name', 'itemCode', 'category', 'color', 'size', 'unit', 'salePrice', 'mrp', 'purchasePrice', 'taxRate', 'hsnCode', 'stock', 'minStock', 'description', 'barcode'],
     preview: [
       { name: 'Blue Shirt (M)', itemCode: 'SHT001', category: 'Clothing', color: 'Blue', size: 'M', unit: 'NOS', salePrice: 499, purchasePrice: 280, taxRate: 5, hsnCode: '6205', stock: 50, minStock: 10, description: 'Cotton casual shirt', barcode: '' },
       { name: 'Red Kurti (L)', itemCode: 'KRT002', category: 'Clothing', color: 'Red', size: 'L', unit: 'NOS', salePrice: 650, purchasePrice: 380, taxRate: 5, hsnCode: '6211', stock: 30, minStock: 5, description: '', barcode: '' },
@@ -28,51 +27,63 @@ const SCHEMAS = {
       'Existing items with matching itemCode will be UPDATED; others are added as new.',
     ],
     transform: (row) => ({
-      name: String(row.name || '').trim(),
+      name: String(row.name || row['Name'] || '').trim(),
       itemCode: String(row.itemCode || row['Item Code'] || '').trim(),
-      category: String(row.category || row.Category || '').trim(),
-      color: String(row.color || row.Color || '').trim(),
-      size: String(row.size || row.Size || '').trim(),
-      unit: String(row.unit || row.Unit || 'NOS').trim(),
+      category: String(row.category || row['Category'] || '').trim(),
+      color: String(row.color || row['Color'] || '').trim(),
+      size: String(row.size || row['Size'] || '').trim(),
+      unit: String(row.unit || row['Unit'] || 'NOS').trim(),
       salePrice: Number(row.salePrice || row['Sale Price'] || 0),
+      mrp: Number(row.mrp || row['MRP'] || 0),
       purchasePrice: Number(row.purchasePrice || row['Purchase Price'] || 0),
       taxRate: Number(row.taxRate || row['Tax Rate'] || 0),
       hsnCode: String(row.hsnCode || row['HSN Code'] || '').trim(),
-      stock: Number(row.stock || row.Stock || 0),
+      stock: Number(row.stock || row['Stock'] || 0),
       minStock: Number(row.minStock || row['Min Stock'] || 0),
-      description: String(row.description || row.Description || '').trim(),
-      barcode: String(row.barcode || row.Barcode || '').trim(),
+      description: String(row.description || row['Description'] || '').trim(),
+      barcode: String(row.barcode || row['Barcode'] || '').trim(),
     }),
     validate: (row) => row.name ? null : 'Missing name',
   },
   parties: {
     label: 'Parties (Customers & Vendors)',
     requiredCols: ['name', 'type'],
-    allCols: ['name', 'type', 'phone', 'email', 'gstNumber', 'address', 'openingBalance', 'balanceType'],
+    allCols: ['name', 'type', 'countryCode', 'phone', 'category', 'email', 'gstNumber', 'address', 'state', 'additionalAddress', 'description', 'openingBalance', 'bankName', 'accountHolderName', 'accountNumber', 'ifscCode'],
     preview: [
-      { name: 'Acme Corp', type: 'Customer', phone: '9876543210', email: 'acme@example.com', gstNumber: '29AABCA1234A1Z5', address: '123 Main St, Bangalore', openingBalance: 5000, balanceType: 'receivable' },
-      { name: 'Global Supplies', type: 'Vendor', phone: '8765432109', email: 'gs@example.com', gstNumber: '27AAACG1234G1Z5', address: '45 Park Road, Mumbai', openingBalance: 2000, balanceType: 'payable' },
-      { name: 'Retail Hub', type: 'Both', phone: '7654321098', email: '', gstNumber: '', address: 'Chennai', openingBalance: 0, balanceType: 'receivable' },
+      { name: 'Acme Corp', type: 'Customer', countryCode: '+91', phone: '9876543210', category: 'Retail', gstNumber: '29AABCA1234A1Z5', address: '123 Main St, Bangalore', openingBalance: 5000 },
+      { name: 'Global Supplies', type: 'Vendor', countryCode: '+91', phone: '8765432109', category: 'Supplier', gstNumber: '27AAACG1234G1Z5', address: '45 Park Road, Mumbai', openingBalance: -2000 },
+      { name: 'City Mart', type: 'Customer', countryCode: '+971', phone: '501234567', category: 'Wholesale', gstNumber: '', address: 'Dubai', openingBalance: 0 },
     ],
     notes: [
       'name and type are required.',
-      'type: Customer, Vendor, or Both',
-      'balanceType: receivable or payable',
+      'type: Customer or Vendor (case-insensitive)',
+      'countryCode: e.g. +91, +1, +971 (default +91)',
+      'category: Retail, Wholesale, Supplier, etc.',
+      'openingBalance: positive = they owe you, negative = you owe them',
       'Existing parties with same name will be UPDATED; others added as new.',
     ],
     transform: (row) => ({
-      name: String(row.name || '').trim(),
-      type: String(row.type || row.Type || 'Customer').trim(),
-      phone: String(row.phone || row.Phone || '').trim(),
-      email: String(row.email || row.Email || '').trim(),
-      gstNumber: String(row.gstNumber || row['GST Number'] || row.gst || '').trim(),
-      address: String(row.address || row.Address || '').trim(),
-      openingBalance: Number(row.openingBalance || row['Opening Balance'] || 0),
-      balanceType: String(row.balanceType || row['Balance Type'] || 'receivable').toLowerCase().trim(),
+      name: String(row.name || row['Name'] || '').trim(),
+      type: String(row.type || row['Type'] || 'Customer').trim(),
+      countryCode: String(row.countryCode || row['Country Code'] || '+91').trim(),
+      phone: String(row.phone || row['Phone'] || '').replace(/\D/g, ''),
+      category: String(row.category || row['Category'] || '').trim(),
+      email: String(row.email || row['Email'] || '').trim(),
+      gstNumber: String(row.gstNumber || row['GST Number'] || row['GST'] || '').trim(),
+      address: String(row.address || row['Address'] || '').trim(),
+      state: String(row.state || row['State'] || '').trim(),
+      additionalAddress: String(row.additionalAddress || row['Additional Address'] || '').trim(),
+      description: String(row.description || row['Description'] || '').trim(),
+      openingBalance: Number(row.openingBalance || row['Opening Balance'] || row['Balance'] || 0),
+      bankName: String(row.bankName || row['Bank Name'] || '').trim(),
+      accountHolderName: String(row.accountHolderName || row['Account Holder'] || '').trim(),
+      accountNumber: String(row.accountNumber || row['Account Number'] || '').trim(),
+      ifscCode: String(row.ifscCode || row['IFSC Code'] || '').trim(),
     }),
     validate: (row) => {
       if (!row.name) return 'Missing name';
-      if (!['customer', 'vendor', 'both'].includes(row.type.toLowerCase())) return `Invalid type: "${row.type}"`;
+      const t = row.type.toLowerCase();
+      if (t !== 'customer' && t !== 'vendor') return `Invalid type: "${row.type}" (use Customer or Vendor)`;
       return null;
     },
   },
@@ -85,10 +96,7 @@ const FormatPreview = ({ schema }) => (
     </Typography>
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 1.5 }}>
       {schema.allCols.map(col => (
-        <Chip
-          key={col}
-          label={col}
-          size="small"
+        <Chip key={col} label={col} size="small"
           color={schema.requiredCols.includes(col) ? 'primary' : 'default'}
           variant={schema.requiredCols.includes(col) ? 'filled' : 'outlined'}
           sx={{ fontSize: '0.7rem' }}
@@ -128,11 +136,11 @@ const FormatPreview = ({ schema }) => (
   </Box>
 );
 
-const ImportDialog = ({ open, onClose, type, existingItems = [], onImport }) => {
+const ImportDialog = ({ open, onClose, type, existingItems = [], onBatchImport }) => {
   const schema = SCHEMAS[type];
   const fileRef = useRef(null);
 
-  const [step, setStep] = useState(0); // 0=format, 1=preview, 2=done
+  const [step, setStep] = useState(0);
   const [parsedRows, setParsedRows] = useState([]);
   const [errors, setErrors] = useState([]);
   const [importing, setImporting] = useState(false);
@@ -152,23 +160,20 @@ const ImportDialog = ({ open, onClose, type, existingItems = [], onImport }) => 
   const handleFile = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const reader = new FileReader();
-    reader.onload = (ev) => {
+    reader.onload = async (ev) => {
       try {
+        const XLSX = await import('xlsx');
         const wb = XLSX.read(ev.target.result, { type: 'array' });
         const ws = wb.Sheets[wb.SheetNames[0]];
         const raw = XLSX.utils.sheet_to_json(ws, { defval: '' });
-
         if (!raw.length) { setErrors(['File is empty or has no data rows.']); return; }
-
         const transformed = raw.map(schema.transform);
         const rowErrors = [];
         transformed.forEach((row, i) => {
           const err = schema.validate(row);
           if (err) rowErrors.push(`Row ${i + 2}: ${err}`);
         });
-
         setParsedRows(transformed);
         setErrors(rowErrors);
         setStep(1);
@@ -179,33 +184,25 @@ const ImportDialog = ({ open, onClose, type, existingItems = [], onImport }) => 
     reader.readAsArrayBuffer(file);
   };
 
-  const handleImport = async () => {
+  const validRows = parsedRows.filter(r => !schema.validate(r));
+
+  const handleImport = () => {
+    if (validRows.length === 0) return;
     setImporting(true);
-    let added = 0, updated = 0, failed = 0;
-
-    for (const row of parsedRows) {
-      const err = schema.validate(row);
-      if (err) { failed++; continue; }
+    setTimeout(() => requestAnimationFrame(() => {
       try {
-        await onImport(row, existingItems);
-        // onImport returns 'added' or 'updated'
-        const existing = existingItems.find(ex =>
-          type === 'items'
-            ? (ex.itemCode && ex.itemCode === row.itemCode) || ex.name.toLowerCase() === row.name.toLowerCase()
-            : ex.name.toLowerCase() === row.name.toLowerCase()
-        );
-        if (existing) updated++; else added++;
+        const result = onBatchImport(validRows, existingItems);
+        setImportResult(result || { added: validRows.length, updated: 0, failed: 0 });
       } catch {
-        failed++;
+        setImportResult({ added: 0, updated: 0, failed: validRows.length });
       }
-    }
-
-    setImportResult({ added, updated, failed });
-    setImporting(false);
-    setStep(2);
+      setImporting(false);
+      setStep(2);
+    }), 0);
   };
 
-  const downloadSampleCSV = () => {
+  const downloadSampleCSV = async () => {
+    const XLSX = await import('xlsx');
     const ws = XLSX.utils.json_to_sheet(schema.preview);
     const wb = XLSX.utils.book_new();
     const safeSheet = schema.label.replace(/[:\\/?\*\[\]]/g, ' ').trim().slice(0, 31) || 'Sample';
@@ -216,13 +213,21 @@ const ImportDialog = ({ open, onClose, type, existingItems = [], onImport }) => 
   if (!schema) return null;
 
   return (
-    <Dialog open={open} onClose={handleClose} maxWidth="md" fullWidth>
+    <Dialog open={open} onClose={importing ? undefined : handleClose} maxWidth="md" fullWidth
+      PaperProps={{ sx: { position: 'relative' } }}>
+      <Backdrop open={importing} sx={{ position: 'absolute', zIndex: 10, borderRadius: 1, bgcolor: 'rgba(255,255,255,0.85)', flexDirection: 'column', gap: 1.5 }}>
+        <CircularProgress size={40} sx={{ color: '#0d9488' }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#0d9488' }}>
+          Importing {validRows.length} rows…
+        </Typography>
+      </Backdrop>
+
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontWeight: 700 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Upload size={20} />
           Import {schema.label}
         </Box>
-        <IconButton size="small" onClick={handleClose}><X size={18} /></IconButton>
+        <IconButton size="small" onClick={handleClose} disabled={importing}><X size={18} /></IconButton>
       </DialogTitle>
 
       <DialogContent dividers sx={{ p: 2.5 }}>
@@ -232,46 +237,22 @@ const ImportDialog = ({ open, onClose, type, existingItems = [], onImport }) => 
           ))}
         </Stepper>
 
-        {/* Step 0: Format info + upload */}
         {step === 0 && (
           <Box>
             <FormatPreview schema={schema} />
             <Box sx={{ mt: 2, display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
-              <Button
-                variant="outlined"
-                startIcon={<Download size={16} />}
-                onClick={downloadSampleCSV}
-                size="small"
-                sx={{ textTransform: 'none' }}
-              >
+              <Button variant="outlined" startIcon={<Download size={16} />} onClick={downloadSampleCSV} size="small" sx={{ textTransform: 'none' }}>
                 Download Sample Excel
               </Button>
-              <Button
-                variant="contained"
-                startIcon={<Upload size={16} />}
-                onClick={() => fileRef.current?.click()}
-                size="small"
-                sx={{ textTransform: 'none' }}
-              >
+              <Button variant="contained" startIcon={<Upload size={16} />} onClick={() => fileRef.current?.click()} size="small" sx={{ textTransform: 'none' }}>
                 Upload Excel / CSV
               </Button>
-              <input
-                ref={fileRef}
-                type="file"
-                accept=".xlsx,.xls,.csv"
-                style={{ display: 'none' }}
-                onChange={handleFile}
-              />
+              <input ref={fileRef} type="file" accept=".xlsx,.xls,.csv" style={{ display: 'none' }} onChange={handleFile} />
             </Box>
-            {errors.length > 0 && (
-              <Alert severity="error" sx={{ mt: 1.5 }}>
-                {errors[0]}
-              </Alert>
-            )}
+            {errors.length > 0 && <Alert severity="error" sx={{ mt: 1.5 }}>{errors[0]}</Alert>}
           </Box>
         )}
 
-        {/* Step 1: Preview parsed data */}
         {step === 1 && (
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
@@ -281,7 +262,6 @@ const ImportDialog = ({ open, onClose, type, existingItems = [], onImport }) => 
                 Rows with errors will be skipped during import.
               </Typography>
             </Box>
-
             {errors.length > 0 && (
               <Alert severity="warning" sx={{ mb: 1.5 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, display: 'block', mb: 0.5 }}>Issues found (will be skipped):</Typography>
@@ -289,7 +269,6 @@ const ImportDialog = ({ open, onClose, type, existingItems = [], onImport }) => 
                 {errors.length > 5 && <div>…and {errors.length - 5} more</div>}
               </Alert>
             )}
-
             <TableContainer component={Paper} variant="outlined" sx={{ maxHeight: 300, overflow: 'auto' }}>
               <Table size="small" stickyHeader>
                 <TableHead>
@@ -317,12 +296,9 @@ const ImportDialog = ({ open, onClose, type, existingItems = [], onImport }) => 
                 </TableBody>
               </Table>
             </TableContainer>
-
-            {importing && <LinearProgress sx={{ mt: 1.5 }} />}
           </Box>
         )}
 
-        {/* Step 2: Done */}
         {step === 2 && importResult && (
           <Box sx={{ textAlign: 'center', py: 2 }}>
             <CheckCircle size={48} color="#16a34a" style={{ marginBottom: 12 }} />
@@ -340,17 +316,17 @@ const ImportDialog = ({ open, onClose, type, existingItems = [], onImport }) => 
         {step === 0 && <Button onClick={handleClose} sx={{ textTransform: 'none' }}>Cancel</Button>}
         {step === 1 && (
           <>
-            <Button onClick={() => { setStep(0); setParsedRows([]); setErrors([]); if (fileRef.current) fileRef.current.value = ''; }} sx={{ textTransform: 'none' }}>
+            <Button onClick={() => { setStep(0); setParsedRows([]); setErrors([]); if (fileRef.current) fileRef.current.value = ''; }} sx={{ textTransform: 'none' }} disabled={importing}>
               Back
             </Button>
             <Button
               variant="contained"
               onClick={handleImport}
-              disabled={importing || parsedRows.filter(r => !schema.validate(r)).length === 0}
+              disabled={importing || validRows.length === 0}
               startIcon={<Upload size={16} />}
               sx={{ textTransform: 'none' }}
             >
-              Import {parsedRows.filter(r => !schema.validate(r)).length} rows
+              Import {validRows.length} rows
             </Button>
           </>
         )}

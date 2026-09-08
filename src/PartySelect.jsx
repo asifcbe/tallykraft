@@ -1,6 +1,49 @@
 import React from 'react';
 import { Autocomplete, TextField, Box, Typography, Chip } from '@mui/material';
 import { User, UserPlus } from 'lucide-react';
+import { FixedSizeList } from 'react-window';
+
+// Same virtualization pattern as ItemSelect.jsx (added there first for the
+// item picker's 3000+ item DOM-bloat slowness) — a business running enough
+// sales to need Firestore write-path fixes plausibly also has thousands of
+// parties (repeat customers, one-off cash-and-carry entries, etc.), and
+// PartySelect is used on nearly every invoice/POS/payment entry screen, so
+// it hit the exact same "opening the dropdown mounts thousands of <li> at
+// once" slowness that virtualization fixed for items.
+const ROW_HEIGHT = 56;
+const MAX_VISIBLE_ROWS = 340 / ROW_HEIGHT;
+const OuterElementContext = React.createContext({});
+const VirtualListboxOuter = React.forwardRef((props, ref) => {
+  const outerProps = React.useContext(OuterElementContext);
+  return <div ref={ref} {...props} {...outerProps} />;
+});
+VirtualListboxOuter.displayName = 'VirtualListboxOuter';
+
+const VirtualListboxInner = React.forwardRef(function VirtualListboxInner(props, ref) {
+  const { children, ...other } = props;
+  const items = React.Children.toArray(children);
+  const itemCount = items.length;
+  const height = Math.min(itemCount, MAX_VISIBLE_ROWS) * ROW_HEIGHT || ROW_HEIGHT;
+
+  return (
+    <div ref={ref}>
+      <OuterElementContext.Provider value={other}>
+        <FixedSizeList
+          height={height}
+          width="100%"
+          itemSize={ROW_HEIGHT}
+          itemCount={itemCount}
+          overscanCount={8}
+          outerElementType={VirtualListboxOuter}
+        >
+          {({ index, style }) => React.cloneElement(items[index], { style: { ...items[index].props.style, ...style } })}
+        </FixedSizeList>
+      </OuterElementContext.Provider>
+    </div>
+  );
+});
+
+const VIRTUALIZE_THRESHOLD = 50;
 
 const COLORS = [
   { bg: '#EEF2FF', fg: '#4F46E5', bd: '#C7D2FE' },
@@ -19,7 +62,14 @@ const dropdownSx = {
   border: '1px solid',
   borderColor: 'divider',
   mt: 0.5,
-  minWidth: 360,
+  // A flat 360px forced the dropdown wider than its anchor input on any
+  // narrow phone (the input itself is often only ~300-330px inside a
+  // card/cart at 375-414px viewports) — 33px+ of the dropdown hung off the
+  // right edge of the screen. Capping at the viewport width (minus a small
+  // margin) lets it shrink to fit on mobile while keeping the original
+  // fixed 360px everywhere it actually has room.
+  minWidth: 'min(360px, calc(100vw - 24px))',
+  maxWidth: 'calc(100vw - 24px)',
   '& .MuiAutocomplete-listbox': {
     py: 0.75,
     maxHeight: 340,
@@ -69,7 +119,10 @@ const PartySelect = ({
     return (
       <Autocomplete
         freeSolo
+        autoHighlight
+        autoSelect
         options={options}
+        {...(options.length > VIRTUALIZE_THRESHOLD ? { ListboxComponent: VirtualListboxInner, disableListWrap: true } : {})}
         getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.name || '')}
         value={value || ''}
         fullWidth={fullWidth}
@@ -77,11 +130,11 @@ const PartySelect = ({
         onChange={(_, v) => onChange(typeof v === 'string' ? v : (v?.name || ''))}
         onInputChange={(_, v, reason) => { if (reason === 'input') onChange(v); }}
         renderOption={(props, option) => {
-          if (typeof option === 'string') return <li {...props}>{option}</li>;
+          if (typeof option === 'string') return <li {...props} style={{ ...props.style, height: ROW_HEIGHT }}>{option}</li>;
           const { key, ...rest } = props;
           const c = avatarColor(option.name);
           return (
-            <li key={option.id} {...rest}>
+            <li key={option.id} {...rest} style={{ ...rest.style, height: ROW_HEIGHT, overflow: 'hidden' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1, width: '100%' }}>
                 <Box sx={{
                   width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
@@ -123,9 +176,24 @@ const PartySelect = ({
       />
     );
   }
+  // Include a freshly-created party (not yet in the list) so the field shows it immediately.
+  const mergedOptions = value && value.id && !options.find(o => o.id === value.id)
+    ? [value, ...options]
+    : options;
+
   return (
   <Autocomplete
-    options={options}
+    options={mergedOptions}
+    autoHighlight
+    // autoSelect commits the currently-highlighted option on Enter/blur —
+    // without it, autoHighlight alone only visually highlights the top
+    // match as you type; Enter did nothing unless the user had also
+    // arrow-key-navigated to it first. This is what makes "type a name,
+    // press Enter" actually select the party in one keystroke (needed for
+    // Sales.jsx's One by One mode keyboard flow, and generally expected
+    // search-and-select behavior everywhere this component is used).
+    autoSelect
+    {...(mergedOptions.length > VIRTUALIZE_THRESHOLD ? { ListboxComponent: VirtualListboxInner, disableListWrap: true } : {})}
     getOptionLabel={(opt) => (opt._addNew ? '' : opt.name || '')}
     value={value || null}
     isOptionEqualToValue={(opt, val) => opt?.id === val?.id}
@@ -133,11 +201,20 @@ const PartySelect = ({
     disabled={disabled}
     filterOptions={(opts, { inputValue }) => {
       const lc = inputValue.toLowerCase();
-      const filtered = opts.filter((o) => o.name?.toLowerCase().includes(lc));
+      const digits = inputValue.replace(/\D/g, '');
+      const isAllDigits = inputValue.length > 0 && digits === inputValue;
+      const filtered = opts.filter((o) =>
+        o.name?.toLowerCase().includes(lc) ||
+        (digits.length > 0 && o.phone && o.phone.replace(/\D/g, '').includes(digits)) ||
+        (digits.length > 0 && o.altPhone && o.altPhone.replace(/\D/g, '').includes(digits))
+      );
       if (onAddNew) {
         filtered.push({
           _addNew: true,
-          _display: inputValue ? `Create "${inputValue}"` : `New ${label}`,
+          _isPhone: isAllDigits,
+          _display: isAllDigits
+            ? `New ${label} (phone: ${inputValue})`
+            : (inputValue ? `Create "${inputValue}"` : `New ${label}`),
           _inputValue: inputValue,
           id: '__add_new__',
           name: '',
@@ -146,14 +223,14 @@ const PartySelect = ({
       return filtered;
     }}
     onChange={(_, v) => {
-      if (v?._addNew) { onAddNew?.(v._inputValue || ''); return; }
+      if (v?._addNew) { onAddNew?.(v._inputValue || '', !!v._isPhone); return; }
       onChange(v);
     }}
     renderOption={(props, option) => {
       const { key, ...rest } = props;
       if (option._addNew) {
         return (
-          <li key="__new__" {...rest}>
+          <li key="__new__" {...rest} style={{ ...rest.style, height: ROW_HEIGHT }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1 }}>
               <Box sx={{
                 width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
@@ -172,7 +249,7 @@ const PartySelect = ({
       const c = avatarColor(option.name);
       const balance = option.balance || 0;
       return (
-        <li key={option.id} {...rest}>
+        <li key={option.id} {...rest} style={{ ...rest.style, height: ROW_HEIGHT, overflow: 'hidden' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 1, width: '100%' }}>
             <Box sx={{
               width: 36, height: 36, borderRadius: '50%', flexShrink: 0,
@@ -193,10 +270,16 @@ const PartySelect = ({
               )}
             </Box>
             {balance !== 0 && (
+              // Sign convention (same for Customer and Vendor, per
+              // PaymentEntry.jsx/Parties.jsx): positive = they owe us
+              // (green, amount to collect), negative = we owe them (red,
+              // amount to pay). Was inverted here — a positive receivable
+              // showed red and a payable showed green, the opposite of
+              // every other place in the app that colors this balance.
               <Chip
                 label={`₹${Math.abs(balance).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`}
                 size="small"
-                color={balance > 0 ? 'error' : 'success'}
+                color={balance > 0 ? 'success' : 'error'}
                 variant="outlined"
                 sx={{ fontWeight: 700, fontSize: '0.7rem', height: 22, flexShrink: 0 }}
               />

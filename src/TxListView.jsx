@@ -2,8 +2,83 @@ import React, { useEffect, useState, useMemo, useRef, useLayoutEffect } from 're
 import {
   Box, Card, Typography, Checkbox, IconButton, Chip, Tooltip,
   TablePagination, useTheme, useMediaQuery, alpha, Dialog,
+  ToggleButtonGroup, ToggleButton, Menu, MenuItem,
 } from '@mui/material';
-import { Edit, Eye, Share2, Trash2, Printer, X } from 'lucide-react';
+import { Edit, Eye, Share2, Printer, X, List as ListIcon, LayoutGrid, ArrowUpDown, ArrowRightLeft, ReceiptText } from 'lucide-react';
+import TxDataTable from './TxDataTable';
+import { txSortKey, formatCreatedTime } from './txTimeUtils';
+
+// Remembers the last-picked view mode per section (e.g. "estimates", "sales")
+// so switching tabs/reloading doesn't reset it back to the default.
+const VIEW_MODE_KEY = 'digitzebra_tx_view_mode';
+export const loadViewMode = (sectionKey, fallback = 'list') => {
+  try {
+    const all = JSON.parse(localStorage.getItem(VIEW_MODE_KEY) || '{}');
+    return all[sectionKey] || fallback;
+  } catch { return fallback; }
+};
+export const saveViewMode = (sectionKey, mode) => {
+  try {
+    const all = JSON.parse(localStorage.getItem(VIEW_MODE_KEY) || '{}');
+    all[sectionKey] = mode;
+    localStorage.setItem(VIEW_MODE_KEY, JSON.stringify(all));
+  } catch { /* ignore */ }
+};
+
+// Measures how much viewport height is left below a container's top edge and
+// returns a CSS height string that fills exactly that — so a master-detail
+// list can occupy all remaining space with ONE scroll region (the list
+// itself), instead of guessing a hardcoded "calc(100vh - Npx)" offset that
+// silently breaks (causing a second, outer page scroll) whenever anything
+// above the list changes height. Falls back to `fallbackPx` (a large usable
+// default) before the first measurement or when the ref isn't mounted yet.
+export const useFillHeight = (ref, { bottomGap = 16, fallbackPx = 500 } = {}) => {
+  const [height, setHeight] = useState(fallbackPx);
+
+  useLayoutEffect(() => {
+    const measure = () => {
+      const el = ref.current;
+      if (!el) return;
+      const top = el.getBoundingClientRect().top;
+      const available = Math.max(280, window.innerHeight - top - bottomGap);
+      setHeight((prev) => (Math.abs(prev - available) > 1 ? available : prev));
+    };
+    measure();
+    const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(measure) : null;
+    if (ro && ref.current) ro.observe(document.body);
+    window.addEventListener('resize', measure);
+    // Re-measure shortly after mount too — layout (fonts, images, tab
+    // transitions) can settle a frame or two after the first paint.
+    const t = setTimeout(measure, 150);
+    return () => {
+      if (ro) ro.disconnect();
+      window.removeEventListener('resize', measure);
+      clearTimeout(t);
+    };
+  }, [ref, bottomGap]);
+
+  return height;
+};
+
+// Small reusable List/Grid switcher — icon pills matching the app's toggle style.
+export const ViewModeToggle = ({ value, onChange, tokens }) => (
+  <ToggleButtonGroup
+    value={value}
+    exclusive
+    size="small"
+    onChange={(_e, v) => v && onChange(v)}
+    sx={{
+      '& .MuiToggleButton-root': {
+        px: 1, py: 0.4, border: '1px solid rgba(0,0,0,0.1)',
+        color: 'text.secondary',
+        '&.Mui-selected': { bgcolor: tokens?.primarySoft || 'action.selected', color: tokens?.primary, '&:hover': { bgcolor: tokens?.primarySoft } },
+      },
+    }}
+  >
+    <ToggleButton value="list" aria-label="List view"><Tooltip title="List view"><ListIcon size={15} /></Tooltip></ToggleButton>
+    <ToggleButton value="grid" aria-label="Grid view"><Tooltip title="Grid view"><LayoutGrid size={15} /></Tooltip></ToggleButton>
+  </ToggleButtonGroup>
+);
 
 // Scales a fixed-width document (e.g. an A4 invoice) down so it always fits the
 // available width — zoomed out on small screens, never overflowing/clipping.
@@ -90,6 +165,26 @@ const fmtDate = (d) => {
   return dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 };
 
+// Small green "Converted" status chip shown in place of the Convert action
+// once a record has already been converted to a sale — clickable to jump
+// straight to that sale (same visual language as Orders.jsx's equivalent).
+const ConvertedChip = ({ label, onClick, size = 'small' }) => (
+  <Tooltip title={label}>
+    <Chip
+      size={size}
+      icon={<ReceiptText size={size === 'small' ? 13 : 12} />}
+      label={label}
+      onClick={onClick}
+      sx={{
+        fontWeight: 700, fontSize: size === 'small' ? '0.68rem' : '0.62rem',
+        bgcolor: '#f0fdf4', color: '#15803d', border: '1px solid #bbf7d0',
+        cursor: onClick ? 'pointer' : 'default',
+        '& .MuiChip-icon': { color: '#15803d' },
+      }}
+    />
+  </Tooltip>
+);
+
 /**
  * A reusable master-detail list (mobile cards + desktop side preview + sticky
  * internal scroll) matching the Sales/Purchase section.
@@ -101,6 +196,18 @@ const fmtDate = (d) => {
  *  - emptyIcon: node, emptyAction: node (e.g. a "New" button)
  *  - onEdit(record), onDelete(record), onShare(record?) — handlers (optional)
  *  - onPrint(record) — optional; shows a Print action in the preview header
+ *  - onConvert(record) / convertLabel / convertIcon — optional; adds a
+ *    "Convert to Sale"-style action to the preview header and the row "more"
+ *    menu (e.g. Estimates → Sale)
+ *  - isConverted(record) / convertedLabel(record) / onViewConverted(record)
+ *    — optional; when isConverted(record) is true, the Convert action is
+ *    replaced everywhere (preview header, row menu, cards) with a
+ *    "Converted" chip instead — clicking it calls onViewConverted(record)
+ *  - openRecordId / onOpenRecordHandled() — optional; when openRecordId
+ *    matches a record's id, that record's preview opens automatically (used
+ *    for cross-tab deep-links, e.g. Sales.jsx's "From Estimate" chip jumping
+ *    straight to that estimate here). Call onOpenRecordHandled() once
+ *    consumed so the parent can clear it back to null.
  *  - renderPreview(record): node — the document preview (e.g. <InvoiceTemplate/>)
  *  - selectable: bool — show bulk-select checkboxes (default false)
  *  - selectedIds / setSelectedIds — Set + setter when selectable
@@ -116,6 +223,14 @@ const TxListView = ({
   onDelete,
   onShare,
   onPrint,
+  onConvert,
+  convertLabel = 'Convert to Sale',
+  convertIcon,
+  isConverted,
+  convertedLabel,
+  onViewConverted,
+  openRecordId,
+  onOpenRecordHandled,
   renderPreview,
   selectable = false,
   selectedIds,
@@ -124,6 +239,8 @@ const TxListView = ({
   const theme = useTheme();
   const tokens = useMemo(() => getThemeTokens(theme), [theme]);
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const containerRef = useRef(null);
+  const fillHeight = useFillHeight(containerRef, { bottomGap: 16, fallbackPx: 500 });
 
   const a = {
     id: (r) => r.id,
@@ -137,8 +254,74 @@ const TxListView = ({
   };
 
   const [page, setPage] = useState(0);
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [viewMode, setViewMode] = useState(() => loadViewMode(labelPlural));
+  // Grid tiles are much smaller than list rows, so a wide screen can fit many
+  // more of them per page — default higher in grid mode so the extra space
+  // grid view exists to use is actually filled instead of leaving a couple
+  // of rows of tiles floating above empty whitespace.
+  const [rowsPerPage, setRowsPerPage] = useState(() => viewMode === 'grid' ? 30 : 10);
+  const changeViewMode = (mode) => {
+    setViewMode(mode);
+    saveViewMode(labelPlural, mode);
+    setRowsPerPage(mode === 'grid' ? 30 : 10);
+    setPage(0);
+  };
   const [selectedRec, setSelectedRec] = useState(null);
+  const closePreview = () => setSelectedRec(null);
+  const selectRec = (r) => setSelectedRec(r);
+
+  // External deep-link — opens a specific record's preview when the parent
+  // sets openRecordId (e.g. from a cross-tab hand-off event). Only fires
+  // once the matching record is actually present in `records` (so a retry-
+  // based dispatch, per quickNewBridge.js's convention, can still succeed
+  // once data loads) and reports back via onOpenRecordHandled so the parent
+  // clears openRecordId instead of re-opening it on every render.
+  useEffect(() => {
+    if (!openRecordId) return;
+    const rec = records.find((r) => a.id(r) === openRecordId);
+    if (rec) { setSelectedRec(rec); onOpenRecordHandled?.(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRecordId, records]);
+
+  // Quick date-range preset + sort — same header controls as Sales/Purchases,
+  // applied here so every section built on TxListView gets them for free.
+  const [datePreset, setDatePreset] = useState('all');
+  const [sortBy, setSortBy] = useState('date');
+  const [sortDir, setSortDir] = useState('desc');
+  const [sortMenuAnchor, setSortMenuAnchor] = useState(null);
+
+  const filteredRecords = useMemo(() => {
+    let list = records;
+    if (datePreset !== 'all') {
+      const now = new Date();
+      const toISO = (d) => d.toISOString().split('T')[0];
+      let from;
+      if (datePreset === 'today') from = toISO(now);
+      else if (datePreset === 'week') { const day = now.getDay() || 7; const monday = new Date(now); monday.setDate(now.getDate() - day + 1); from = toISO(monday); }
+      else if (datePreset === 'month') from = toISO(new Date(now.getFullYear(), now.getMonth(), 1));
+      else if (datePreset === 'year') from = toISO(new Date(now.getFullYear(), 0, 1));
+      const to = toISO(now);
+      list = list.filter((r) => { const d = a.date(r); return d && d >= from && d <= to; });
+    }
+    return [...list].sort((x, y) => {
+      let cmp = 0;
+      if (sortBy === 'amount') cmp = a.amount(x) - a.amount(y);
+      else if (sortBy === 'party') cmp = (a.party(x) || '').localeCompare(a.party(y) || '', undefined, { numeric: true, sensitivity: 'base' });
+      else if (sortBy === 'number') cmp = String(a.number(x) || '').localeCompare(String(a.number(y) || ''), undefined, { numeric: true, sensitivity: 'base' });
+      else {
+        // Plain string comparison on doc numbers like "INV-0001" breaks once
+        // the serial exceeds the zero-padding width (e.g. "INV-10000" sorts
+        // before "INV-9999" char-by-char) — { numeric: true } parses embedded
+        // digit runs as actual numbers instead. Same-date records also fall
+        // back to this so they come out in creation-sequence order instead
+        // of whatever order the underlying array happened to have.
+        cmp = new Date(a.date(x)) - new Date(a.date(y));
+        if (cmp === 0) cmp = txSortKey(x) - txSortKey(y);
+        if (cmp === 0) cmp = String(a.number(x) || '').localeCompare(String(a.number(y) || ''), undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+  }, [records, datePreset, sortBy, sortDir]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const hasPreview = typeof renderPreview === 'function';
 
@@ -150,14 +333,18 @@ const TxListView = ({
     else if (live !== selectedRec) setSelectedRec(live);
   }, [records]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Desktop: auto-select first record so the preview shows by default.
-  useEffect(() => {
-    if (isMobile || !hasPreview) return;
-    if (!selectedRec && records.length > 0) setSelectedRec(records[0]);
-  }, [isMobile, hasPreview, selectedRec, records]);
+  // No auto-selected/default preview — the preview only opens when the user
+  // explicitly clicks the eye icon (TxDataTable in list mode, or the eye
+  // button on a grid tile / mobile card).
 
-  const showDetail = hasPreview && !isMobile && selectedRec;
-  const pageRecords = records.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
+  // Reset to page 1 whenever the filtered/sorted result set changes shape.
+  useEffect(() => { setPage(0); }, [datePreset, sortBy, sortDir, records.length]);
+
+  // Preview always opens as a popup dialog on desktop (both list and grid
+  // mode) — the eye icon is the only way to open it, so a side-by-side
+  // master-detail layout no longer applies.
+  const showPreviewDialog = hasPreview && !isMobile && selectedRec;
+  const pageRecords = filteredRecords.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage);
 
   // Preview header + body — reused by the desktop side-pane and the mobile dialog.
   const previewInner = selectedRec ? (
@@ -184,6 +371,20 @@ const TxListView = ({
             </IconButton>
           </Tooltip>
         )}
+        {onConvert && (
+          isConverted?.(selectedRec) ? (
+            <ConvertedChip
+              label={convertedLabel?.(selectedRec) || 'Converted'}
+              onClick={onViewConverted ? () => { const rec = selectedRec; closePreview(); onViewConverted(rec); } : undefined}
+            />
+          ) : (
+            <Tooltip title={convertLabel}>
+              <IconButton size="small" onClick={() => { const rec = selectedRec; closePreview(); onConvert(rec); }} sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.14)', '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' } }}>
+                {convertIcon || <ArrowRightLeft size={16} />}
+              </IconButton>
+            </Tooltip>
+          )
+        )}
         {onShare && (
           <Tooltip title="Share on WhatsApp">
             <IconButton size="small" onClick={() => onShare(selectedRec)} sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.14)', '&:hover': { bgcolor: 'rgba(255,255,255,0.25)' } }}>
@@ -199,7 +400,7 @@ const TxListView = ({
           </Tooltip>
         )}
         <Tooltip title="Close preview">
-          <IconButton size="small" onClick={() => setSelectedRec(null)} sx={{ color: 'rgba(255,255,255,0.8)', '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}>
+          <IconButton size="small" onClick={() => closePreview()} sx={{ color: 'rgba(255,255,255,0.8)', '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}>
             <X size={16} />
           </IconButton>
         </Tooltip>
@@ -211,32 +412,21 @@ const TxListView = ({
     </>
   ) : null;
 
-  const toggleId = (id, checked) => {
-    setSelectedIds?.((prev) => {
-      const next = new Set(prev);
-      if (checked) next.add(id); else next.delete(id);
-      return next;
-    });
-  };
-
-  const actions = (r) => [
-    onEdit && { icon: <Edit size={17} />, title: 'Edit', onClick: () => onEdit(r), color: tokens.primary },
-    (hasPreview && isMobile) && { icon: <Eye size={17} />, title: 'Preview', onClick: () => setSelectedRec(r), color: tokens.primary },
-    onShare && { icon: <Share2 size={17} />, title: 'Share', onClick: () => onShare(r), color: '#25D366' },
-    onDelete && { icon: <Trash2 size={17} />, title: 'Delete', onClick: () => onDelete(r), color: tokens.error },
-  ].filter(Boolean);
-
   return (
     <Box
+      ref={containerRef}
       sx={{
         display: 'flex',
         gap: 2,
         alignItems: 'stretch',
-        height: { md: showDetail ? 'calc(100vh - 300px)' : 'auto' },
-        minHeight: { md: showDetail ? 360 : 0 },
+        // Measured to exactly fill the remaining viewport (see useFillHeight)
+        // so the list scrolls internally with no second, outer page scroll.
+        height: { md: `${fillHeight}px` },
+        minHeight: { md: 360 },
       }}
     >
-      {/* LEFT: card list */}
+      {/* LEFT: card list — preview opens as a popup dialog, so this never
+          narrows to make room for a side panel. */}
       <Card
         elevation={0}
         sx={{
@@ -244,9 +434,8 @@ const TxListView = ({
           border: '1px solid rgba(0,0,0,0.07)',
           overflow: 'hidden',
           boxShadow: tokens.shadow.card,
-          width: { xs: '100%', md: showDetail ? 440 : '100%' },
+          width: '100%',
           flexShrink: 0,
-          transition: 'width 0.25s ease',
           display: 'flex',
           flexDirection: 'column',
           minHeight: 0,
@@ -262,146 +451,273 @@ const TxListView = ({
           </Box>
         ) : (
           <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
+            {/* Quick filters: date preset + sort — grid mode only; list mode
+                uses TxDataTable's own per-column filters/sort instead. */}
+            {viewMode === 'grid' && (
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1.75, pt: 1, pb: 0.75, flexWrap: 'wrap', borderBottom: '1px solid rgba(0,0,0,0.06)', bgcolor: 'rgba(0,0,0,0.015)', flexShrink: 0 }}>
+                {[
+                  { value: 'all', label: 'All time' },
+                  { value: 'today', label: 'Today' },
+                  { value: 'week', label: 'Week' },
+                  { value: 'month', label: 'Month' },
+                  { value: 'year', label: 'Year' },
+                ].map((opt) => (
+                  <Chip
+                    key={opt.value}
+                    label={opt.label}
+                    size="small"
+                    onClick={() => setDatePreset(opt.value)}
+                    variant={datePreset === opt.value ? 'filled' : 'outlined'}
+                    sx={{
+                      fontWeight: 700, borderRadius: '8px', height: 22, fontSize: '0.68rem',
+                      ...(datePreset === opt.value
+                        ? { bgcolor: tokens.primary, color: '#fff' }
+                        : { borderColor: 'divider', color: 'text.secondary' }),
+                    }}
+                  />
+                ))}
+                <Box sx={{ flex: 1 }} />
+                <Tooltip title="Change sort field">
+                  <Chip
+                    size="small"
+                    icon={<ArrowUpDown size={12} />}
+                    label={sortBy === 'amount' ? 'Amount' : sortBy === 'party' ? 'Party' : sortBy === 'number' ? 'Number' : 'Date'}
+                    onClick={(e) => setSortMenuAnchor(e.currentTarget)}
+                    variant="outlined"
+                    sx={{ fontWeight: 700, borderRadius: '8px', height: 22, fontSize: '0.68rem', borderColor: 'divider', color: 'text.secondary' }}
+                  />
+                </Tooltip>
+                <Menu anchorEl={sortMenuAnchor} open={Boolean(sortMenuAnchor)} onClose={() => setSortMenuAnchor(null)}>
+                  {[
+                    { value: 'date', label: 'Date' },
+                    { value: 'number', label: 'Number' },
+                    { value: 'amount', label: 'Amount' },
+                    { value: 'party', label: 'Party' },
+                  ].map((opt) => (
+                    <MenuItem key={opt.value} selected={sortBy === opt.value}
+                      onClick={() => { setSortBy(opt.value); setSortMenuAnchor(null); }}>
+                      {opt.label}
+                    </MenuItem>
+                  ))}
+                </Menu>
+                <Tooltip title={sortDir === 'asc' ? 'Ascending — click for descending' : 'Descending — click for ascending'}>
+                  <IconButton size="small" onClick={() => setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))}
+                    sx={{ p: 0.4, color: 'text.secondary' }}>
+                    <Typography sx={{ fontSize: '0.75rem', fontWeight: 800 }}>{sortDir === 'asc' ? '↑' : '↓'}</Typography>
+                  </IconButton>
+                </Tooltip>
+              </Box>
+            )}
+
             {/* Header */}
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.75, py: 1, borderBottom: '1px solid rgba(0,0,0,0.06)', bgcolor: 'rgba(0,0,0,0.015)', flexShrink: 0 }}>
               {selectable && (
                 <Checkbox
                   size="small"
                   sx={{ p: 0.25 }}
-                  indeterminate={selectedIds?.size > 0 && selectedIds?.size < records.length}
-                  checked={records.length > 0 && selectedIds?.size === records.length}
+                  indeterminate={selectedIds?.size > 0 && selectedIds?.size < filteredRecords.length}
+                  checked={filteredRecords.length > 0 && selectedIds?.size === filteredRecords.length}
                   onChange={(e) => {
-                    if (e.target.checked) setSelectedIds?.(new Set(records.map((r) => a.id(r))));
+                    if (e.target.checked) setSelectedIds?.(new Set(filteredRecords.map((r) => a.id(r))));
                     else setSelectedIds?.(new Set());
                   }}
                 />
               )}
-              <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', flex: 1, minWidth: 0 }}>
                 {selectable && selectedIds?.size > 0
                   ? `${selectedIds.size} selected`
-                  : `${records.length} ${records.length !== 1 ? labelPlural : labelSingular}`}
+                  : `${filteredRecords.length} ${filteredRecords.length !== 1 ? labelPlural : labelSingular}`}
               </Typography>
+              <ViewModeToggle value={viewMode} onChange={changeViewMode} tokens={tokens} />
             </Box>
 
-            {/* Scrollable list */}
-            <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
-              {pageRecords.map((r) => {
-                const id = a.id(r);
-                const due = a.dueDate(r);
-                const overdue = due && new Date(due + 'T00:00:00') < new Date();
-                const isActive = hasPreview && selectedRec && a.id(selectedRec) === id;
-                return (
-                  <Box
-                    key={id}
-                    onClick={() => hasPreview && (isMobile ? null : setSelectedRec(r))}
-                    sx={{
-                      p: 1.75,
-                      borderBottom: '1px solid rgba(0,0,0,0.06)',
-                      borderLeft: '3px solid',
-                      borderLeftColor: isActive ? tokens.primary : 'transparent',
-                      display: 'flex', flexDirection: 'column', gap: 1,
-                      cursor: hasPreview && !isMobile ? 'pointer' : 'default',
-                      transition: 'background 0.12s, border-color 0.12s',
-                      bgcolor: isActive ? tokens.primarySoft : (selectable && selectedIds?.has(id)) ? 'primary.50' : 'transparent',
-                      '&:hover': hasPreview && !isMobile ? { bgcolor: isActive ? tokens.primarySoft : 'rgba(79,70,229,0.04)' } : {},
-                    }}
-                  >
-                    <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1 }}>
-                      {selectable && (
-                        <Checkbox
-                          size="small"
-                          sx={{ p: 0.25, mt: -0.25 }}
-                          checked={selectedIds?.has(id) || false}
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) => toggleId(id, e.target.checked)}
-                        />
-                      )}
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography sx={{ fontWeight: 800, fontFamily: 'monospace', fontSize: '0.85rem' }} noWrap>
+            {viewMode === 'grid' ? (
+              <>
+                <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, p: 1.5, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 1.25, alignContent: 'start' }}>
+                  {pageRecords.map((r) => {
+                    const id = a.id(r);
+                    const isActive = hasPreview && selectedRec && a.id(selectedRec) === id;
+                    return (
+                      <Box
+                        key={id}
+                        onClick={() => hasPreview && selectRec(r)}
+                        sx={{
+                          p: 1.5,
+                          borderRadius: tokens.radius.md,
+                          border: '1.5px solid',
+                          borderColor: isActive ? tokens.primary : 'rgba(0,0,0,0.08)',
+                          bgcolor: isActive ? tokens.primarySoft : 'background.paper',
+                          cursor: hasPreview ? 'pointer' : 'default',
+                          display: 'flex', flexDirection: 'column', gap: 0.5,
+                          transition: 'border-color 0.12s, box-shadow 0.12s, transform 0.12s',
+                          boxShadow: isActive ? tokens.shadow.cardHover : 'none',
+                          '&:hover': hasPreview ? { borderColor: tokens.primary, transform: 'translateY(-2px)', boxShadow: tokens.shadow.card } : {},
+                        }}
+                      >
+                        <Typography sx={{ fontWeight: 800, fontFamily: 'monospace', fontSize: '0.8rem' }} noWrap>
                           {a.number(r)}
                         </Typography>
+                        {isConverted?.(r) && (
+                          <ConvertedChip
+                            label={convertedLabel?.(r) || 'Converted'}
+                            onClick={onViewConverted ? (e) => { e.stopPropagation(); onViewConverted(r); } : undefined}
+                          />
+                        )}
+                        <Typography sx={{ fontWeight: 800, color: tokens.primary, fontSize: '1.05rem' }}>
+                          ₹{a.amount(r).toFixed(2)}
+                        </Typography>
+                        {!a.isCash(r) ? (
+                          <Typography variant="caption" sx={{ fontWeight: 600 }} noWrap>{a.party(r)}</Typography>
+                        ) : (
+                          <Chip size="small" label={a.party(r) || 'Cash'}
+                            sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, alignSelf: 'flex-start', bgcolor: 'rgba(16,185,129,0.08)', color: 'success.dark', border: '1px solid rgba(16,185,129,0.22)' }} />
+                        )}
                         <Typography variant="caption" color="text.secondary">
-                          {fmtDate(a.date(r))}{r.time ? ` · ${r.time}` : ''}
+                          {fmtDate(a.date(r))}{formatCreatedTime(r) ? ` · ${formatCreatedTime(r)}` : ''}
                         </Typography>
-                      </Box>
-                      <Typography sx={{ fontWeight: 800, color: tokens.primary, fontSize: '1rem', flexShrink: 0 }}>
-                        ₹{a.amount(r).toFixed(2)}
-                      </Typography>
-                    </Box>
-
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, flexWrap: 'wrap', pl: selectable ? 4 : 0 }}>
-                      {!a.isCash(r) ? (
-                        <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{a.party(r)}</Typography>
-                      ) : (
-                        <Chip size="small" label={a.party(r) || 'Cash'}
-                          sx={{ fontWeight: 700, fontSize: '0.68rem', height: 20, bgcolor: 'rgba(16,185,129,0.08)', color: 'success.dark', border: '1px solid rgba(16,185,129,0.22)' }} />
-                      )}
-                      {due && (
-                        <Typography variant="caption" sx={{ fontWeight: 700, color: overdue ? tokens.error : 'text.disabled' }}>
-                          Due {fmtDate(due)}
-                        </Typography>
-                      )}
-                    </Box>
-
-                    {actions(r).length > 0 && (
-                      <Box sx={{ display: 'flex', gap: 0.5, pl: selectable ? 4 : 0 }}>
-                        {actions(r).map(({ icon, title, onClick, color }) => (
-                          <IconButton key={title} size="small"
-                            onClick={(e) => { e.stopPropagation(); onClick(); }}
-                            sx={{ flex: 1, borderRadius: tokens.radius.sm, color, bgcolor: `${color}10`, '&:hover': { bgcolor: `${color}20` } }}>
-                            {icon}
+                        {(hasPreview && isMobile) && (
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); selectRec(r); }}
+                            sx={{ alignSelf: 'flex-end', mt: -0.5, color: tokens.primary, bgcolor: `${tokens.primary}10`, '&:hover': { bgcolor: `${tokens.primary}20` } }}>
+                            <Eye size={14} />
                           </IconButton>
-                        ))}
+                        )}
                       </Box>
-                    )}
-                  </Box>
-                );
-              })}
-            </Box>
-
-            <TablePagination
-              component="div"
-              count={records.length}
-              page={page}
-              onPageChange={(_e, p) => setPage(p)}
-              rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-              rowsPerPageOptions={[10, 25, 50]}
-              sx={{
-                borderTop: '1px solid rgba(0,0,0,0.06)',
-                flexShrink: 0,
-                '& .MuiTablePagination-select': { borderRadius: tokens.radius.sm },
-                '& .MuiTablePagination-toolbar': { flexWrap: 'wrap' },
-              }}
-            />
+                    );
+                  })}
+                </Box>
+                <TablePagination
+                  component="div"
+                  count={filteredRecords.length}
+                  page={page}
+                  onPageChange={(_e, p) => setPage(p)}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+                  rowsPerPageOptions={[30, 60, 100]}
+                  sx={{
+                    borderTop: '1px solid rgba(0,0,0,0.06)',
+                    flexShrink: 0,
+                    '& .MuiTablePagination-select': { borderRadius: tokens.radius.sm },
+                    '& .MuiTablePagination-toolbar': { flexWrap: 'wrap' },
+                  }}
+                />
+              </>
+            ) : isMobile ? (
+              <>
+                <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0, p: 1.5, display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 1.25, alignContent: 'start' }}>
+                  {pageRecords.map((r) => {
+                    const id = a.id(r);
+                    return (
+                      <Box
+                        key={id}
+                        onClick={() => hasPreview && selectRec(r)}
+                        sx={{
+                          p: 1.5,
+                          borderRadius: tokens.radius.md,
+                          border: '1.5px solid rgba(0,0,0,0.08)',
+                          bgcolor: 'background.paper',
+                          cursor: hasPreview ? 'pointer' : 'default',
+                          display: 'flex', flexDirection: 'column', gap: 0.5,
+                        }}
+                      >
+                        <Typography sx={{ fontWeight: 800, fontFamily: 'monospace', fontSize: '0.8rem' }} noWrap>
+                          {a.number(r)}
+                        </Typography>
+                        {isConverted?.(r) && (
+                          <ConvertedChip
+                            label={convertedLabel?.(r) || 'Converted'}
+                            onClick={onViewConverted ? (e) => { e.stopPropagation(); onViewConverted(r); } : undefined}
+                          />
+                        )}
+                        <Typography sx={{ fontWeight: 800, color: tokens.primary, fontSize: '1.05rem' }}>
+                          ₹{a.amount(r).toFixed(2)}
+                        </Typography>
+                        {!a.isCash(r) ? (
+                          <Typography variant="caption" sx={{ fontWeight: 600 }} noWrap>{a.party(r)}</Typography>
+                        ) : (
+                          <Chip size="small" label={a.party(r) || 'Cash'}
+                            sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, alignSelf: 'flex-start', bgcolor: 'rgba(16,185,129,0.08)', color: 'success.dark', border: '1px solid rgba(16,185,129,0.22)' }} />
+                        )}
+                        <Typography variant="caption" color="text.secondary">
+                          {fmtDate(a.date(r))}{formatCreatedTime(r) ? ` · ${formatCreatedTime(r)}` : ''}
+                        </Typography>
+                        {hasPreview && (
+                          <IconButton size="small" onClick={(e) => { e.stopPropagation(); selectRec(r); }}
+                            sx={{ alignSelf: 'flex-end', mt: -0.5, color: tokens.primary, bgcolor: `${tokens.primary}10`, '&:hover': { bgcolor: `${tokens.primary}20` } }}>
+                            <Eye size={14} />
+                          </IconButton>
+                        )}
+                      </Box>
+                    );
+                  })}
+                </Box>
+                <TablePagination
+                  component="div"
+                  count={filteredRecords.length}
+                  page={page}
+                  onPageChange={(_e, p) => setPage(p)}
+                  rowsPerPage={rowsPerPage}
+                  onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+                  rowsPerPageOptions={[10, 25, 50]}
+                  sx={{
+                    borderTop: '1px solid rgba(0,0,0,0.06)',
+                    flexShrink: 0,
+                    '& .MuiTablePagination-select': { borderRadius: tokens.radius.sm },
+                    '& .MuiTablePagination-toolbar': { flexWrap: 'wrap' },
+                  }}
+                />
+              </>
+            ) : (
+              <TxDataTable
+                records={filteredRecords}
+                accessors={{ id: a.id, number: a.number, party: a.party, amount: a.amount, date: a.date, dueDate: a.dueDate, isCash: a.isCash }}
+                onRowClick={hasPreview ? selectRec : undefined}
+                onEdit={onEdit}
+                onDelete={onDelete}
+                onShare={onShare}
+                onPrint={onPrint}
+                extraMenuItems={onConvert ? (record, closeMenu) => (
+                  isConverted?.(record) ? (
+                    <MenuItem disabled>
+                      {convertedLabel?.(record) || 'Converted'}
+                    </MenuItem>
+                  ) : (
+                    <MenuItem onClick={() => { onConvert(record); closeMenu(); }}>
+                      {convertLabel}
+                    </MenuItem>
+                  )
+                ) : undefined}
+                isConverted={isConverted}
+                convertedLabel={convertedLabel}
+                onViewConverted={onViewConverted}
+                selectable={selectable}
+                selectedIds={selectedIds}
+                setSelectedIds={setSelectedIds}
+                tokens={tokens}
+                defaultRowsPerPage={50}
+              />
+            )}
           </Box>
         )}
       </Card>
 
-      {/* RIGHT: preview pane (desktop) */}
-      {showDetail && (
-        <Card
-          elevation={0}
-          sx={{
-            flex: 1, minWidth: 0,
-            borderRadius: tokens.radius.lg,
-            border: '1px solid rgba(0,0,0,0.07)',
-            boxShadow: tokens.shadow.card,
-            overflow: 'hidden',
-            display: 'flex', flexDirection: 'column',
-            height: '100%', minHeight: 0,
-          }}
-        >
-          {previewInner}
-        </Card>
-      )}
-
       {/* Mobile: preview in a full-screen dialog */}
       <Dialog
         open={hasPreview && isMobile && !!selectedRec}
-        onClose={() => setSelectedRec(null)}
+        onClose={() => closePreview()}
         fullScreen
         slotProps={{ paper: { sx: { display: 'flex', flexDirection: 'column' } } }}
+      >
+        {previewInner}
+      </Dialog>
+
+      {/* Desktop: preview always opens as a popup dialog (list and grid mode
+          alike) — the eye icon is the only way to open it. */}
+      <Dialog
+        open={showPreviewDialog}
+        onClose={() => closePreview()}
+        maxWidth="lg"
+        fullWidth
+        slotProps={{ paper: { sx: { display: 'flex', flexDirection: 'column', width: '90vw', height: '92vh', maxHeight: '92vh', borderRadius: tokens.radius.lg } } }}
       >
         {previewInner}
       </Dialog>

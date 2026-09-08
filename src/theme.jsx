@@ -565,6 +565,30 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
   });
 };
 
+// Brand token object consumed by shared feature components merged from the
+// sibling app (Layout, POS, Dashboard, CustomerPreviewPanel, App, …). Those
+// files reference BRAND.teal / .tealDark / .tealLight / .emerald / .gradient —
+// the KEY names are kept for import compatibility, but the VALUES are
+// TallyKraft's indigo brand so the shared components render in this app's
+// palette without per-file edits. Do not rename the keys.
+const TK_PRIMARY = '#4f46e5';       // indigo-600
+const TK_PRIMARY_DARK = '#3730a3';  // indigo-800
+const TK_PRIMARY_LIGHT = '#818cf8'; // indigo-400
+const TK_ACCENT = '#6366f1';        // indigo-500
+const TK_DEEP = '#312e81';          // indigo-900
+export const BRAND = {
+  teal: TK_PRIMARY,
+  tealDark: TK_PRIMARY_DARK,
+  tealLight: TK_PRIMARY_LIGHT,
+  tealDeep: TK_DEEP,
+  emerald: TK_ACCENT,
+  emeraldLight: '#a5b4fc',
+  ink: '#1e1b4b',
+  gradient: `linear-gradient(135deg, ${TK_DEEP} 0%, ${TK_PRIMARY_DARK} 45%, ${TK_PRIMARY} 100%)`,
+  gradientVivid: `linear-gradient(135deg, ${TK_PRIMARY} 0%, ${TK_ACCENT} 100%)`,
+  gradientSoft: `linear-gradient(135deg, ${TK_PRIMARY} 0%, ${TK_PRIMARY_LIGHT} 100%)`,
+};
+
 export const themes = {
   lightIndigo: createAppTheme('light', 'indigo'),
   lightBlue: createAppTheme('light', 'blue'),
