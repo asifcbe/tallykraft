@@ -160,7 +160,7 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
             size="small"
             sx={{
               position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)',
-              background: 'linear-gradient(135deg, #334155 0%, #1e293b 100%)',
+              background: '#334155',
               color: 'white', fontWeight: 800, fontSize: '0.68rem', letterSpacing: '0.02em',
               px: 0.5, boxShadow: `0 6px 16px ${alpha('#64748b', 0.4)}`,
               '& .MuiChip-icon': { color: 'white' },

@@ -600,7 +600,7 @@ const BulkBarcodeDialog = ({ items, onClose }) => {
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} sx={{ fontWeight: 600 }}>Close</Button>
         <Button variant="contained" startIcon={<Printer size={16} />} onClick={handlePrint}
-          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}>
+          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, background: '#334155' }}>
           Print {totalLabels} Label{totalLabels !== 1 ? 's' : ''}
         </Button>
       </DialogActions>
@@ -706,7 +706,7 @@ const BarcodeDialog = ({ item, onClose }) => {
         {(item.barcode || printMode === 'qr') && (
           <Button variant="contained" startIcon={<Printer size={16} />}
             onClick={() => printMode === 'qr' ? handleQrPrint() : handleBarcodePrint()}
-            sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}>
+            sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, background: '#334155' }}>
             Print{(Number(copies) || 1) > 1 || (Number(columns) || 1) > 1 ? ` (${Number(copies) || 1} × ${Number(columns) || 1} col)` : ''}
           </Button>
         )}
@@ -945,30 +945,30 @@ const ItemsPage = () => {
       {/* ── Hero Header ── */}
       <Box sx={{
         borderRadius: 3,
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+        background: '#ffffff', border: '1px solid #e4e8ee',
         p: { xs: 2.5, md: 3.5 }, mb: 3,
         position: 'relative', overflow: 'hidden',
       }}>
-        <Box sx={{ position: 'absolute', top: -50, right: -50, width: 220, height: 220, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-        <Box sx={{ position: 'absolute', bottom: -40, right: 120, width: 160, height: 160, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.03)', pointerEvents: 'none' }} />
+        <Box sx={{ position: 'absolute', top: -50, right: -50, width: 220, height: 220, borderRadius: '50%', bgcolor: 'transparent', pointerEvents: 'none' }} />
+        <Box sx={{ position: 'absolute', bottom: -40, right: 120, width: 160, height: 160, borderRadius: '50%', bgcolor: 'transparent', pointerEvents: 'none' }} />
 
         {/* Title row */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2.5, position: 'relative' }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex' }}>
-              <Package size={20} color="white" />
+            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
+              <Package size={20} color="#334155" />
             </Box>
             <Box>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', letterSpacing: '-0.01em' }}>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: '#1e293b', letterSpacing: '-0.01em' }}>
                 Items & Inventory
               </Typography>
-              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.65)', pl: 0.5 }}>Manage your products and services</Typography>
+              <Typography variant="body2" sx={{ color: '#64748b', pl: 0.5 }}>Manage your products and services</Typography>
             </Box>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, alignItems: 'center' }}>
             <Tooltip title="More options">
               <IconButton size="small" onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
-                sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}>
+                sx={{ color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)', border: '1px solid #e4e8ee', borderRadius: 1.5, '&:hover': { bgcolor: '#94a3b8' } }}>
                 <MoreHorizontal size={18} />
               </IconButton>
             </Tooltip>
@@ -995,14 +995,14 @@ const ItemsPage = () => {
               <Button variant={barcodePrintMode ? 'contained' : 'outlined'} size="small" startIcon={<Printer size={15} />}
                 onClick={() => { setBarcodePrintMode(v => !v); setCheckedIds(new Set()); }}
                 sx={barcodePrintMode
-                  ? { bgcolor: '#334155', color: 'white', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', '&:hover': { bgcolor: '#334155' } }
-                  : { color: 'white', borderColor: 'rgba(255,255,255,0.5)', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }
+                  ? { bgcolor: '#334155', color: '#ffffff', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', '&:hover': { bgcolor: '#1e293b' } }
+                  : { color: '#1e293b', borderColor: '#e4e8ee', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', '&:hover': { bgcolor: 'rgba(51,65,85,0.08)' } }
                 }>
                 {barcodePrintMode ? 'Cancel' : 'Print Labels'}
               </Button>
             )}
             <Button variant="contained" size="small" disabled={!canWrite} startIcon={<Plus size={16} />} onClick={() => handleOpen()}
-              sx={{ bgcolor: 'white', color: '#111111', fontWeight: 700, borderRadius: 2, textTransform: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.25)', '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' }, whiteSpace: 'nowrap' }}>
+              sx={{ bgcolor: '#334155', color: '#ffffff', fontWeight: 700, borderRadius: 2, textTransform: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.25)', '&:hover': { bgcolor: '#1e293b' }, whiteSpace: 'nowrap' }}>
               {isMobile ? t('common.add') : t('items.addItem')}
             </Button>
           </Box>
@@ -1011,21 +1011,21 @@ const ItemsPage = () => {
         {/* Stats row */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, position: 'relative' }}>
           {[
-            { label: t('items.totalItems'), value: items.length, icon: Package, color: '#cbd5e1' },
-            { label: t('items.stockValue'), value: `₹${totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#cbd5e1' },
+            { label: t('items.totalItems'), value: items.length, icon: Package, color: '#64748b' },
+            { label: t('items.stockValue'), value: `₹${totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#16a34a' },
             { label: t('items.lowNoStock'), value: lowStockItems, icon: AlertTriangle, color: lowStockItems > 0 ? '#fca5a5' : '#86efac' },
           ].map(({ label, value, icon: Icon, color }) => (
             <Box key={label} sx={{
-              bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, p: 1.5,
-              border: '1px solid rgba(255,255,255,0.1)',
+              bgcolor: 'rgba(51,65,85,0.05)', borderRadius: 2, p: 1.5,
+              border: '1px solid #e4e8ee',
             }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
                 <Icon size={14} color={color} />
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>
                   {label}
                 </Typography>
               </Box>
-              <Typography sx={{ color: 'white', fontWeight: 800, lineHeight: 1.1, fontSize: { xs: '0.95rem', sm: '1.1rem' } }}>
+              <Typography sx={{ color: '#1e293b', fontWeight: 800, lineHeight: 1.1, fontSize: { xs: '0.95rem', sm: '1.1rem' } }}>
                 {value}
               </Typography>
             </Box>
@@ -1495,23 +1495,23 @@ const ItemsPage = () => {
         return (
           <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, width: 300, flexShrink: 0, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', position: 'sticky', top: 16, maxHeight: 'calc(100vh - 120px)', overflow: 'hidden' }}>
             {/* Header */}
-            <Box sx={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)', p: 2.5, position: 'relative', overflow: 'hidden' }}>
-              <Box sx={{ position: 'absolute', top: -30, right: -30, width: 100, height: 100, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
+            <Box sx={{ background: '#ffffff', border: '1px solid #e4e8ee', p: 2.5, position: 'relative', overflow: 'hidden' }}>
+              <Box sx={{ position: 'absolute', top: -30, right: -30, width: 100, height: 100, borderRadius: '50%', bgcolor: 'transparent', pointerEvents: 'none' }} />
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', fontWeight: 800, fontSize: '1.1rem' }}>
+                <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(51,65,85,0.1)', color: '#1e293b', fontWeight: 800, fontSize: '1.1rem' }}>
                   {it.name.charAt(0).toUpperCase()}
                 </Avatar>
-                <IconButton size="small" onClick={() => setSelectedItem(null)} sx={{ color: 'rgba(255,255,255,0.7)', '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}>
+                <IconButton size="small" onClick={() => setSelectedItem(null)} sx={{ color: '#64748b', '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
                   <X size={15} />
                 </IconButton>
               </Box>
-              <Typography sx={{ color: 'white', fontWeight: 700, fontSize: '1rem', lineHeight: 1.3, mb: 0.25 }}>{it.name}</Typography>
+              <Typography sx={{ color: '#1e293b', fontWeight: 700, fontSize: '1rem', lineHeight: 1.3, mb: 0.25 }}>{it.name}</Typography>
               {it.itemCode && (
-                <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.7)', fontWeight: 600, fontSize: '0.7rem', display: 'block', mb: 1.25 }}>{it.itemCode}</Typography>
+                <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#64748b', fontWeight: 600, fontSize: '0.7rem', display: 'block', mb: 1.25 }}>{it.itemCode}</Typography>
               )}
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: 'rgba(0,0,0,0.18)', borderRadius: 1.5, px: 1.5, py: 1 }}>
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.65)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>Sale Price</Typography>
-                <Typography sx={{ color: 'white', fontWeight: 800, fontSize: '0.95rem', fontFamily: 'monospace' }}>₹{(it.salePrice || 0).toLocaleString('en-IN')}</Typography>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>Sale Price</Typography>
+                <Typography sx={{ color: '#1e293b', fontWeight: 800, fontSize: '0.95rem', fontFamily: 'monospace' }}>₹{(it.salePrice || 0).toLocaleString('en-IN')}</Typography>
               </Box>
             </Box>
             {/* Body */}
@@ -1648,18 +1648,18 @@ const ItemsPage = () => {
         return (
           <Dialog open={!!selectedItem} onClose={() => setSelectedItem(null)} maxWidth="xs" fullWidth
             PaperProps={{ sx: { borderRadius: '16px 16px 0 0', m: 0, mt: 'auto', maxHeight: '85vh', position: 'fixed', bottom: 0, left: 0, right: 0, width: '100%' } }}>
-            <Box sx={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)', p: 2.5, position: 'relative', overflow: 'hidden' }}>
+            <Box sx={{ background: '#ffffff', border: '1px solid #e4e8ee', p: 2.5, position: 'relative', overflow: 'hidden' }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
-                <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', fontWeight: 800, fontSize: '1.1rem' }}>
+                <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(51,65,85,0.1)', color: '#1e293b', fontWeight: 800, fontSize: '1.1rem' }}>
                   {it.name.charAt(0).toUpperCase()}
                 </Avatar>
-                <IconButton size="small" onClick={() => setSelectedItem(null)} sx={{ color: 'rgba(255,255,255,0.7)' }}><CloseIcon size={18} /></IconButton>
+                <IconButton size="small" onClick={() => setSelectedItem(null)} sx={{ color: '#64748b' }}><CloseIcon size={18} /></IconButton>
               </Box>
-              <Typography sx={{ color: 'white', fontWeight: 700, fontSize: '1rem', lineHeight: 1.3, mb: 0.25 }}>{it.name}</Typography>
-              {it.itemCode && <Typography variant="caption" sx={{ fontFamily: 'monospace', color: 'rgba(255,255,255,0.7)', fontWeight: 600, display: 'block', mb: 1 }}>{it.itemCode}</Typography>}
+              <Typography sx={{ color: '#1e293b', fontWeight: 700, fontSize: '1rem', lineHeight: 1.3, mb: 0.25 }}>{it.name}</Typography>
+              {it.itemCode && <Typography variant="caption" sx={{ fontFamily: 'monospace', color: '#64748b', fontWeight: 600, display: 'block', mb: 1 }}>{it.itemCode}</Typography>}
               <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', bgcolor: 'rgba(0,0,0,0.18)', borderRadius: 1.5, px: 1.5, py: 1 }}>
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.65)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Sale Price</Typography>
-                <Typography sx={{ color: 'white', fontWeight: 800, fontSize: '0.95rem', fontFamily: 'monospace' }}>₹{(it.salePrice || 0).toLocaleString('en-IN')}</Typography>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: 0.5 }}>Sale Price</Typography>
+                <Typography sx={{ color: '#1e293b', fontWeight: 800, fontSize: '0.95rem', fontFamily: 'monospace' }}>₹{(it.salePrice || 0).toLocaleString('en-IN')}</Typography>
               </Box>
             </Box>
             <DialogContent sx={{ p: 2 }}>

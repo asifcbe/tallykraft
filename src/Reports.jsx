@@ -2470,18 +2470,18 @@ const ReportsPage = () => {
           other page. ── */}
       <Box sx={{
         borderRadius: 2.5,
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+        background: '#ffffff', border: '1px solid #e4e8ee',
         px: { xs: 1.75, md: 2.25 }, py: { xs: 1.1, md: 1.35 }, mb: 1.75,
         display: 'flex', alignItems: 'center', gap: 1.25,
       }}>
-        <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', flexShrink: 0 }}>
-          <BarChart2 size={16} color="white" />
+        <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', flexShrink: 0 }}>
+          <BarChart2 size={16} color="#334155" />
         </Box>
         <Box sx={{ minWidth: 0 }}>
-          <Typography sx={{ fontWeight: 800, color: 'white', fontSize: '0.95rem', lineHeight: 1.2 }} noWrap>
+          <Typography sx={{ fontWeight: 800, color: '#1e293b', fontSize: '0.95rem', lineHeight: 1.2 }} noWrap>
             Reports
           </Typography>
-          <Typography sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.74rem' }} noWrap>
+          <Typography sx={{ color: '#64748b', fontSize: '0.74rem' }} noWrap>
             {activeGroup?.label ? `${activeGroup.label} · ${activeReport?.label}` : 'Choose a report'}
           </Typography>
         </Box>
@@ -3377,23 +3377,23 @@ const ReportsPage = () => {
         {detailContent && (
           <>
             <Box sx={{
-              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+              background: '#ffffff', border: '1px solid #e4e8ee',
               px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.25, flexShrink: 0,
             }}>
-              <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: 'white', fontWeight: 800, width: 34, height: 34 }}>
+              <Avatar sx={{ bgcolor: 'rgba(51,65,85,0.1)', color: '#1e293b', fontWeight: 800, width: 34, height: 34 }}>
                 {detailContent.kind === 'item' ? <Package size={16} /> : (detailContent.title?.[0]?.toUpperCase() || '?')}
               </Avatar>
               <Box sx={{ flex: 1, minWidth: 0 }}>
-                <Typography sx={{ color: 'white', fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }} noWrap>
+                <Typography sx={{ color: '#1e293b', fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }} noWrap>
                   {detailContent.title}
                 </Typography>
                 {detailContent.subtitle && (
-                  <Typography sx={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.74rem' }} noWrap>
+                  <Typography sx={{ color: '#64748b', fontSize: '0.74rem' }} noWrap>
                     {detailContent.subtitle}
                   </Typography>
                 )}
               </Box>
-              <IconButton size="small" onClick={() => setDetailDialog(null)} sx={{ color: 'rgba(255,255,255,0.85)', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}>
+              <IconButton size="small" onClick={() => setDetailDialog(null)} sx={{ color: '#64748b', '&:hover': { bgcolor: 'rgba(51,65,85,0.08)' } }}>
                 <X size={17} />
               </IconButton>
             </Box>

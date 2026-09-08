@@ -135,15 +135,15 @@ export default function PurchaseImportDialog({ open, onClose, onSuccess }) {
         <CircularProgress size={40} sx={{ color: '#334155' }} />
         <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155' }}>Importing {rows.length} rows…</Typography>
       </Backdrop>
-      <Box sx={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #334155 100%)', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex' }}>
-          <Upload size={18} color="white" />
+      <Box sx={{ background: '#ffffff', border: '1px solid #e4e8ee', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
+          <Upload size={18} color="#334155" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>IMPORT</Typography>
-          <Typography variant="h6" sx={{ color: 'white', fontWeight: 800, lineHeight: 1.2 }}>Import Purchases</Typography>
+          <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>IMPORT</Typography>
+          <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, lineHeight: 1.2 }}>Import Purchases</Typography>
         </Box>
-        <IconButton onClick={handleClose} disabled={saving} sx={{ color: 'white' }}><X size={20} /></IconButton>
+        <IconButton onClick={handleClose} disabled={saving} sx={{ color: '#1e293b' }}><X size={20} /></IconButton>
       </Box>
 
       <DialogContent sx={{ p: 3 }}>
@@ -166,7 +166,7 @@ export default function PurchaseImportDialog({ open, onClose, onSuccess }) {
                 variant="contained"
                 startIcon={<Upload size={16} />}
                 onClick={() => fileRef.current?.click()}
-                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}
+                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#334155' }}
               >
                 Upload File
               </Button>
@@ -232,7 +232,7 @@ export default function PurchaseImportDialog({ open, onClose, onSuccess }) {
 
       <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid rgba(0,0,0,0.08)', gap: 1 }}>
         {step === 2 ? (
-          <Button variant="contained" onClick={handleClose} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}>
+          <Button variant="contained" onClick={handleClose} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#334155' }}>
             Done
           </Button>
         ) : (
@@ -243,7 +243,7 @@ export default function PurchaseImportDialog({ open, onClose, onSuccess }) {
                 variant="contained"
                 onClick={handleSave}
                 disabled={saving || rows.length === 0}
-                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}
+                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#334155' }}
               >
                 {saving ? 'Importing…' : `Import ${invoiceCount} Bill${invoiceCount !== 1 ? 's' : ''}`}
               </Button>

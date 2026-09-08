@@ -38,9 +38,9 @@ const GradientBtn = ({ children, tokens, onClick, disabled, startIcon, size = 's
   <Button
     variant="contained" size={size} disabled={disabled} onClick={onClick} startIcon={startIcon}
     sx={{
-      background: disabled ? undefined : `linear-gradient(135deg, ${tokens.primaryDark} 0%, ${tokens.primaryLight} 100%)`,
+      background: disabled ? undefined : tokens.primary,
       fontWeight: 800, textTransform: 'none', borderRadius: 1.5, flexShrink: 0,
-      '&:hover': { background: `linear-gradient(135deg, ${tokens.primary} 0%, ${tokens.primaryDark} 100%)` },
+      '&:hover': { background: tokens.primaryDark },
       ...sx,
     }}
   >
@@ -367,29 +367,29 @@ const InvoicePreviewDialog = ({
       >
         {/* Gradient header */}
         <Box sx={{
-          background: `linear-gradient(135deg, ${tokens.primaryDark} 0%, ${tokens.primaryLight} 100%)`,
+          background: '#ffffff', borderBottom: '1px solid #e4e8ee',
           px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0,
         }}>
-          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', mt: 0.5, flexShrink: 0 }}>
-            <Eye size={18} color="white" />
+          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', mt: 0.5, flexShrink: 0 }}>
+            <Eye size={18} color="#334155" />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+            <Typography variant="overline" sx={{ color: '#475569', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
               {isSale ? 'Invoice Preview' : 'Bill Preview'}
             </Typography>
-            <Typography variant="h6" sx={{ color: 'white', fontWeight: 800, mt: 0.5, fontSize: '1.05rem', fontFamily: 'monospace', letterSpacing: '0.02em' }}>
+            <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, mt: 0.5, fontSize: '1.05rem', fontFamily: 'monospace', letterSpacing: '0.02em' }}>
               {transaction?.invoiceNumber || '—'}
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, mt: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
               {transaction?.partyName && (
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>{transaction.partyName}</Typography>
+                <Typography variant="caption" sx={{ color: '#475569', fontWeight: 600 }}>{transaction.partyName}</Typography>
               )}
               {transaction?.date && (
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.7)' }}>{transaction.date}</Typography>
+                <Typography variant="caption" sx={{ color: '#475569' }}>{transaction.date}</Typography>
               )}
               {transaction?.totalAmount != null && (
-                <Box sx={{ px: 1.25, py: 0.25, bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '100px', border: '1px solid rgba(255,255,255,0.25)' }}>
-                  <Typography variant="caption" sx={{ color: 'white', fontWeight: 800, fontSize: '0.8rem' }}>
+                <Box sx={{ px: 1.25, py: 0.25, bgcolor: 'rgba(51,65,85,0.08)', borderRadius: '100px', border: '1px solid #e4e8ee' }}>
+                  <Typography variant="caption" sx={{ color: '#1e293b', fontWeight: 800, fontSize: '0.8rem' }}>
                     ₹{transaction.totalAmount.toLocaleString('en-IN')}
                   </Typography>
                 </Box>
@@ -398,7 +398,7 @@ const InvoicePreviewDialog = ({
                 const isOverdue = transaction.dueDate && transaction.status !== 'paid' && new Date(transaction.dueDate + 'T00:00:00') < new Date();
                 const label = transaction.status === 'paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Unpaid';
                 return (
-                  <Box sx={{ px: 1, py: 0.2, bgcolor: isOverdue ? 'rgba(254,202,202,0.9)' : 'rgba(255,255,255,0.18)', borderRadius: '100px', border: isOverdue ? '1px solid rgba(220,38,38,0.4)' : '1px solid rgba(255,255,255,0.3)' }}>
+                  <Box sx={{ px: 1, py: 0.2, bgcolor: isOverdue ? '#fee2e2' : 'rgba(51,65,85,0.08)', borderRadius: '100px', border: isOverdue ? '1px solid #fecaca' : '1px solid #e4e8ee' }}>
                     <Typography variant="caption" sx={{ color: isOverdue ? '#7f1d1d' : 'white', fontWeight: 800, fontSize: '0.68rem' }}>
                       {label}
                     </Typography>
@@ -408,16 +408,16 @@ const InvoicePreviewDialog = ({
             </Box>
           </Box>
           <Tooltip title="Edit">
-            <IconButton onClick={handleEdit} size="small" sx={{ color: 'rgba(255,255,255,0.85)', mt: -0.5, '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}>
+            <IconButton onClick={handleEdit} size="small" sx={{ color: '#475569', mt: -0.5, '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
               <Edit size={17} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Delete">
-            <IconButton onClick={handleDeleteTx} size="small" sx={{ color: 'rgba(255,255,255,0.85)', mt: -0.5, '&:hover': { color: '#fecaca', bgcolor: 'rgba(220,38,38,0.18)' } }}>
+            <IconButton onClick={handleDeleteTx} size="small" sx={{ color: '#475569', mt: -0.5, '&:hover': { color: '#fecaca', bgcolor: 'rgba(220,38,38,0.18)' } }}>
               <Trash2 size={17} />
             </IconButton>
           </Tooltip>
-          <IconButton onClick={onClose} size="small" sx={{ color: 'rgba(255,255,255,0.75)', mt: -0.5, mr: -0.5, '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}>
+          <IconButton onClick={onClose} size="small" sx={{ color: '#475569', mt: -0.5, mr: -0.5, '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
             <X size={18} />
           </IconButton>
         </Box>

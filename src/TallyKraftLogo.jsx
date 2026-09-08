@@ -1,56 +1,38 @@
 import React from 'react';
 
 /**
- * TallyKraft brand mark — "Midnight & Gold".
- *   variant="icon"            → the slate square monogram only
- *   variant="wordmark"        → monogram + "TallyKraft" in slate ink
- *   variant="wordmark-light"  → monogram + white wordmark (for dark / gradient bars)
+ * TallyKraft brand mark — white theme.
+ *   variant="icon"            → the original artwork mark (recolored slate)
+ *   variant="wordmark"        → mark + "TallyKraft" in slate ink
+ *   variant="wordmark-light"  → mark + white wordmark (for the rare dark surface)
  *
- * `size` is the monogram's height in px; the wordmark scales from it.
- * Self-contained inline SVG — no external asset.
+ * The mark itself is public/tallykraft.svg (the original path artwork, its
+ * blue-violet facets remapped to a slate range for the white UI).
  */
 
-const SLATE = '#334155';
-const SLATE_DEEP = '#0f172a';
-const GOLD = '#c8a04e';
-
-const Monogram = ({ size }) => (
-  <svg
-    width={size}
-    height={size}
-    viewBox="0 0 40 40"
-    fill="none"
-    role="img"
-    aria-label="TallyKraft"
-    style={{ display: 'block', flexShrink: 0 }}
-  >
-    <defs>
-      <linearGradient id="tk-mg" x1="0" y1="0" x2="40" y2="40" gradientUnits="userSpaceOnUse">
-        <stop offset="0" stopColor={SLATE_DEEP} />
-        <stop offset="1" stopColor={SLATE} />
-      </linearGradient>
-    </defs>
-    <rect x="0" y="0" width="40" height="40" rx="10" fill="url(#tk-mg)" />
-    {/* gold serifed "T" */}
-    <rect x="9" y="11" width="22" height="4.2" rx="1.4" fill={GOLD} />
-    <rect x="17.9" y="11" width="4.2" height="19" rx="1.4" fill={GOLD} />
-    {/* subtle ledger baseline */}
-    <rect x="9" y="27.5" width="22" height="2.6" rx="1.3" fill={GOLD} opacity="0.4" />
-  </svg>
-);
+const INK = '#1e293b';   // slate-800 — wordmark on white
+const SUB = '#334155';    // slate-700
 
 const TallyKraftLogo = ({ size = 36, variant = 'icon', color }) => {
-  if (variant !== 'wordmark' && variant !== 'wordmark-light') {
-    return <Monogram size={size} />;
-  }
+  const Mark = (
+    <img
+      src="/tallykraft.svg"
+      alt="TallyKraft"
+      width={size}
+      height={size}
+      style={{ display: 'block', flexShrink: 0 }}
+    />
+  );
+
+  if (variant !== 'wordmark' && variant !== 'wordmark-light') return Mark;
 
   const light = variant === 'wordmark-light';
   const fontSize = Math.round(size * 0.5);
-  const textColor = light ? '#ffffff' : (color || SLATE_DEEP);
+  const textColor = light ? '#ffffff' : (color || INK);
 
   return (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: Math.round(size * 0.32) }}>
-      <Monogram size={size} />
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: Math.round(size * 0.3) }}>
+      {Mark}
       <span style={{
         fontWeight: 700,
         fontSize,
@@ -59,7 +41,7 @@ const TallyKraftLogo = ({ size = 36, variant = 'icon', color }) => {
         lineHeight: 1,
         fontFamily: '"Inter", "Segoe UI", system-ui, sans-serif',
       }}>
-        Tally<span style={{ color: light ? GOLD : GOLD, fontWeight: 800 }}>Kraft</span>
+        Tally<span style={{ fontWeight: 800, color: light ? '#ffffff' : SUB }}>Kraft</span>
       </span>
     </span>
   );

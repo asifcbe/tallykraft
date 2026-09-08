@@ -609,28 +609,28 @@ const OpticalsPage = () => {
 
         {/* Gradient header */}
         <Box sx={{
-          background: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+          background: '#ffffff', borderBottom: '1px solid #e4e8ee',
           px: { xs: 2, md: 4 }, py: 2.5,
           display: 'flex', alignItems: 'center', gap: 2,
         }}>
           <IconButton
             onClick={() => { setView('list'); setEditId(null); }}
-            sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.12)', borderRadius: 2, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }, flexShrink: 0 }}
+            sx={{ color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)', borderRadius: 2, '&:hover': { bgcolor: '#94a3b8' }, flexShrink: 0 }}
           >
             <ChevronLeft size={20} />
           </IconButton>
-          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', flexShrink: 0 }}>
-            <Glasses size={18} color="white" />
+          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', flexShrink: 0 }}>
+            <Glasses size={18} color="#334155" />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.65)', fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.12em', lineHeight: 1 }}>
+            <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.12em', lineHeight: 1 }}>
               OPTICALS
             </Typography>
-            <Typography variant="h6" sx={{ color: 'white', fontWeight: 800, mt: 0.25, fontSize: '1.05rem', lineHeight: 1.2 }}>
+            <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, mt: 0.25, fontSize: '1.05rem', lineHeight: 1.2 }}>
               {editId ? 'Edit Prescription' : 'New Examination'}
             </Typography>
             {formData.patientName && (
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>
+              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500 }}>
                 {formData.patientName}
               </Typography>
             )}
@@ -639,7 +639,7 @@ const OpticalsPage = () => {
             <Tooltip title="Preview">
               <IconButton
                 onClick={() => { setPreviewExamData(formData); setPreviewExamOpen(true); }}
-                sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.12)', '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}
+                sx={{ color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)', '&:hover': { bgcolor: '#94a3b8' } }}
               >
                 <Eye size={18} />
               </IconButton>
@@ -647,13 +647,13 @@ const OpticalsPage = () => {
             <Tooltip title="Share">
               <IconButton
                 onClick={() => handleShare(formData)}
-                sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.12)', '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}
+                sx={{ color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)', '&:hover': { bgcolor: '#94a3b8' } }}
               >
                 <Share2 size={18} />
               </IconButton>
             </Tooltip>
             <Button variant="contained" disableElevation startIcon={<Save size={16} />} onClick={handleSave}
-              sx={{ bgcolor: 'white', color: '#3f3f46', fontWeight: 700, borderRadius: 2, px: 2.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }, textTransform: 'none' }}>
+              sx={{ bgcolor: '#334155', color: '#ffffff', fontWeight: 700, borderRadius: 2, px: 2.5, '&:hover': { bgcolor: '#1e293b' }, textTransform: 'none' }}>
               Save
             </Button>
           </Box>
@@ -730,9 +730,9 @@ const OpticalsPage = () => {
 
             {/* Refraction Data */}
             <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-              <Box sx={{ px: 2.5, py: 1.75, background: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
-                <Eye size={16} color="white" />
-                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'white', letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
+              <Box sx={{ px: 2.5, py: 1.75, background: '#ffffff', borderBottom: '1px solid #e4e8ee', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                <Eye size={16} color="#334155" />
+                <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#1e293b', letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
                   Refraction Data
                 </Typography>
               </Box>
@@ -885,40 +885,40 @@ const OpticalsPage = () => {
 
         {/* Gradient header */}
         <Box sx={{
-          background: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+          background: '#ffffff', borderBottom: '1px solid #e4e8ee',
           px: { xs: 2, md: 4 }, py: 2.5,
           display: 'flex', alignItems: 'center', gap: 2,
         }}>
           <IconButton
             onClick={() => { setOrderView('list'); setOrderEditId(null); }}
-            sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.12)', borderRadius: 2, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' }, flexShrink: 0 }}
+            sx={{ color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)', borderRadius: 2, '&:hover': { bgcolor: '#94a3b8' }, flexShrink: 0 }}
           >
             <ChevronLeft size={20} />
           </IconButton>
-          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', flexShrink: 0 }}>
-            <ShoppingBag size={18} color="white" />
+          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', flexShrink: 0 }}>
+            <ShoppingBag size={18} color="#334155" />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.65)', fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.12em', lineHeight: 1 }}>
+            <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.6rem', letterSpacing: '0.12em', lineHeight: 1 }}>
               OPTICAL ORDERS
             </Typography>
-            <Typography variant="h6" sx={{ color: 'white', fontWeight: 800, mt: 0.25, fontSize: '1.05rem', lineHeight: 1.2 }}>
+            <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, mt: 0.25, fontSize: '1.05rem', lineHeight: 1.2 }}>
               {orderEditId ? 'Edit Order' : 'New Order'}
             </Typography>
             {orderForm.patientName && (
-              <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.75)', fontWeight: 500 }}>
+              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 500 }}>
                 {orderForm.patientName}
               </Typography>
             )}
           </Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, flexShrink: 0 }}>
             {orderTotal > 0 && (
-              <Box sx={{ px: 1.5, py: 0.5, bgcolor: 'rgba(255,255,255,0.18)', borderRadius: 2, border: '1px solid rgba(255,255,255,0.25)' }}>
-                <Typography sx={{ color: 'white', fontWeight: 800, fontSize: '0.875rem' }}>₹{orderTotal.toFixed(2)}</Typography>
+              <Box sx={{ px: 1.5, py: 0.5, bgcolor: 'rgba(51,65,85,0.1)', borderRadius: 2, border: '1px solid #e4e8ee' }}>
+                <Typography sx={{ color: '#1e293b', fontWeight: 800, fontSize: '0.875rem' }}>₹{orderTotal.toFixed(2)}</Typography>
               </Box>
             )}
             <Button variant="contained" disableElevation startIcon={<Save size={16} />} onClick={handleOrderSave}
-              sx={{ bgcolor: 'white', color: '#3f3f46', fontWeight: 700, borderRadius: 2, px: 2.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }, textTransform: 'none' }}>
+              sx={{ bgcolor: '#334155', color: '#ffffff', fontWeight: 700, borderRadius: 2, px: 2.5, '&:hover': { bgcolor: '#1e293b' }, textTransform: 'none' }}>
               Save
             </Button>
           </Box>
@@ -1214,34 +1214,34 @@ const OpticalsPage = () => {
       {/* Hero Header */}
       <Box sx={{
         borderRadius: 3,
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+        background: '#ffffff', border: '1px solid #e4e8ee',
         p: { xs: 2.5, md: 3.5 }, mb: 3,
         position: 'relative', overflow: 'hidden',
       }}>
-        <Box sx={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
-        <Box sx={{ position: 'absolute', bottom: -30, right: 100, width: 150, height: 150, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.03)', pointerEvents: 'none' }} />
+        <Box sx={{ position: 'absolute', top: -40, right: -40, width: 200, height: 200, borderRadius: '50%', bgcolor: 'transparent', pointerEvents: 'none' }} />
+        <Box sx={{ position: 'absolute', bottom: -30, right: 100, width: 150, height: 150, borderRadius: '50%', bgcolor: 'transparent', pointerEvents: 'none' }} />
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2.5, position: 'relative' }}>
           <Box>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 0.5 }}>
-              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex' }}>
-                <Glasses size={20} color="white" />
+              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
+                <Glasses size={20} color="#334155" />
               </Box>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', letterSpacing: '-0.01em' }}>Opticals</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: '#1e293b', letterSpacing: '-0.01em' }}>Opticals</Typography>
             </Box>
-            <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.65)', pl: 0.5 }}>Eye exams, prescriptions, and lens orders</Typography>
+            <Typography variant="body2" sx={{ color: '#64748b', pl: 0.5 }}>Eye exams, prescriptions, and lens orders</Typography>
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
             {activeTab === 'exams' && (
               <Button variant="contained" disableElevation startIcon={<Plus size={16} />}
                 onClick={() => { setEditId(null); setFormData(emptyExamForm()); setView('create'); }}
-                sx={{ bgcolor: 'white', color: '#3f3f46', fontWeight: 700, '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }, borderRadius: 2, textTransform: 'none' }}>
+                sx={{ bgcolor: '#334155', color: '#ffffff', fontWeight: 700, '&:hover': { bgcolor: '#1e293b' }, borderRadius: 2, textTransform: 'none' }}>
                 New Exam
               </Button>
             )}
             {activeTab === 'orders' && (
               <Button variant="contained" disableElevation startIcon={<Plus size={16} />}
                 onClick={() => { setOrderEditId(null); setOrderForm(emptyOrderForm()); setOrderView('create'); }}
-                sx={{ bgcolor: 'white', color: '#3f3f46', fontWeight: 700, '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }, borderRadius: 2, textTransform: 'none' }}>
+                sx={{ bgcolor: '#334155', color: '#ffffff', fontWeight: 700, '&:hover': { bgcolor: '#1e293b' }, borderRadius: 2, textTransform: 'none' }}>
                 New Order
               </Button>
             )}
@@ -1254,12 +1254,12 @@ const OpticalsPage = () => {
             { label: 'Pending', value: pendingOrders, icon: Clock, color: pendingOrders > 0 ? '#fde68a' : '#e2e8f0' },
             { label: 'Order Value', value: `₹${totalOrderValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#c4b5fd' },
           ].map(({ label, value, icon: Icon, color }) => (
-            <Box key={label} sx={{ bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, p: 1.5, border: '1px solid rgba(255,255,255,0.1)' }}>
+            <Box key={label} sx={{ bgcolor: 'rgba(51,65,85,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #e4e8ee' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
                 <Icon size={14} color={color} />
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.6)', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Typography>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5 }}>{label}</Typography>
               </Box>
-              <Typography sx={{ color: 'white', fontWeight: 800, lineHeight: 1.1, fontSize: { xs: '0.95rem', sm: '1.1rem' } }}>{value}</Typography>
+              <Typography sx={{ color: '#1e293b', fontWeight: 800, lineHeight: 1.1, fontSize: { xs: '0.95rem', sm: '1.1rem' } }}>{value}</Typography>
             </Box>
           ))}
         </Box>
@@ -1549,31 +1549,31 @@ const OpticalsPage = () => {
       <Dialog open={previewExamOpen} onClose={() => setPreviewExamOpen(false)} maxWidth="md" fullWidth
         PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.22)' } }}>
         <Box sx={{ background: 'linear-gradient(135deg, #3f3f46 0%, #71717a 100%)', px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
-          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', mt: 0.5, flexShrink: 0 }}>
-            <Eye size={18} color="white" />
+          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', alignItems: 'center', mt: 0.5, flexShrink: 0 }}>
+            <Eye size={18} color="#334155" />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+            <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
               Prescription Preview
             </Typography>
-            <Typography variant="h6" sx={{ color: 'white', fontWeight: 800, mt: 0.5, fontSize: '1.05rem' }}>
+            <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, mt: 0.5, fontSize: '1.05rem' }}>
               {previewExamData?.patientName || '—'}
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, mt: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
               {previewExamData?.date && (
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>{previewExamData.date}</Typography>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>{previewExamData.date}</Typography>
               )}
               {previewExamData?.phone && (
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>{previewExamData.phone}</Typography>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>{previewExamData.phone}</Typography>
               )}
               {(previewExamData?.gender || previewExamData?.age) && (
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>
                   {previewExamData?.gender || ''}{previewExamData?.gender && previewExamData?.age ? ' · ' : ''}{previewExamData?.age ? `${previewExamData.age} yrs` : ''}
                 </Typography>
               )}
             </Box>
           </Box>
-          <IconButton onClick={() => setPreviewExamOpen(false)} size="small" sx={{ color: 'rgba(255,255,255,0.75)', mt: -0.5, '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}>
+          <IconButton onClick={() => setPreviewExamOpen(false)} size="small" sx={{ color: '#64748b', mt: -0.5, '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
             <X size={18} />
           </IconButton>
         </Box>
@@ -1602,28 +1602,28 @@ const OpticalsPage = () => {
       <Dialog open={previewOrderOpen} onClose={() => setPreviewOrderOpen(false)} maxWidth="md" fullWidth
         PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.22)' } }}>
         <Box sx={{ background: 'linear-gradient(135deg, #3f3f46 0%, #71717a 100%)', px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
-          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', mt: 0.5, flexShrink: 0 }}>
-            <Eye size={18} color="white" />
+          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', alignItems: 'center', mt: 0.5, flexShrink: 0 }}>
+            <Eye size={18} color="#334155" />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+            <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
               Order Preview
             </Typography>
-            <Typography variant="h6" sx={{ color: 'white', fontWeight: 800, mt: 0.5, fontSize: '1.05rem' }}>
+            <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, mt: 0.5, fontSize: '1.05rem' }}>
               {previewOrderData?.patientName || '—'}
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, mt: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
               {previewOrderData?.orderDate && (
-                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>{previewOrderData.orderDate}</Typography>
+                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>{previewOrderData.orderDate}</Typography>
               )}
               {previewOrderData?.totalAmount != null && (
-                <Box sx={{ px: 1.25, py: 0.25, bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '100px', border: '1px solid rgba(255,255,255,0.25)' }}>
-                  <Typography variant="caption" sx={{ color: 'white', fontWeight: 800, fontSize: '0.8rem' }}>₹{(previewOrderData.totalAmount || 0).toFixed(2)}</Typography>
+                <Box sx={{ px: 1.25, py: 0.25, bgcolor: 'rgba(51,65,85,0.1)', borderRadius: '100px', border: '1px solid #e4e8ee' }}>
+                  <Typography variant="caption" sx={{ color: '#1e293b', fontWeight: 800, fontSize: '0.8rem' }}>₹{(previewOrderData.totalAmount || 0).toFixed(2)}</Typography>
                 </Box>
               )}
             </Box>
           </Box>
-          <IconButton onClick={() => setPreviewOrderOpen(false)} size="small" sx={{ color: 'rgba(255,255,255,0.75)', mt: -0.5, '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.12)' } }}>
+          <IconButton onClick={() => setPreviewOrderOpen(false)} size="small" sx={{ color: '#64748b', mt: -0.5, '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
             <X size={18} />
           </IconButton>
         </Box>

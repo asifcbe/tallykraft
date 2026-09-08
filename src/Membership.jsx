@@ -308,22 +308,22 @@ const MembershipPage = () => {
       {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <Box sx={{
         borderRadius: 3,
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+        background: '#ffffff', border: '1px solid #e4e8ee',
         p: { xs: 2.5, md: 3 }, mb: 3, position: 'relative', overflow: 'hidden',
       }}>
-        <Box sx={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
+        <Box sx={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, borderRadius: '50%', bgcolor: 'transparent', pointerEvents: 'none' }} />
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5, gap: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex' }}>
-              <CreditCard size={20} color="white" />
+            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
+              <CreditCard size={20} color="#334155" />
             </Box>
             <Box>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', lineHeight: 1.1 }}>Memberships</Typography>
-              <Typography variant="body2" sx={{ color: 'rgba(255,255,255,0.65)', mt: 0.25 }}>Recurring subscriptions & billing</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: '#1e293b', lineHeight: 1.1 }}>Memberships</Typography>
+              <Typography variant="body2" sx={{ color: '#64748b', mt: 0.25 }}>Recurring subscriptions & billing</Typography>
             </Box>
           </Box>
           <Button variant="contained" disableElevation startIcon={<Plus size={15} />} onClick={openAdd}
-            sx={{ bgcolor: 'white', color: '#111111', fontWeight: 700, borderRadius: 2, textTransform: 'none', flexShrink: 0, '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' } }}>
+            sx={{ bgcolor: '#334155', color: '#ffffff', fontWeight: 700, borderRadius: 2, textTransform: 'none', flexShrink: 0, '&:hover': { bgcolor: '#1e293b' } }}>
             New Membership
           </Button>
         </Box>
@@ -334,8 +334,8 @@ const MembershipPage = () => {
             { label: 'Awaiting Payment', value: awaitingCount, color: awaitingCount > 0 ? '#fca5a5' : '#bbf7d0' },
             { label: 'Monthly Revenue', value: fmtAmt(monthlyMRR), color: '#bbf7d0' },
           ].map(({ label, value, color }) => (
-            <Box key={label} sx={{ bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, p: 1.5, border: '1px solid rgba(255,255,255,0.1)' }}>
-              <Typography sx={{ color: 'rgba(255,255,255,0.55)', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>
+            <Box key={label} sx={{ bgcolor: 'rgba(51,65,85,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #e4e8ee' }}>
+              <Typography sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>
                 {label}
               </Typography>
               <Typography sx={{ color, fontWeight: 800, fontSize: { xs: '0.9rem', sm: '1.05rem' } }}>{value}</Typography>

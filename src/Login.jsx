@@ -198,13 +198,13 @@ const Login = ({ onBack }) => {
         flexShrink:    0,
         position:      'relative',
         overflow:      'hidden',
-        background:    'linear-gradient(155deg, #0f172a 0%, #1e293b 42%, #4c1d95 100%)',
+        background:    'linear-gradient(155deg, #f8fafc 0%, #eef2f7 55%, #e7ecf3 100%)',
         p:             5,
       }}>
         {/* Grid overlay */}
         <Box sx={{
           position: 'absolute', inset: 0, zIndex: 0,
-          backgroundImage: 'linear-gradient(rgba(255,255,255,0.04) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.04) 1px,transparent 1px)',
+          backgroundImage: 'linear-gradient(rgba(51,65,85,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(51,65,85,0.05) 1px,transparent 1px)',
           backgroundSize: '44px 44px',
         }} />
 
@@ -214,7 +214,7 @@ const Login = ({ onBack }) => {
             position: 'absolute',
             width: o.size, height: o.size,
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(100,116,139,0.28) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(51,65,85,0.10) 0%, transparent 70%)',
             top: o.top, left: o.left, right: o.right, bottom: o.bottom,
             filter: 'blur(44px)',
             animation: `lg-float ${o.dur} ease-in-out infinite`,
@@ -239,9 +239,9 @@ const Login = ({ onBack }) => {
             ))}
             <Box sx={{
               width: 84, height: 84, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.1)',
+              background: 'rgba(51,65,85,0.06)',
               backdropFilter: 'blur(12px)',
-              border: '1px solid rgba(255,255,255,0.22)',
+              border: '1px solid #e4e8ee',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 8px 40px rgba(100,116,139,0.45)',
             }}>
@@ -250,14 +250,14 @@ const Login = ({ onBack }) => {
           </Box>
 
           <Typography sx={{
-            fontSize: '2.1rem', fontWeight: 800, color: '#fff',
+            fontSize: '2.1rem', fontWeight: 800, color: '#0f172a',
             letterSpacing: '0.08em', lineHeight: 1, mb: 0.6,
             animation: 'lg-fadein 0.55s ease both',
           }}>
             TALLYKRAFT
           </Typography>
           <Typography sx={{
-            color: 'rgba(199,210,254,0.75)', fontSize: '0.88rem', mb: 4.5,
+            color: '#64748b', fontSize: '0.88rem', mb: 4.5,
             animation: 'lg-fadein 0.65s ease both', animationDelay: '0.08s',
           }}>
             Premium Business Accounting
@@ -273,7 +273,7 @@ const Login = ({ onBack }) => {
               }}>
                 <Box sx={{
                   width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-                  background: 'rgba(100,116,139,0.22)',
+                  background: 'rgba(51,65,85,0.08)',
                   border: '1px solid rgba(100,116,139,0.45)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
@@ -281,7 +281,7 @@ const Login = ({ onBack }) => {
                     <path d="M1 5l3.5 3.5L11 1" stroke="#cbd5e1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </Box>
-                <Typography sx={{ color: 'rgba(199,210,254,0.88)', fontSize: '0.84rem', fontWeight: 500, lineHeight: 1.45 }}>
+                <Typography sx={{ color: '#475569', fontSize: '0.84rem', fontWeight: 500, lineHeight: 1.45 }}>
                   {f.text}
                 </Typography>
               </Box>
@@ -291,13 +291,13 @@ const Login = ({ onBack }) => {
           {/* Offline badge */}
           <Box sx={{
             mt: 5, display: 'inline-flex', alignItems: 'center', gap: 1.2,
-            bgcolor: 'rgba(255,255,255,0.07)',
-            border: '1px solid rgba(255,255,255,0.13)',
+            bgcolor: 'rgba(51,65,85,0.05)',
+            border: '1px solid #e4e8ee',
             borderRadius: 100, px: 2.2, py: 0.9,
             animation: 'lg-fadein 0.6s ease both', animationDelay: '0.5s',
           }}>
             <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#4ade80', animation: 'lg-blink 2.2s ease-in-out infinite' }} />
-            <Typography sx={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.73rem', fontWeight: 600, letterSpacing: '0.04em' }}>
+            <Typography sx={{ color: '#64748b', fontSize: '0.73rem', fontWeight: 600, letterSpacing: '0.04em' }}>
               All data processed locally
             </Typography>
           </Box>
@@ -343,7 +343,7 @@ const Login = ({ onBack }) => {
         }}>
           <Box sx={{
             width: 56, height: 56, borderRadius: '18px',
-            background: 'linear-gradient(135deg, #64748b 0%, #8b5cf6 100%)',
+            background: '#f1f5f9', border: '1px solid #e4e8ee',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 24px rgba(100,116,139,0.4)', mb: 1.5,
           }}>
@@ -502,7 +502,7 @@ const Login = ({ onBack }) => {
                 type="submit" disabled={loading} fullWidth disableElevation
                 sx={{
                   mt: 0.5, py: 1.6, borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #64748b 0%, #8b5cf6 100%)',
+                  background: '#f1f5f9', border: '1px solid #e4e8ee',
                   color: 'white', textTransform: 'none',
                   fontSize: '0.95rem', fontWeight: 700,
                   boxShadow: '0 4px 20px rgba(100,116,139,0.38)',
@@ -576,7 +576,7 @@ const Login = ({ onBack }) => {
                 type="submit" disabled={loading} fullWidth disableElevation
                 sx={{
                   mt: 0.5, py: 1.6, borderRadius: '12px',
-                  background: 'linear-gradient(135deg, #64748b 0%, #8b5cf6 100%)',
+                  background: '#f1f5f9', border: '1px solid #e4e8ee',
                   color: 'white', textTransform: 'none',
                   fontSize: '0.95rem', fontWeight: 700,
                   boxShadow: '0 4px 20px rgba(100,116,139,0.38)',

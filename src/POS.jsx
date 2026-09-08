@@ -1838,24 +1838,24 @@ const POS = () => {
       >
         {/* Cart header — brand gradient */}
         <Box sx={{
-          background: BRAND.gradient,
+          background: '#ffffff', borderBottom: '1px solid #e4e8ee',
           px: 2, py: 1.5,
           display: 'flex', alignItems: 'center', gap: 1,
           flexShrink: 0,
         }}>
           <Box sx={{
             width: 32, height: 32, borderRadius: '9px',
-            bgcolor: 'rgba(255,255,255,0.18)',
+            bgcolor: 'rgba(51,65,85,0.08)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
           }}>
-            <ShoppingCart size={17} color="#fff" />
+            <ShoppingCart size={17} color="#334155" />
           </Box>
-          <Typography sx={{ fontWeight: 700, color: '#fff', flexGrow: 1, fontSize: '0.95rem' }}>
+          <Typography sx={{ fontWeight: 700, color: '#1e293b', flexGrow: 1, fontSize: '0.95rem' }}>
             Cart {itemCount > 0 && (
               <Box component="span" sx={{
                 ml: 0.75, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                 minWidth: 20, height: 20, borderRadius: '100px',
-                bgcolor: 'rgba(255,255,255,0.25)',
+                bgcolor: 'rgba(51,65,85,0.12)',
                 fontSize: '0.7rem', fontWeight: 800, px: 0.6,
               }}>
                 {itemCount}
@@ -1868,11 +1868,11 @@ const POS = () => {
               sx={{
                 display: 'flex', alignItems: 'center', gap: 0.3, cursor: 'pointer', userSelect: 'none',
                 px: 0.75, py: 0.25, borderRadius: '100px',
-                bgcolor: oneByOneMode ? 'rgba(255,255,255,0.22)' : 'rgba(255,255,255,0.1)',
+                bgcolor: oneByOneMode ? 'rgba(51,65,85,0.14)' : 'rgba(51,65,85,0.07)',
               }}
             >
-              <ListOrdered size={13} color="#fff" style={{ flexShrink: 0 }} />
-              <Typography sx={{ color: '#fff', fontSize: '0.68rem', fontWeight: 700, display: { xs: 'none', sm: 'inline' }, whiteSpace: 'nowrap' }}>
+              <ListOrdered size={13} color="#334155" style={{ flexShrink: 0 }} />
+              <Typography sx={{ color: '#1e293b', fontSize: '0.68rem', fontWeight: 700, display: { xs: 'none', sm: 'inline' }, whiteSpace: 'nowrap' }}>
                 1-by-1
               </Typography>
               <Switch
@@ -1880,23 +1880,23 @@ const POS = () => {
                 checked={oneByOneMode}
                 onChange={() => {}}
                 sx={{
-                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#fff' },
-                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: 'rgba(255,255,255,0.55)' },
-                  '& .MuiSwitch-track': { bgcolor: 'rgba(255,255,255,0.35)' },
-                  '& .MuiSwitch-thumb': { bgcolor: '#fff' },
+                  '& .MuiSwitch-switchBase.Mui-checked': { color: '#1e293b' },
+                  '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { bgcolor: '#334155' },
+                  '& .MuiSwitch-track': { bgcolor: '#cbd5e1' },
+                  '& .MuiSwitch-thumb': { bgcolor: '#1e293b' },
                 }}
               />
             </Box>
           </Tooltip>
           <Tooltip title="Add inventory item — used in this sale but not charged (e.g. a cover/bag)">
             <IconButton size="small" onClick={() => setAddInventoryDialog(true)}
-              sx={{ color: 'rgba(255,255,255,0.7)', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.12)' } }}>
+              sx={{ color: '#64748b', '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
               <Ban size={15} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Clear all">
             <IconButton size="small" onClick={resetSale}
-              sx={{ color: 'rgba(255,255,255,0.7)', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.12)' } }}>
+              sx={{ color: '#64748b', '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
               <RotateCcw size={15} />
             </IconButton>
           </Tooltip>

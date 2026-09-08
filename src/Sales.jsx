@@ -5739,7 +5739,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     <>
       <Box
         sx={{
-          background: `linear-gradient(135deg, ${tokens.primaryDark} 0%, ${tokens.primaryLight} 100%)`,
+          background: '#ffffff', borderBottom: '1px solid #e4e8ee',
           px: 2.5,
           py: 1.75,
           display: "flex",
@@ -5749,7 +5749,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="overline" sx={{ color: "rgba(255,255,255,0.72)", fontWeight: 700, fontSize: "0.62rem", letterSpacing: "0.1em", lineHeight: 1 }}>
+          <Typography variant="overline" sx={{ color: "#64748b", fontWeight: 700, fontSize: "0.62rem", letterSpacing: "0.1em", lineHeight: 1 }}>
             {isSale ? "Invoice Preview" : "Bill Preview"}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
@@ -5761,45 +5761,45 @@ const SalesPage = ({ mode = "sales", tabId }) => {
               const label = selectedTx.status === 'paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Unpaid';
               return (
                 <Chip size="small" label={label}
-                  sx={{ fontWeight: 800, fontSize: '0.62rem', height: 18, bgcolor: isOverdue ? 'rgba(254,202,202,0.9)' : 'rgba(255,255,255,0.18)', color: isOverdue ? '#7f1d1d' : 'white', border: isOverdue ? '1px solid rgba(220,38,38,0.4)' : '1px solid rgba(255,255,255,0.3)' }} />
+                  sx={{ fontWeight: 800, fontSize: '0.62rem', height: 18, bgcolor: isOverdue ? '#fee2e2' : 'rgba(51,65,85,0.08)', color: isOverdue ? '#991b1b' : '#334155', border: isOverdue ? '1px solid #fecaca' : '1px solid #e4e8ee' }} />
               );
             })()}
             {selectedTx.sourceEstimateId && (
               <Chip size="small" icon={<FileText size={12} />} label={`From Estimate${estimatesById.get(selectedTx.sourceEstimateId)?.estimateNumber ? `: ${estimatesById.get(selectedTx.sourceEstimateId).estimateNumber}` : ''}`}
                 onClick={() => viewSourceEstimate(selectedTx.sourceEstimateId)}
-                sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', '& .MuiChip-icon': { color: 'white' } }} />
+                sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(51,65,85,0.08)', color: '#334155', border: '1px solid #e4e8ee', cursor: 'pointer', '& .MuiChip-icon': { color: '#334155' } }} />
             )}
             {selectedTx.sourceOrderId && (
               <Chip size="small" icon={<ClipboardList size={12} />} label={`From Order${ordersById.get(selectedTx.sourceOrderId)?.orderNumber ? `: ${ordersById.get(selectedTx.sourceOrderId).orderNumber}` : ''}`}
                 onClick={() => viewSourceOrder(selectedTx.sourceOrderId)}
-                sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', '& .MuiChip-icon': { color: 'white' } }} />
+                sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(51,65,85,0.08)', color: '#334155', border: '1px solid #e4e8ee', cursor: 'pointer', '& .MuiChip-icon': { color: '#334155' } }} />
             )}
           </Box>
         </Box>
         <Tooltip title="Edit">
-          <IconButton size="small" onClick={() => startEdit(selectedTx)} sx={{ color: "white", bgcolor: "rgba(255,255,255,0.14)", "&:hover": { bgcolor: "rgba(255,255,255,0.25)" } }}>
+          <IconButton size="small" onClick={() => startEdit(selectedTx)} sx={{ color: "#334155", bgcolor: "rgba(51,65,85,0.08)", "&:hover": { bgcolor: "rgba(51,65,85,0.14)" } }}>
             <Edit size={16} />
           </IconButton>
         </Tooltip>
         <Tooltip title="Print">
-          <IconButton size="small" onClick={() => triggerPrint(selectedTx)} sx={{ color: "white", bgcolor: "rgba(255,255,255,0.14)", "&:hover": { bgcolor: "rgba(255,255,255,0.25)" } }}>
+          <IconButton size="small" onClick={() => triggerPrint(selectedTx)} sx={{ color: "#334155", bgcolor: "rgba(51,65,85,0.08)", "&:hover": { bgcolor: "rgba(51,65,85,0.14)" } }}>
             <Printer size={16} />
           </IconButton>
         </Tooltip>
         {selectedTx.status !== 'paid' && selectedTx.partyId && (
           <Tooltip title={isSale ? "Received Payment" : "Payment Made"}>
-            <IconButton size="small" onClick={() => handleReceivePayment(selectedTx)} sx={{ color: "white", bgcolor: "rgba(255,255,255,0.14)", "&:hover": { bgcolor: "rgba(255,255,255,0.25)" } }}>
+            <IconButton size="small" onClick={() => handleReceivePayment(selectedTx)} sx={{ color: "#334155", bgcolor: "rgba(51,65,85,0.08)", "&:hover": { bgcolor: "rgba(51,65,85,0.14)" } }}>
               <Wallet size={16} />
             </IconButton>
           </Tooltip>
         )}
         <Tooltip title="More">
-          <IconButton size="small" onClick={(e) => setRowMoreMenu({ anchorEl: e.currentTarget, tx: selectedTx })} sx={{ color: "white", bgcolor: "rgba(255,255,255,0.14)", "&:hover": { bgcolor: "rgba(255,255,255,0.25)" } }}>
+          <IconButton size="small" onClick={(e) => setRowMoreMenu({ anchorEl: e.currentTarget, tx: selectedTx })} sx={{ color: "#334155", bgcolor: "rgba(51,65,85,0.08)", "&:hover": { bgcolor: "rgba(51,65,85,0.14)" } }}>
             <MoreVertical size={16} />
           </IconButton>
         </Tooltip>
         <Tooltip title="Close preview">
-          <IconButton size="small" onClick={closeTxPreview} sx={{ color: "rgba(255,255,255,0.8)", "&:hover": { color: "white", bgcolor: "rgba(255,255,255,0.12)" } }}>
+          <IconButton size="small" onClick={closeTxPreview} sx={{ color: "#64748b", "&:hover": { color: "#1e293b", bgcolor: "rgba(51,65,85,0.08)" } }}>
             <X size={16} />
           </IconButton>
         </Tooltip>
@@ -6858,7 +6858,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         {/* Gradient header */}
         <Box
           sx={{
-            background: `linear-gradient(135deg, ${tokens.primaryDark} 0%, ${tokens.primaryLight} 100%)`,
+            background: '#ffffff', borderBottom: '1px solid #e4e8ee',
             px: 3,
             py: 2.5,
             display: "flex",
@@ -6871,20 +6871,20 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             sx={{
               p: 1,
               borderRadius: tokens.radius.md,
-              bgcolor: "rgba(255,255,255,0.15)",
+              bgcolor: "rgba(51,65,85,0.08)",
               display: "flex",
               alignItems: "center",
               mt: 0.5,
               flexShrink: 0,
             }}
           >
-            <Eye size={18} color="white" />
+            <Eye size={18} color="#334155" />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography
               variant="overline"
               sx={{
-                color: "rgba(255,255,255,0.72)",
+                color: "#64748b",
                 fontWeight: 700,
                 fontSize: "0.65rem",
                 letterSpacing: "0.1em",
@@ -6896,7 +6896,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             <Typography
               variant="h6"
               sx={{
-                color: "white",
+                color: "#1e293b",
                 fontWeight: 800,
                 mt: 0.5,
                 fontSize: "1.05rem",
@@ -6917,10 +6917,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             >
               {previewTx?.partyName && (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <User size={12} color="rgba(255,255,255,0.65)" />
+                  <User size={12} color="#94a3b8" />
                   <Typography
                     variant="caption"
-                    sx={{ color: "rgba(255,255,255,0.85)", fontWeight: 600 }}
+                    sx={{ color: "#475569", fontWeight: 600 }}
                   >
                     {previewTx.partyName}
                   </Typography>
@@ -6928,10 +6928,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
               )}
               {previewTx?.date && (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <Calendar size={12} color="rgba(255,255,255,0.65)" />
+                  <Calendar size={12} color="#94a3b8" />
                   <Typography
                     variant="caption"
-                    sx={{ color: "rgba(255,255,255,0.85)", fontWeight: 600 }}
+                    sx={{ color: "#475569", fontWeight: 600 }}
                   >
                     {formatDate(previewTx.date)}
                   </Typography>
@@ -6942,14 +6942,14 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                   sx={{
                     px: 1.25,
                     py: 0.25,
-                    bgcolor: "rgba(255,255,255,0.18)",
+                    bgcolor: "rgba(51,65,85,0.08)",
                     borderRadius: "100px",
-                    border: "1px solid rgba(255,255,255,0.25)",
+                    border: "1px solid #e4e8ee",
                   }}
                 >
                   <Typography
                     variant="caption"
-                    sx={{ color: "white", fontWeight: 800, fontSize: "0.8rem" }}
+                    sx={{ color: "#1e293b", fontWeight: 800, fontSize: "0.8rem" }}
                   >
                     ₹{previewTx.totalAmount.toFixed(2)}
                   </Typography>
@@ -6960,26 +6960,26 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                 const label = previewTx.status === 'paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Unpaid';
                 return (
                   <Chip size="small" label={label}
-                    sx={{ fontWeight: 800, fontSize: '0.62rem', height: 18, bgcolor: isOverdue ? 'rgba(254,202,202,0.9)' : 'rgba(255,255,255,0.18)', color: isOverdue ? '#7f1d1d' : 'white', border: isOverdue ? '1px solid rgba(220,38,38,0.4)' : '1px solid rgba(255,255,255,0.3)' }} />
+                    sx={{ fontWeight: 800, fontSize: '0.62rem', height: 18, bgcolor: isOverdue ? '#fee2e2' : 'rgba(51,65,85,0.08)', color: isOverdue ? '#991b1b' : '#334155', border: isOverdue ? '1px solid #fecaca' : '1px solid #e4e8ee' }} />
                 );
               })()}
               {previewTx?.sourceEstimateId && (
                 <Chip size="small" icon={<FileText size={12} />} label={`From Estimate${estimatesById.get(previewTx.sourceEstimateId)?.estimateNumber ? `: ${estimatesById.get(previewTx.sourceEstimateId).estimateNumber}` : ''}`}
                   onClick={() => viewSourceEstimate(previewTx.sourceEstimateId)}
-                  sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', '& .MuiChip-icon': { color: 'white' } }} />
+                  sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(51,65,85,0.08)', color: '#334155', border: '1px solid #e4e8ee', cursor: 'pointer', '& .MuiChip-icon': { color: '#334155' } }} />
               )}
               {previewTx?.sourceOrderId && (
                 <Chip size="small" icon={<ClipboardList size={12} />} label={`From Order${ordersById.get(previewTx.sourceOrderId)?.orderNumber ? `: ${ordersById.get(previewTx.sourceOrderId).orderNumber}` : ''}`}
                   onClick={() => viewSourceOrder(previewTx.sourceOrderId)}
-                  sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', '& .MuiChip-icon': { color: 'white' } }} />
+                  sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(51,65,85,0.08)', color: '#334155', border: '1px solid #e4e8ee', cursor: 'pointer', '& .MuiChip-icon': { color: '#334155' } }} />
               )}
               {previewTx?.billedBy && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <Typography
                     variant="caption"
-                    sx={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.7rem' }}
+                    sx={{ color: '#64748b', fontSize: '0.7rem' }}
                   >
-                    Billed by: <strong style={{ color: 'rgba(255,255,255,0.95)' }}>{previewTx.billedBy}</strong>
+                    Billed by: <strong style={{ color: '#1e293b' }}>{previewTx.billedBy}</strong>
                   </Typography>
                 </Box>
               )}
@@ -6989,12 +6989,12 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             onClick={() => setPreviewOpen(false)}
             size="small"
             sx={{
-              color: "rgba(255,255,255,0.75)",
+              color: "#64748b",
               mt: -0.5,
               mr: -0.5,
               "&:hover": {
-                color: "white",
-                bgcolor: "rgba(255,255,255,0.12)",
+                color: "#1e293b",
+                bgcolor: "rgba(51,65,85,0.08)",
               },
             }}
           >

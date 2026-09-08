@@ -878,8 +878,8 @@ const Dashboard = () => {
           now={now}
           accentColor={BRAND.teal}
           accentColorHex="#64748b"
-          bgColor={BRAND.gradient}
-          textOnBg="#fff"
+          bgColor="#ffffff"
+          textOnBg="#1e293b"
           stats={stats}
           cash={cash}
           bank={bank}
@@ -1220,19 +1220,19 @@ const Dashboard = () => {
 
       {/* ── QR Code Dialog ── */}
       <Dialog open={qrOpen} onClose={() => setQrOpen(false)} maxWidth="xs" fullWidth
-        PaperProps={{ sx: { borderRadius: 4, overflow: 'hidden', background: 'linear-gradient(160deg,#0f172a 0%,#1e293b 100%)' } }}>
+        PaperProps={{ sx: { borderRadius: 4, overflow: 'hidden', background: '#ffffff', border: '1px solid #e4e8ee' } }}>
         <DialogContent sx={{ p: 0 }}>
           <Box sx={{ px: 3, pt: 3, pb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha('#fff', 0.1), display: 'flex' }}>
-                <QrCode size={17} color="#fff" />
+              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
+                <QrCode size={17} color="#334155" />
               </Box>
               <Box>
-                <Typography sx={{ fontWeight: 800, color: 'white', fontSize: '0.95rem', lineHeight: 1.2 }}>Scan to Pay</Typography>
-                {currentBusiness?.name && <Typography sx={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.7rem', mt: 0.25 }}>{currentBusiness.name}</Typography>}
+                <Typography sx={{ fontWeight: 800, color: '#1e293b', fontSize: '0.95rem', lineHeight: 1.2 }}>Scan to Pay</Typography>
+                {currentBusiness?.name && <Typography sx={{ color: '#64748b', fontSize: '0.7rem', mt: 0.25 }}>{currentBusiness.name}</Typography>}
               </Box>
             </Box>
-            <IconButton onClick={() => setQrOpen(false)} size="small" sx={{ color: 'rgba(255,255,255,0.5)', '&:hover': { color: 'white', bgcolor: 'rgba(255,255,255,0.08)' } }}>
+            <IconButton onClick={() => setQrOpen(false)} size="small" sx={{ color: '#64748b', '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
               <X size={18} />
             </IconButton>
           </Box>
@@ -1242,7 +1242,7 @@ const Dashboard = () => {
             </Box>
           </Box>
           <Box sx={{ px: 3, pt: 1, pb: 3, textAlign: 'center' }}>
-            <Typography sx={{ color: 'rgba(255,255,255,0.35)', fontSize: '0.7rem', letterSpacing: '0.03em' }}>Point your camera at the QR code to pay</Typography>
+            <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', letterSpacing: '0.03em' }}>Point your camera at the QR code to pay</Typography>
           </Box>
         </DialogContent>
       </Dialog>

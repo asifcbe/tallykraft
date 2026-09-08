@@ -355,7 +355,7 @@ export default function StaffPage() {
         <Icon size={18} color={color} />
       </Box>
       <Box>
-        <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.1, color: '#fff' }}>{value}</Typography>
+        <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.1, color: '#1e293b' }}>{value}</Typography>
         <Typography variant="caption" sx={{ color: alpha('#fff', 0.7), lineHeight: 1.2 }}>{label}</Typography>
       </Box>
     </Box>
@@ -366,7 +366,7 @@ export default function StaffPage() {
       {/* ── Hero ── */}
       <Box sx={{
         borderRadius: 4,
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+        background: '#ffffff', border: '1px solid #e4e8ee',
         p: { xs: 2.5, sm: 3.5 },
         mb: 3,
         position: 'relative',
@@ -376,7 +376,7 @@ export default function StaffPage() {
         <Box sx={{ position: 'absolute', bottom: -30, right: 80, width: 120, height: 120, borderRadius: '50%', bgcolor: alpha('#fff', 0.03), pointerEvents: 'none' }} />
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: '#fff', mb: 0.5 }}>Staff Management</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 800, color: '#1e293b', mb: 0.5 }}>Staff Management</Typography>
             <Typography variant="body2" sx={{ color: alpha('#fff', 0.7) }}>Manage your team, track attendance and process payroll</Typography>
           </Box>
           <Tooltip title={atStaffCap ? `Staff limit reached (${maxStaff} of ${maxStaff}). Contact your administrator to raise it.` : ''}>
@@ -386,7 +386,7 @@ export default function StaffPage() {
                 startIcon={<Plus size={16} />}
                 onClick={openAddMember}
                 disabled={atStaffCap}
-                sx={{ bgcolor: alpha('#fff', 0.15), color: '#fff', backdropFilter: 'blur(4px)', borderRadius: 2, fontWeight: 600, border: `1px solid ${alpha('#fff', 0.2)}`, '&:hover': { bgcolor: alpha('#fff', 0.25) }, '&.Mui-disabled': { color: alpha('#fff', 0.4), bgcolor: alpha('#fff', 0.06) } }}
+                sx={{ bgcolor: alpha('#fff', 0.15), color: '#1e293b', backdropFilter: 'blur(4px)', borderRadius: 2, fontWeight: 600, border: `1px solid ${alpha('#fff', 0.2)}`, '&:hover': { bgcolor: alpha('#fff', 0.25) }, '&.Mui-disabled': { color: alpha('#fff', 0.4), bgcolor: alpha('#fff', 0.06) } }}
               >
                 {atStaffCap ? `Staff ${staffCount}/${maxStaff}` : 'Add Staff'}
               </Button>
@@ -815,23 +815,23 @@ export default function StaffPage() {
             PaperProps={{ sx: { borderRadius: '16px', overflow: 'hidden' } }}
           >
             {/* Gradient header */}
-            <Box sx={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)', px: 3, pt: 2.5, pb: 0 }}>
+            <Box sx={{ background: '#ffffff', border: '1px solid #e4e8ee', px: 3, pt: 2.5, pb: 0 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(255,255,255,0.15)', fontSize: '1.1rem', fontWeight: 800, color: '#fff', border: '2px solid rgba(255,255,255,0.3)' }}>
+                <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(51,65,85,0.08)', fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', border: '2px solid #e4e8ee' }}>
                   {(memberForm.name?.[0] || (memberDialog.editing ? '?' : '+')).toUpperCase()}
                 </Avatar>
                 <Box>
-                  <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: '#fff', lineHeight: 1.2 }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: '#1e293b', lineHeight: 1.2 }}>
                     {memberDialog.editing ? memberDialog.editing.name : 'New Staff Member'}
                   </Typography>
-                  <Typography sx={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.3 }}>
+                  <Typography sx={{ fontSize: '0.72rem', color: '#64748b', lineHeight: 1.3 }}>
                     {memberDialog.editing ? `Editing • ${memberDialog.editing.role || 'Staff'}` : 'Fill in the details below'}
                   </Typography>
                 </Box>
                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.5, borderRadius: '20px', bgcolor: memberForm.status !== 'inactive' ? 'rgba(34,197,94,0.2)' : 'rgba(148,163,184,0.2)', border: `1px solid ${memberForm.status !== 'inactive' ? 'rgba(34,197,94,0.4)' : 'rgba(148,163,184,0.3)'}`, cursor: 'pointer' }}
                   onClick={() => setMemberForm(f => ({ ...f, status: f.status === 'inactive' ? 'active' : 'inactive' }))}>
                   <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: memberForm.status !== 'inactive' ? '#22c55e' : '#94a3b8' }} />
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: memberForm.status !== 'inactive' ? '#4ade80' : 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: memberForm.status !== 'inactive' ? '#16a34a' : '#94a3b8', whiteSpace: 'nowrap' }}>
                     {memberForm.status !== 'inactive' ? 'Active' : 'Inactive'}
                   </Typography>
                 </Box>
@@ -841,10 +841,10 @@ export default function StaffPage() {
                 {dialogTabs.map((label, i) => (
                   <Box key={label} onClick={() => setDlgTab(i)} sx={{
                     px: 2, py: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600,
-                    color: dlgTab === i ? '#fff' : 'rgba(255,255,255,0.5)',
+                    color: dlgTab === i ? '#1e293b' : '#94a3b8',
                     borderBottom: dlgTab === i ? '2px solid #fff' : '2px solid transparent',
                     transition: 'all 0.15s',
-                    '&:hover': { color: dlgTab === i ? '#fff' : 'rgba(255,255,255,0.75)' },
+                    '&:hover': { color: dlgTab === i ? '#1e293b' : '#64748b' },
                   }}>{label}</Box>
                 ))}
               </Box>

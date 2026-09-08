@@ -108,29 +108,29 @@ export default function PurchaseBulkAddDialog({ open, onClose, onSuccess, genera
       fullWidth
       PaperProps={{ sx: { borderRadius: 3, maxHeight: '90vh', position: 'relative' } }}
     >
-      <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.75)', flexDirection: 'column', gap: 1.5 }}>
+      <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.8)', flexDirection: 'column', gap: 1.5 }}>
         <CircularProgress size={40} sx={{ color: '#334155' }} />
         <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155' }}>Saving {filledRows.length} bills…</Typography>
       </Backdrop>
       <Box
         sx={{
-          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 45%, #334155 100%)',
+          background: '#ffffff', border: '1px solid #e4e8ee',
           px: 3, py: 2,
           display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0,
         }}
       >
-        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex' }}>
-          <ShoppingBasket size={18} color="white" />
+        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
+          <ShoppingBasket size={18} color="#334155" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+          <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>
             PURCHASES
           </Typography>
-          <Typography variant="h6" sx={{ color: 'white', fontWeight: 800, lineHeight: 1.2 }}>
+          <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, lineHeight: 1.2 }}>
             Bulk Add Purchases
           </Typography>
         </Box>
-        <IconButton onClick={onClose} disabled={saving} sx={{ color: 'white' }}>
+        <IconButton onClick={onClose} disabled={saving} sx={{ color: '#1e293b' }}>
           <X size={20} />
         </IconButton>
       </Box>
@@ -308,7 +308,7 @@ export default function PurchaseBulkAddDialog({ open, onClose, onSuccess, genera
           disabled={saving || filledRows.length === 0}
           sx={{
             fontWeight: 700, textTransform: 'none', borderRadius: '8px',
-            background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)',
+            background: '#334155',
             boxShadow: '0 4px 12px rgba(51,65,85,0.28)',
           }}
         >

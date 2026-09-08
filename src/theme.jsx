@@ -576,21 +576,23 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
 const TK_PRIMARY = '#334155';       // slate-700 — main brand / interactive
 const TK_PRIMARY_DARK = '#1e293b';  // slate-800 — hover / dark chrome
 const TK_PRIMARY_LIGHT = '#94a3b8'; // slate-400
-const TK_ACCENT = '#c8a04e';        // muted gold — highlights & CTAs, used sparingly
-const TK_DEEP = '#0f172a';          // slate-900 — deepest gradient anchor
+const TK_ACCENT = '#334155';        // accent == primary slate (white theme, single restrained accent)
+const TK_DEEP = '#1e293b';          // slate-800
 export const BRAND = {
   teal: TK_PRIMARY,          // (key kept for merged-component compatibility)
   tealDark: TK_PRIMARY_DARK,
   tealLight: TK_PRIMARY_LIGHT,
   tealDeep: TK_DEEP,
-  emerald: TK_ACCENT,        // <- gold accent
-  emeraldLight: '#e6d3a8',   // pale gold
-  gold: TK_ACCENT,
-  ink: '#0f172a',
-  // Midnight header/hero gradient: slate-900 -> slate-700.
-  gradient: `linear-gradient(135deg, ${TK_DEEP} 0%, ${TK_PRIMARY_DARK} 52%, ${TK_PRIMARY} 100%)`,
-  gradientVivid: `linear-gradient(135deg, ${TK_PRIMARY_DARK} 0%, ${TK_PRIMARY} 100%)`,
-  gradientSoft: `linear-gradient(135deg, ${TK_PRIMARY} 0%, ${TK_PRIMARY_LIGHT} 100%)`,
+  emerald: TK_ACCENT,
+  emeraldLight: '#cbd5e1',
+  gold: '#c8a04e',           // still available if a warm highlight is ever wanted
+  ink: '#1e293b',
+  // White theme: "gradient" surfaces are just white with a hairline — kept as a
+  // token so merged components that spread BRAND.gradient stay a flat white
+  // panel instead of a dark bar.
+  gradient: '#ffffff',
+  gradientVivid: `linear-gradient(135deg, ${TK_PRIMARY} 0%, ${TK_PRIMARY_DARK} 100%)`, // for the odd real slate button
+  gradientSoft: '#f5f6f8',
 };
 
 export const themes = {

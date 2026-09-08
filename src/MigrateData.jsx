@@ -607,16 +607,16 @@ export default function MigrateData() {
       {/* Header */}
       <Box sx={{
         borderRadius: 3,
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
+        background: '#ffffff', border: '1px solid #e4e8ee',
         px: { xs: 2, md: 3 }, py: { xs: 1.5, md: 2 }, mb: 3,
         display: 'flex', alignItems: 'center', gap: 1.5,
       }}>
-        <Box sx={{ p: 0.875, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', flexShrink: 0 }}>
-          <RefreshCw size={18} color="white" />
+        <Box sx={{ p: 0.875, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', flexShrink: 0 }}>
+          <RefreshCw size={18} color="#334155" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontWeight: 800, color: 'white', fontSize: '1.05rem', lineHeight: 1.2 }}>Migrate from Another App</Typography>
-          <Typography sx={{ color: 'rgba(255,255,255,0.7)', fontSize: '0.78rem' }}>
+          <Typography sx={{ fontWeight: 800, color: '#1e293b', fontSize: '1.05rem', lineHeight: 1.2 }}>Migrate from Another App</Typography>
+          <Typography sx={{ color: '#64748b', fontSize: '0.78rem' }}>
             Import your data from Vyapar, My Bill Book, or any Excel/CSV file
           </Typography>
         </Box>
@@ -863,7 +863,7 @@ export default function MigrateData() {
               disabled={!hasData || importing}
               onClick={handleImport}
               startIcon={<ArrowRight size={16} />}
-              sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', ml: 'auto' }}
+              sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, background: '#334155', ml: 'auto' }}
             >
               Import {totalPreviewRows} records
             </Button>

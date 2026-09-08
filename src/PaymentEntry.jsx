@@ -130,9 +130,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
   const isPaymentIn = tabValue === 0;
   // Payment-In reads as money coming in (emerald); Payment-Out as money leaving (amber).
   const accentColor = isPaymentIn ? '#334155' : '#d97706';
-  const accentGradient = isPaymentIn
-    ? 'linear-gradient(135deg, #1e293b 0%, #334155 100%)'
-    : 'linear-gradient(135deg, #b45309 0%, #f59e0b 100%)';
+  const accentGradient = accentColor; // solid accent fill (white theme: no gradients)
 
   const parties = getItems('parties').filter(p => p.businessId === currentBusiness?.id);
 

@@ -76,15 +76,15 @@ export default function ExpenseBulkAddDialog({ open, onClose, onSuccess }) {
         <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155' }}>Saving {filledRows.length} expenses…</Typography>
       </Backdrop>
 
-      <Box sx={{ background: 'linear-gradient(135deg, #18181b 0%, #3f3f46 100%)', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex' }}>
-          <TrendingDown size={18} color="white" />
+      <Box sx={{ background: '#ffffff', borderBottom: '1px solid #e4e8ee', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
+          <TrendingDown size={18} color="#334155" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="overline" sx={{ color: 'rgba(255,255,255,0.72)', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>EXPENSES</Typography>
-          <Typography variant="h6" sx={{ color: 'white', fontWeight: 800, lineHeight: 1.2 }}>Bulk Add Expenses</Typography>
+          <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>EXPENSES</Typography>
+          <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, lineHeight: 1.2 }}>Bulk Add Expenses</Typography>
         </Box>
-        <IconButton onClick={onClose} disabled={saving} sx={{ color: 'white' }}><X size={20} /></IconButton>
+        <IconButton onClick={onClose} disabled={saving} sx={{ color: '#64748b' }}><X size={20} /></IconButton>
       </Box>
 
       <DialogContent sx={{ p: 0, overflow: 'auto' }}>
@@ -200,7 +200,7 @@ export default function ExpenseBulkAddDialog({ open, onClose, onSuccess }) {
           startIcon={saving ? null : <Save size={16} />}
           onClick={handleSave}
           disabled={saving || filledRows.length === 0}
-          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: 'linear-gradient(135deg, #18181b 0%, #3f3f46 100%)', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
+          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#ffffff', borderBottom: '1px solid #e4e8ee', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
         >
           {saving ? 'Saving…' : `Save ${filledRows.length} Expense${filledRows.length !== 1 ? 's' : ''}`}
         </Button>

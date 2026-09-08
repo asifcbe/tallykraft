@@ -211,23 +211,23 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
           <Box sx={{
             background: isVendor
               ? 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)'
-              : 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+              : '#ffffff',
             px: 2.5, py: 1.75,
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             flexShrink: 0,
           }}>
             <Box>
-              <Typography sx={{ color: 'white', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>
+              <Typography sx={{ color: '#1e293b', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>
                 {title}
               </Typography>
               {editingParty?.partyId && (
-                <Typography sx={{ color: 'rgba(255,255,255,0.65)', fontSize: '0.68rem', fontFamily: 'monospace' }}>
+                <Typography sx={{ color: '#64748b', fontSize: '0.68rem', fontFamily: 'monospace' }}>
                   {editingParty.partyId}
                 </Typography>
               )}
             </Box>
             <IconButton size="small" onClick={onClose}
-              sx={{ color: 'rgba(255,255,255,0.85)', '&:hover': { bgcolor: 'rgba(255,255,255,0.15)' } }}>
+              sx={{ color: '#64748b', '&:hover': { bgcolor: 'rgba(51,65,85,0.08)' } }}>
               <X size={17} />
             </IconButton>
           </Box>
@@ -503,7 +503,7 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
                 borderRadius: 1.5, fontWeight: 700, px: 3,
                 background: isVendor
                   ? 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%)'
-                  : 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
+                  : '#ffffff',
                 '&:hover': { opacity: 0.9 },
               }}>
               {saving ? 'Saving…' : (editingParty ? `Update ${partyType}` : `Save ${partyType}`)}
