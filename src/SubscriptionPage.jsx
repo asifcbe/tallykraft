@@ -7,7 +7,6 @@ import {
 } from '@mui/material';
 import { Check, Crown, LogOut, Zap, Gift, ShieldCheck, ArrowLeft, Cloud, Lock, Store, CheckCircle2 } from 'lucide-react';
 import { useSubscription } from './SubscriptionContext';
-import { isProPlanId } from './planTiers';
 import { useAuth } from './AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useBusiness } from './BusinessContext';
@@ -19,38 +18,14 @@ import TallyKraftLogo from './TallyKraftLogo';
 const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_SgTH0ctSdvsPBb';
 
 // ── Plan definitions ──────────────────────────────────────────────────────────
-// Each subscription covers ONE business. To run more businesses, subscribe each
-// one separately (e.g. 3 businesses on Basic = ₹99 × 3). Basic = all features but
-// no online/cloud backup; Pro = all features + online backup & multi-device sync.
+// TallyKraft has a single plan tier. Each subscription covers ONE business — to
+// run more businesses, subscribe each one separately. All features + cloud
+// backup & multi-device sync are always included.
 const PLANS = {
-  private: {
-    id_monthly: 'monthly',
-    id_yearly: 'yearly',
-    name: 'Basic',
-    tagline: 'All features • local data • for 1 business',
-    price_monthly: 99,
-    price_yearly: 999,
-    amount_monthly: 9900,
-    amount_yearly: 99900,
-    yearlyNote: 'Save ₹189 vs monthly',
-    isPro: false,
-    icon: Lock,
-    privacyBadge: '1 Business',
-    features: [
-      'Covers 1 business',
-      'All features unlocked',
-      'Invoices, POS, purchases & expenses',
-      'GST reports & party ledgers',
-      'Custom section builder',
-      'Export to Excel & Tally (local)',
-      'Data stored on your device only',
-      'No online/cloud backup',
-    ],
-  },
-  business: {
+  standard: {
     id_monthly: 'monthly_pro',
     id_yearly: 'yearly_pro',
-    name: 'Pro',
+    name: 'TallyKraft',
     tagline: 'All features + cloud backup • for 1 business',
     price_monthly: 299,
     price_yearly: 2999,
@@ -61,19 +36,24 @@ const PLANS = {
     icon: Cloud,
     highlight: true,
     features: [
-      'Everything in Basic, plus:',
+      'Covers 1 business',
+      'All features unlocked',
+      'Invoices, POS, purchases & expenses',
+      'GST reports & party ledgers',
       'Online cloud backup & restore',
       'Access & sync from any device',
       'Staff management',
       'WhatsApp bill sharing',
       'Barcode scanning',
+      'Custom section builder',
+      'Export to Excel & Tally',
       'Priority for new features',
     ],
   },
 };
 
-// Per-business pricing shown beneath the plan cards.
-const MULTI_BUSINESS_NOTE = 'Each plan covers one business. Need more? Subscribe each additional business separately — e.g. 3 businesses on Basic = ₹99 × 3, or mix Basic & Pro per business.';
+// Per-business pricing shown beneath the plan card.
+const MULTI_BUSINESS_NOTE = 'Each subscription covers one business. Need more? Subscribe each additional business separately — e.g. 3 businesses = ₹299 × 3.';
 
 const TRIAL_PERKS = [
   { icon: ShieldCheck, text: 'No credit card required' },
@@ -125,22 +105,17 @@ const BillingToggle = ({ billing, onChange, primary, baseRadius }) => (
 );
 
 // ── Tier card ────────────────────────────────────────────────────────────────
-const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, baseRadius, isSubscribed, currentIsPro }) => {
+const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, baseRadius, isSubscribed }) => {
   const price = billing === 'monthly' ? plan.price_monthly : plan.price_yearly;
   const period = billing === 'monthly' ? '/month' : '/year';
   const planId = billing === 'monthly' ? plan.id_monthly : plan.id_yearly;
   // Effective monthly equivalent when paying yearly — drives the "₹X effective" hint.
   const yearlyMonthly = Math.round(plan.price_yearly / 12);
 
-  // Relationship of THIS card to the user's live paid plan (only meaningful when
-  // they already have an active subscription).
-  const isCurrentTier = isSubscribed && (currentIsPro === plan.isPro);
-  const isUpgrade = isSubscribed && !currentIsPro && plan.isPro;   // Basic → Pro
-  const isDowngrade = isSubscribed && currentIsPro && !plan.isPro; // Pro → Basic
-  const ctaLabel = isCurrentTier ? 'Current plan'
-    : isUpgrade ? `Upgrade to ${plan.name}`
-    : isDowngrade ? `Switch to ${plan.name}`
-    : `Get ${plan.name}`;
+  // Single plan tier — the card is either the user's current live plan or the
+  // one they're about to subscribe to.
+  const isCurrentTier = isSubscribed;
+  const ctaLabel = isCurrentTier ? 'Current plan' : `Get ${plan.name}`;
 
   return (
     <Box sx={{ flex: '1 1 290px', maxWidth: 360, position: 'relative' }}>
@@ -328,10 +303,10 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
 
 // ── Main component ────────────────────────────────────────────────────────────
 const SubscriptionPage = ({ businessId: propBusinessId }) => {
-  const { activateSubscription, startTrial, getBusinessState, getBusinessPlan, daysLeftForBusiness } = useSubscription();
+  const { activateSubscription, startTrial, getBusinessState, daysLeftForBusiness } = useSubscription();
   const { currentUser, logout } = useAuth();
   const { businesses } = useBusiness();
-  const { pushBusinessToCloud, deleteBusinessFromCloud } = useData();
+  const { pushBusinessToCloud } = useData();
   const { billing: billingCfg } = useBilling();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -355,15 +330,13 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
   // Has a live paid plan right now (not trial, not expired) — this is the
   // "manage / change plan" case where we must not offer the plan they're on.
   const isSubscribed = subscriptionState === 'subscribed';
-  const currentPlanId = getBusinessPlan(bId);
-  const currentIsPro = isProPlanId(currentPlanId);
+  // Single plan tier — no Basic/Pro distinction to compute.
 
   const [billing, setBilling] = useState('monthly');
   const [paying, setPaying] = useState(null);
   const [starting, setStarting] = useState(false);
   const [payError, setPayError] = useState('');
   const [paySuccess, setPaySuccess] = useState(false);
-  const [downgradeDialog, setDowngradeDialog] = useState(null); // { planId, listPrice, label } | null
 
   // GST billing-details capture before checkout.
   const [gstDialog, setGstDialog] = useState(null); // { planId, listPrice, label, isPro } | null
@@ -390,25 +363,10 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
     }
   };
 
-  // Step 1: clicking a plan. A Pro→Basic downgrade is destructive (it deletes
-  // the online backup), so it goes through a confirmation dialog first. Every
-  // other case (new/trial/expired/upgrade) goes straight to checkout.
-  const onSubscribe = ({ id, listPrice, label, isPro }) => {
+  // Clicking the plan → straight to checkout. Single tier: always Pro / cloud.
+  const onSubscribe = ({ id, listPrice, label }) => {
     setPayError('');
-    if (isSubscribed && currentIsPro && !isPro) {
-      setDowngradeDialog({ planId: id, listPrice, label });
-      return;
-    }
-    beginCheckout({ id, listPrice, label, isPro });
-  };
-
-  // Confirmed Pro→Basic downgrade: proceed to pay for Basic. The cloud copy is
-  // deleted inside handleSubscribe's success handler (new plan is non-Pro).
-  const confirmDowngrade = () => {
-    if (!downgradeDialog) return;
-    const { planId, listPrice, label } = downgradeDialog;
-    setDowngradeDialog(null);
-    beginCheckout({ id: planId, listPrice, label, isPro: false });
+    beginCheckout({ id, listPrice, label, isPro: true });
   };
 
   // Step 2: actually open Razorpay with the GST-inclusive total and persist the
@@ -450,16 +408,10 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
             invoicePrefix: billingCfg.invoicePrefix || 'SUB',
           } : null;
           await activateSubscription(bId, planId, response.razorpay_payment_id, billingMeta);
-          // Reconcile cloud storage with the NEW plan tier:
-          //  • Pro (₹299): seed the full local copy to the cloud immediately so
-          //    every existing entry is backed up (auto-sync handles edits after).
-          //  • Basic (₹99): this business must be local-only — remove any cloud copy.
-          // Both run in the background; we don't block the success UI on them.
-          if (isPro) {
-            pushBusinessToCloud(bId).catch(() => {});
-          } else {
-            deleteBusinessFromCloud(bId).catch(() => {});
-          }
+          // Every plan is now cloud: seed the full local copy to the cloud
+          // immediately so every existing entry is backed up (auto-sync handles
+          // edits after). Runs in the background; we don't block the success UI.
+          pushBusinessToCloud(bId).catch(() => {});
           setPaying(null);
           setPaySuccess(true);
           // Give the success message a moment, then take the user to their dashboard.
@@ -566,21 +518,19 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
         </>
       )}
 
-      {/* ── Subscribed — manage / change plan ── */}
+      {/* ── Subscribed — manage plan ── */}
       {isSubscribed && (
         <>
           <Chip
             icon={<CheckCircle2 size={13} />}
-            label={`${currentIsPro ? 'Pro' : 'Basic'} plan active${daysLeft !== null ? ` — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left` : ''}`}
+            label={`Plan active${daysLeft !== null ? ` — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left` : ''}`}
             sx={{ mb: 1.5, fontWeight: 700, fontSize: '0.78rem', bgcolor: alpha('#10b981', 0.12), color: '#059669', border: `1px solid ${alpha('#10b981', 0.3)}`, '& .MuiChip-icon': { color: '#059669' } }}
           />
           <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.75, textAlign: 'center' }}>
-            {currentIsPro ? 'Manage your plan' : 'Upgrade your plan'}
+            Manage your plan
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 4, textAlign: 'center', maxWidth: 460, fontSize: '0.92rem' }}>
-            {currentIsPro
-              ? 'You’re on Pro with cloud backup. Switching to Basic keeps your data on this device and removes the online copy.'
-              : 'Upgrade to Pro to back up this business online and sync across devices.'}
+            Your subscription is active with cloud backup and multi-device sync. Renew below whenever you’re ready.
           </Typography>
         </>
       )}
@@ -600,7 +550,6 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
             primaryDark={primaryDark}
             baseRadius={baseRadius}
             isSubscribed={isSubscribed}
-            currentIsPro={currentIsPro}
           />
         ))}
       </Box>
@@ -664,20 +613,14 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
         </Typography>
       </Box>
 
-      {/* Plan comparison note */}
+      {/* Plan note */}
       <Box sx={{ maxWidth: 580, width: '100%', mb: 4, p: 2, borderRadius: `${baseRadius + 6}px`, border: '1px solid', borderColor: 'divider', bgcolor: alpha(primary, 0.025) }}>
-        <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center', mb: 1 }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Lock size={13} color="#059669" />
-            <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.78rem', color: '#059669' }}>Private — data stays on your device only</Typography>
-          </Box>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Cloud size={13} color={primary} />
-            <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.78rem', color: primary }}>Business — cloud sync + multi-device</Typography>
-          </Box>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1, mb: 1 }}>
+          <Cloud size={13} color={primary} />
+          <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.78rem', color: primary }}>Cloud sync + multi-device, all features included</Typography>
         </Box>
         <Typography variant="caption" color="text.secondary" sx={{ display: 'block', textAlign: 'center', fontSize: '0.72rem' }}>
-          Private plan: your data is never uploaded anywhere — 100% confidential. Business plan adds cloud sync for multi-device access. Upgrading Private → Business automatically backs up your local data to the cloud.
+          Every business you subscribe is backed up online and synced across your devices. Your local data is pushed to the cloud automatically when you subscribe.
         </Typography>
       </Box>
 
@@ -698,41 +641,6 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
           Privacy Policy &amp; No-Refund terms
         </Box>.
       </Typography>
-
-      {/* ── Pro → Basic downgrade confirmation ── */}
-      <Dialog open={!!downgradeDialog} onClose={() => setDowngradeDialog(null)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Cloud size={18} color={theme.palette.error.main} />
-          Switch to Basic?
-        </DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" sx={{ mb: 1.5 }}>
-            Basic keeps {businessName ? <b>{businessName}</b> : 'this business'}’s data <b>only on this device</b>.
-          </Typography>
-          <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(theme.palette.error.main, 0.06), border: '1px solid', borderColor: alpha(theme.palette.error.main, 0.25), mb: 1.5 }}>
-            <Typography variant="body2" sx={{ fontWeight: 700, color: theme.palette.error.main, mb: 0.5 }}>
-              Your online backup will be permanently deleted.
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Cloud sync and multi-device access stop immediately. Your existing entries stay safe locally — make sure you keep using this device. You can re-upgrade to Pro anytime to back up online again.
-            </Typography>
-          </Box>
-          <Typography variant="caption" color="text.secondary">
-            You’ll be charged the Basic plan price to complete the switch.
-          </Typography>
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setDowngradeDialog(null)} sx={{ textTransform: 'none' }}>Keep Pro</Button>
-          <Button
-            variant="contained"
-            color="error"
-            onClick={confirmDowngrade}
-            sx={{ textTransform: 'none', fontWeight: 700 }}
-          >
-            Delete cloud & switch
-          </Button>
-        </DialogActions>
-      </Dialog>
 
       {/* ── GST billing-details dialog ── */}
       <Dialog open={!!gstDialog} onClose={() => setGstDialog(null)} maxWidth="xs" fullWidth>

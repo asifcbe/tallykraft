@@ -7,9 +7,10 @@ import { useBilling } from './BillingContext';
 // be linked from the landing-page footer and referenced by the payment gateway.
 //
 // Content is adapted to how TallyKraft actually works:
-//  • Basic (₹99) data lives ONLY on the user's device (local IndexedDB) and is
-//    never uploaded — we cannot access it.
-//  • Pro (₹299) data is optionally backed up to our cloud for multi-device sync.
+//  • A single subscription plan (₹299/mo · ₹2999/yr) — every feature plus cloud
+//    backup and multi-device sync.
+//  • Business data is stored locally (browser IndexedDB) AND backed up to our
+//    secure cloud (Google Firebase) so it can sync and restore across devices.
 //  • Payments are processed by Razorpay; we never see or store card details.
 //  • 3-day free trial → no refunds on subscription payments.
 
@@ -96,12 +97,11 @@ export default function PrivacyPolicy({ onBack }) {
 
         <Section n={3} title="Data Storage and Security">
           <p style={{ margin: '0 0 8px' }}>
-            TallyKraft is a <strong>local-first</strong> application. Where your business data is stored
-            depends on your plan:
+            TallyKraft is a <strong>local-first</strong> application:
           </p>
           <ul style={{ paddingLeft: 20, margin: '4px 0' }}>
-            <Li><strong>Basic plan:</strong> Your business data is stored <strong>only on your own device</strong> (in your browser's local storage). It is <strong>never uploaded to our servers</strong>, and we have no access to it. You are responsible for keeping local backups; clearing your browser data or losing your device will delete this data.</Li>
-            <Li><strong>Pro plan:</strong> In addition to local storage, your business data is backed up to our secure cloud (hosted on Google Firebase) so you can sync and restore across devices. This cloud copy is tied to your account.</Li>
+            <Li><strong>On your device:</strong> Your business data is written to your browser's local storage first, so the app stays fast and keeps working offline.</Li>
+            <Li><strong>Cloud backup:</strong> While your subscription is active, that data is also backed up to our secure cloud (hosted on Google Firebase) so you can sync and restore across devices. This cloud copy is tied to your account.</Li>
           </ul>
           <p style={{ margin: '8px 0 0' }}>
             We use industry-standard encryption (HTTPS/SSL) to protect data in transit, and rely on
@@ -114,7 +114,7 @@ export default function PrivacyPolicy({ onBack }) {
           <p style={{ margin: '0 0 6px' }}>We do <strong>not</strong> sell your personal data to any third party. We share information only with:</p>
           <ul style={{ paddingLeft: 20, margin: '4px 0' }}>
             <Li><strong>Payment Processor:</strong> Razorpay, solely to process your subscription payments.</Li>
-            <Li><strong>Infrastructure Providers:</strong> Vercel (application hosting) and Google Firebase (authentication and, for Pro users, cloud backup).</Li>
+            <Li><strong>Infrastructure Providers:</strong> Vercel (application hosting) and Google Firebase (authentication and cloud backup).</Li>
             <Li><strong>Legal Authorities:</strong> If required by law, court order, or a government authority in India.</Li>
           </ul>
         </Section>
@@ -150,10 +150,10 @@ export default function PrivacyPolicy({ onBack }) {
 
         <Section n={7} title="Data Retention">
           <p style={{ margin: 0 }}>
-            Basic-plan data lives only on your device and is retained until you delete it. For Pro users,
-            we retain your cloud backup for as long as your account is active. If you downgrade from Pro
-            to Basic, your cloud copy is deleted and the data remains only on your device. You may request
-            deletion of your account and any cloud data at any time by contacting us.
+            Data on your device is retained until you clear it. We retain your cloud backup for as long as
+            your account is active. If your subscription lapses, the local copy on your device remains
+            available to you; you may request deletion of your account and any cloud data at any time by
+            contacting us.
           </p>
         </Section>
 

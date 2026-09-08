@@ -43,24 +43,17 @@ const STEPS = [
   { n: '03', title: 'Start Billing',   desc: "Add parties, items, and create your first invoice. It's that simple." },
 ];
 
-const PRIVATE_FEATURES = [
+const PLAN_FEATURES = [
   'Covers 1 business',
-  'All features unlocked',
+  'Every feature unlocked',
   'Unlimited invoices, POS, purchases & expenses',
   'GST reports & party ledgers',
   'Custom section builder',
-  'Export to Excel & Tally XML (local)',
-  'Data stored on your device only',
-  'No online/cloud backup',
-];
-
-const BUSINESS_EXTRAS = [
+  'Export to Excel & Tally XML',
   'Online cloud backup & restore',
   'Access & sync from any device',
   'Staff accounts with permissions',
-  'WhatsApp bill sharing',
-  'Barcode scanning',
-  'Priority for new features',
+  'WhatsApp bill sharing & barcode scanning',
 ];
 
 /* ── carousel examples ── */
@@ -1106,7 +1099,7 @@ export default function LandingPage({ onLoginClick }) {
           </div>
           <h2 className={`reveal d2${pricingIn?' in-view':''}`} style={{ fontSize:'clamp(1.6rem,4vw,2.4rem)', fontWeight:900, marginBottom:10, letterSpacing:'-.02em', color:C.text }}>Transparent. No Surprises.</h2>
           <p className={`reveal d3${pricingIn?' in-view':''}`} style={{ color:C.muted, fontSize:'.9rem', marginBottom:12, lineHeight:1.65 }}>
-            Choose how your data is stored. No auto-renewal — pay only when you want to continue.
+            One simple plan — every feature, cloud backup, multi-device sync. No auto-renewal; pay only when you want to continue.
           </p>
 
           {/* Trial pill */}
@@ -1115,101 +1108,30 @@ export default function LandingPage({ onLoginClick }) {
             <span style={{ fontSize:'.78rem', fontWeight:700, color:'#b45309' }}>3-day free trial · No credit card required</span>
           </div>
 
-          {/* Two tier cards */}
+          {/* Single plan card */}
           <div className={`reveal-scale d4${pricingIn?' in-view':''}`} style={{ display:'flex', gap:20, justifyContent:'center', flexWrap:'wrap', marginBottom:20, textAlign:'left' }}>
 
-            {/* ── Private Plan ── */}
             <div style={{
-              flex:'1 1 300px', background:C.card, border:`1px solid ${C.border}`,
-              borderRadius:22, padding:'32px 28px', boxShadow:C.cardShadow, position:'relative',
-            }}>
-              {/* Plan name */}
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                <div style={{ width:34, height:34, borderRadius:10, background:'rgba(22,163,74,.1)', border:'1px solid rgba(22,163,74,.2)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <Lock size={16} color='#16a34a' />
-                </div>
-                <div>
-                  <div style={{ fontWeight:800, fontSize:'1.05rem', color:C.text, lineHeight:1.2 }}>Basic</div>
-                  <div style={{ fontSize:'.72rem', color:'#16a34a', fontWeight:700 }}>All features · local data · 1 business</div>
-                </div>
-              </div>
-
-              {/* Privacy badge */}
-              <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:'rgba(22,163,74,.08)', border:'1px solid rgba(22,163,74,.2)', borderRadius:100, padding:'3px 10px', marginBottom:20 }}>
-                <Shield size={11} color='#16a34a' />
-                <span style={{ fontSize:'.68rem', fontWeight:700, color:'#16a34a', letterSpacing:'.04em' }}>1 BUSINESS</span>
-              </div>
-
-              {/* Pricing rows */}
-              <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:22 }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:C.bgAlt, borderRadius:12, border:`1px solid ${C.border}` }}>
-                  <div style={{ fontSize:'.82rem', color:C.muted, fontWeight:600 }}>Monthly</div>
-                  <div style={{ display:'flex', alignItems:'baseline', gap:3 }}>
-                    <span style={{ fontSize:'1.5rem', fontWeight:900, color:C.text, lineHeight:1 }}>₹99</span>
-                    <span style={{ fontSize:'.72rem', color:C.muted }}>/month</span>
-                  </div>
-                </div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background:C.bgAlt, borderRadius:12, border:`1px solid ${C.border}` }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                    <span style={{ fontSize:'.82rem', color:C.muted, fontWeight:600 }}>Yearly</span>
-                    <span style={{ fontSize:'.65rem', fontWeight:700, color:'#16a34a', background:'rgba(22,163,74,.1)', borderRadius:100, padding:'2px 8px' }}>Save ₹189</span>
-                  </div>
-                  <div style={{ display:'flex', alignItems:'baseline', gap:3 }}>
-                    <span style={{ fontSize:'1.5rem', fontWeight:900, color:C.text, lineHeight:1 }}>₹999</span>
-                    <span style={{ fontSize:'.72rem', color:C.muted }}>/year</span>
-                  </div>
-                </div>
-              </div>
-
-              <button className="login-btn" onClick={onLoginClick} style={{
-                background:'transparent', border:`1.5px solid ${P}`, borderRadius:11,
-                color:P, fontWeight:700, fontSize:'.88rem', padding:'11px 24px',
-                cursor:'pointer', width:'100%', marginBottom:22, transition:'background .2s',
-              }}
-                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(102,126,234,.09)'; }}
-                onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; }}
-              >
-                Start Free Trial
-              </button>
-
-              {/* Features */}
-              <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
-                {PRIVATE_FEATURES.map(f => (
-                  <div key={f} style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
-                    <CheckCircle size={13} color='#16a34a' style={{ flexShrink:0, marginTop:2 }} />
-                    <span style={{ fontSize:'.8rem', color:C.muted, lineHeight:1.4 }}>{f}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ── Business Plan ── */}
-            <div style={{
-              flex:'1 1 300px',
+              flex:'1 1 360px', maxWidth:440,
               background: isDark ? 'linear-gradient(145deg,rgba(102,126,234,.15) 0%,rgba(118,75,162,.12) 100%)' : '#fff',
               border:`2px solid ${P}`, borderRadius:22, padding:'32px 28px',
               boxShadow: isDark ? 'none' : '0 10px 48px rgba(102,126,234,.18)',
               position:'relative', overflow:'visible', textAlign:'left',
             }}>
-              {/* Recommended badge */}
-              <div style={{ position:'absolute', top:-14, left:'50%', transform:'translateX(-50%)', background:GRAD, borderRadius:100, padding:'4px 16px', fontSize:'.7rem', fontWeight:800, color:'#fff', letterSpacing:'.05em', display:'flex', alignItems:'center', gap:5, whiteSpace:'nowrap' }}>
-                <Star size={10} /> RECOMMENDED
-              </div>
-
               {/* Plan name */}
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
                 <div style={{ width:34, height:34, borderRadius:10, background:`rgba(102,126,234,.12)`, border:`1px solid rgba(102,126,234,.22)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <CloudUpload size={16} color={P} />
                 </div>
                 <div>
-                  <div style={{ fontWeight:800, fontSize:'1.05rem', color:C.text, lineHeight:1.2 }}>Pro</div>
+                  <div style={{ fontWeight:800, fontSize:'1.05rem', color:C.text, lineHeight:1.2 }}>TallyKraft</div>
                   <div style={{ fontSize:'.72rem', color:P, fontWeight:700 }}>All features + cloud backup · 1 business</div>
                 </div>
               </div>
 
               <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:`rgba(102,126,234,.1)`, border:`1px solid rgba(102,126,234,.22)`, borderRadius:100, padding:'3px 10px', marginBottom:20 }}>
                 <Globe size={11} color={P} />
-                <span style={{ fontSize:'.68rem', fontWeight:700, color:P, letterSpacing:'.04em' }}>EVERYTHING IN BASIC + CLOUD BACKUP</span>
+                <span style={{ fontSize:'.68rem', fontWeight:700, color:P, letterSpacing:'.04em' }}>EVERYTHING INCLUDED</span>
               </div>
 
               {/* Pricing rows */}
@@ -1244,8 +1166,7 @@ export default function LandingPage({ onLoginClick }) {
 
               {/* Features */}
               <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
-                <div style={{ fontSize:'.75rem', fontWeight:700, color:C.muted, letterSpacing:'.05em', textTransform:'uppercase', marginBottom:2 }}>Everything in Basic, plus:</div>
-                {BUSINESS_EXTRAS.map(f => (
+                {PLAN_FEATURES.map(f => (
                   <div key={f} style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
                     <CheckCircle size={13} color={P} style={{ flexShrink:0, marginTop:2 }} />
                     <span style={{ fontSize:'.8rem', color:C.muted, lineHeight:1.4 }}>{f}</span>
@@ -1255,11 +1176,11 @@ export default function LandingPage({ onLoginClick }) {
             </div>
           </div>
 
-          {/* Upgrade note */}
+          {/* Multi-business note */}
           <div className={`reveal d5${pricingIn?' in-view':''}`} style={{ display:'flex', alignItems:'flex-start', gap:8, background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:'14px 18px', maxWidth:640, margin:'0 auto 16px', textAlign:'left' }}>
             <ArrowRight size={14} color={P} style={{ flexShrink:0, marginTop:2 }} />
             <span style={{ fontSize:'.78rem', color:C.muted, lineHeight:1.55 }}>
-              <strong style={{ color:C.text }}>Upgrading Basic → Pro?</strong> Your local data is automatically backed up to the cloud the moment you switch — no manual steps needed. Each plan covers one business; subscribe each extra business separately.
+              <strong style={{ color:C.text }}>Running more than one business?</strong> Each plan covers one business — subscribe each extra business separately (e.g. 3 businesses = ₹299 × 3).
             </span>
           </div>
 

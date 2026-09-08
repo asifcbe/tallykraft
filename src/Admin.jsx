@@ -46,10 +46,8 @@ const featureLabels = {
 
 // --- Subscription plan helpers ---
 const PLAN_META = {
-  monthly:      { label: 'Basic · ₹99/mo',   short: 'Basic',  color: '#059669', tier: 'basic' },
-  yearly:       { label: 'Basic · ₹999/yr',  short: 'Basic',  color: '#059669', tier: 'basic' },
-  monthly_pro:  { label: 'Pro · ₹299/mo',    short: 'Pro',    color: '#4f46e5', tier: 'pro' },
-  yearly_pro:   { label: 'Pro · ₹2999/yr',   short: 'Pro',    color: '#4f46e5', tier: 'pro' },
+  monthly_pro:  { label: '₹299/mo',          short: 'Plan',   color: '#4f46e5', tier: 'pro' },
+  yearly_pro:   { label: '₹2999/yr',         short: 'Plan',   color: '#4f46e5', tier: 'pro' },
   trial:        { label: 'Trial',            short: 'Trial',  color: '#f59e0b', tier: 'trial' },
   admin_granted:{ label: 'Admin Granted',    short: 'Admin',  color: '#8b5cf6', tier: 'admin' },
 };
@@ -65,11 +63,9 @@ const isBasicPlan = (plan) => plan === 'monthly' || plan === 'yearly';
 const isProPlan = (plan) => plan === 'monthly_pro' || plan === 'yearly_pro';
 
 const GRANT_PLAN_OPTIONS = [
-  { value: 'trial',       label: 'Trial',          desc: '3-day free trial (all features)',          color: '#f59e0b' },
-  { value: 'monthly',     label: 'Basic · ₹99/mo', desc: 'All features, NO online backup, 1 business', color: '#059669' },
-  { value: 'yearly',      label: 'Basic · ₹999/yr',desc: 'All features, NO online backup, 1 business', color: '#059669' },
-  { value: 'monthly_pro', label: 'Pro · ₹299/mo',  desc: 'All features + online cloud backup',         color: '#4f46e5' },
-  { value: 'yearly_pro',  label: 'Pro · ₹2999/yr', desc: 'All features + online cloud backup',         color: '#4f46e5' },
+  { value: 'trial',       label: 'Trial',      desc: '3-day free trial (all features)',            color: '#f59e0b' },
+  { value: 'monthly_pro', label: '₹299/mo',    desc: 'All features + cloud backup, 1 business',    color: '#4f46e5' },
+  { value: 'yearly_pro',  label: '₹2999/yr',   desc: 'All features + cloud backup, 1 business',    color: '#4f46e5' },
 ];
 
 const DURATION_OPTIONS = [
@@ -349,7 +345,7 @@ const Admin = () => {
 
   // Grant subscription dialog state
   const [grantDialog, setGrantDialog] = useState({ open: false, email: '' });
-  const [grantForm, setGrantForm] = useState({ plan: 'monthly', businessId: '1', durationType: '1m', customEndDate: '' });
+  const [grantForm, setGrantForm] = useState({ plan: 'monthly_pro', businessId: '1', durationType: '1m', customEndDate: '' });
   const [grantSaving, setGrantSaving] = useState(false);
 
   // Subscription search
@@ -476,8 +472,9 @@ const Admin = () => {
     }
 
     const planDistribution = [
-      { name: 'Basic (₹99)', value: basicActive, color: '#059669' },
-      { name: 'Pro (₹299)', value: proActive, color: '#4f46e5' },
+      // "Basic" is a legacy tier (no longer sold); fold any remaining legacy
+      // Basic subs into the single paid bucket so the chart isn't misleading.
+      { name: 'Paid (₹299 / ₹2999)', value: proActive + basicActive, color: '#4f46e5' },
       { name: 'Trial', value: stats.trial, color: '#f59e0b' },
       { name: 'Expired', value: stats.expired, color: '#ef4444' },
     ].filter((s) => s.value > 0);
@@ -616,7 +613,7 @@ const Admin = () => {
 
   // ── Subscription grant handlers ────────────────────────────────────────────
   const openGrantDialog = (email) => {
-    setGrantForm({ plan: 'monthly', businessId: '1', durationType: '1m', customEndDate: '' });
+    setGrantForm({ plan: 'monthly_pro', businessId: '1', durationType: '1m', customEndDate: '' });
     setGrantDialog({ open: true, email });
   };
 
@@ -945,18 +942,13 @@ const Admin = () => {
             </Grid>
           </Grid>
 
-          {/* ── Tier dashboards: Basic (₹99) vs Pro (₹299) ── */}
-          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>Plans by tier</Typography>
+          {/* ── Paid plan summary (single tier: ₹299/mo · ₹2999/yr) ── */}
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>Paid subscriptions</Typography>
           <Grid container spacing={2.5} sx={{ mb: 3 }}>
             <Grid item xs={12} sm={6}>
-              <TierCard tier="Basic" priceLabel="₹99/mo · local-only" color="#059669" icon={Lock}
-                activeCount={analytics.basicActive} mrr={analytics.basicMrr}
-                share={analytics.basicActive + analytics.proActive > 0 ? Math.round((analytics.basicActive / (analytics.basicActive + analytics.proActive)) * 100) : null} />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TierCard tier="Pro" priceLabel="₹299/mo · cloud backup" color="#4f46e5" icon={Cloud}
-                activeCount={analytics.proActive} mrr={analytics.proMrr}
-                share={analytics.basicActive + analytics.proActive > 0 ? Math.round((analytics.proActive / (analytics.basicActive + analytics.proActive)) * 100) : null} />
+              <TierCard tier="Paid" priceLabel="₹299/mo · ₹2999/yr · cloud backup" color="#4f46e5" icon={Cloud}
+                activeCount={analytics.proActive + analytics.basicActive} mrr={analytics.proMrr + analytics.basicMrr}
+                share={100} />
             </Grid>
           </Grid>
 
