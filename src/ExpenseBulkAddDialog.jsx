@@ -72,8 +72,8 @@ export default function ExpenseBulkAddDialog({ open, onClose, onSuccess }) {
       PaperProps={{ sx: { borderRadius: 3, maxHeight: '90vh', position: 'relative' } }}
     >
       <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.8)', flexDirection: 'column', gap: 1.5 }}>
-        <CircularProgress size={40} sx={{ color: '#6366f1' }} />
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#6366f1' }}>Saving {filledRows.length} expenses…</Typography>
+        <CircularProgress size={40} sx={{ color: '#334155' }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155' }}>Saving {filledRows.length} expenses…</Typography>
       </Backdrop>
 
       <Box sx={{ background: 'linear-gradient(135deg, #18181b 0%, #3f3f46 100%)', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
@@ -109,7 +109,7 @@ export default function ExpenseBulkAddDialog({ open, onClose, onSuccess }) {
             </TableHead>
             <TableBody>
               {rows.map((row, idx) => (
-                <TableRow key={row._key} sx={{ '&:hover': { bgcolor: 'rgba(99,102,241,0.03)' } }}>
+                <TableRow key={row._key} sx={{ '&:hover': { bgcolor: 'rgba(51,65,85,0.03)' } }}>
                   <TableCell sx={{ pl: 2, color: 'text.secondary', fontSize: '0.75rem' }}>{idx + 1}</TableCell>
                   <TableCell>
                     <TextField
@@ -184,13 +184,13 @@ export default function ExpenseBulkAddDialog({ open, onClose, onSuccess }) {
           onClick={addRow}
           variant="outlined"
           size="small"
-          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', borderColor: 'rgba(99,102,241,0.3)', color: '#6366f1', mr: 'auto' }}
+          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', borderColor: 'rgba(51,65,85,0.3)', color: '#334155', mr: 'auto' }}
         >
           Add Row
         </Button>
-        <Chip label={`${filledRows.length} row${filledRows.length !== 1 ? 's' : ''}`} size="small" sx={{ fontWeight: 700, bgcolor: 'rgba(99,102,241,0.08)', color: '#6366f1' }} />
-        <Box sx={{ px: 2, py: 0.5, bgcolor: 'rgba(99,102,241,0.08)', borderRadius: '8px', border: '1px solid rgba(99,102,241,0.2)' }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#6366f1' }}>
+        <Chip label={`${filledRows.length} row${filledRows.length !== 1 ? 's' : ''}`} size="small" sx={{ fontWeight: 700, bgcolor: 'rgba(51,65,85,0.08)', color: '#334155' }} />
+        <Box sx={{ px: 2, py: 0.5, bgcolor: 'rgba(51,65,85,0.08)', borderRadius: '8px', border: '1px solid rgba(51,65,85,0.2)' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#334155' }}>
             Total ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Typography>
         </Box>

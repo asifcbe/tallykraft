@@ -13,15 +13,16 @@ export default defineConfig({
         clientsClaim: true,
         cleanupOutdatedCaches: true,
       },
-      includeAssets: ['tallykraft.svg', 'tallycraft.png'],
+      includeAssets: ['tallykraft.svg', 'tallykraft.png'],
       manifest: {
         name: 'TallyKraft - Accounting Software',
         short_name: 'TallyKraft',
         description: 'Fully functional offline accounting software with GST and multi-business support.',
-        theme_color: '#667eea',
+        theme_color: '#0f172a',
+        background_color: '#0f172a',
         icons: [
           {
-            src: 'tallycraft.png',
+            src: 'tallykraft.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'

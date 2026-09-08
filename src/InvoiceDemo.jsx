@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { CheckCircle, Printer, MessageCircle, FileDown, Plus } from 'lucide-react';
 
-const P    = '#667eea';
-const P2   = '#764ba2';
+const P    = '#334155';
+const P2   = '#1e293b';
 const GRAD = `linear-gradient(135deg,${P} 0%,${P2} 100%)`;
 
 const PARTY  = 'Ravi Kumar Enterprises';
@@ -41,11 +41,11 @@ const StepBadge = ({ active, done, n, label }) => (
       width: 28, height: 28, borderRadius: '50%', flexShrink: 0,
       display: 'flex', alignItems: 'center', justifyContent: 'center',
       fontSize: '.7rem', fontWeight: 800,
-      background: done ? '#16a34a' : active ? GRAD : 'rgba(102,126,234,.12)',
+      background: done ? '#16a34a' : active ? GRAD : 'rgba(51,65,85,.12)',
       color: (done || active) ? '#fff' : P,
       border: active && !done ? `2px solid ${P}` : 'none',
       transition: 'all .4s ease',
-      boxShadow: active && !done ? `0 0 0 4px rgba(102,126,234,.18)` : 'none',
+      boxShadow: active && !done ? `0 0 0 4px rgba(51,65,85,.18)` : 'none',
     }}>
       {done ? <CheckCircle size={14} /> : n}
     </div>
@@ -115,7 +115,7 @@ export default function InvoiceDemo({ isDark = false }) {
   const text    = isDark ? '#f1f5f9' : '#1e293b';
   const muted   = isDark ? '#94a3b8' : '#64748b';
   const dim     = isDark ? '#475569' : '#cbd5e1';
-  const accent  = 'rgba(102,126,234,.1)';
+  const accent  = 'rgba(51,65,85,.1)';
 
   return (
     <div style={{ display:'flex', gap:28, alignItems:'flex-start', maxWidth:1020, margin:'0 auto' }}>
@@ -127,7 +127,7 @@ export default function InvoiceDemo({ isDark = false }) {
         border: `1px solid ${border}`,
         borderRadius: 20,
         overflow: 'hidden',
-        boxShadow: isDark ? '0 24px 60px rgba(0,0,0,.4)' : '0 24px 60px rgba(102,126,234,.12)',
+        boxShadow: isDark ? '0 24px 60px rgba(0,0,0,.4)' : '0 24px 60px rgba(51,65,85,.12)',
       }}>
         {/* Header bar */}
         <div style={{ background: GRAD, padding:'14px 20px', display:'flex', alignItems:'center', gap:10 }}>
@@ -159,7 +159,7 @@ export default function InvoiceDemo({ isDark = false }) {
               fontSize:'.88rem', fontWeight:600, color: partyDone ? text : muted,
               minHeight: 40, display:'flex', alignItems:'center',
               transition: 'border-color .3s',
-              boxShadow: partyDone ? `0 0 0 3px rgba(102,126,234,.12)` : 'none',
+              boxShadow: partyDone ? `0 0 0 3px rgba(51,65,85,.12)` : 'none',
             }}>
               {partyText || <span style={{ color:dim }}>Search customer…</span>}
               {!partyDone && (
@@ -193,7 +193,7 @@ export default function InvoiceDemo({ isDark = false }) {
                     <div style={{
                       display:'flex', justifyContent:'space-between', alignItems:'center',
                       padding:'9px 12px', background:bgAlt,
-                      border:`1px solid ${visible ? 'rgba(102,126,234,.2)' : border}`,
+                      border:`1px solid ${visible ? 'rgba(51,65,85,.2)' : border}`,
                       borderRadius:9,
                     }}>
                       <div>
@@ -216,8 +216,8 @@ export default function InvoiceDemo({ isDark = false }) {
           {/* Total box */}
           <Fade show={showTotal}>
             <div style={{
-              background: isDark ? 'rgba(102,126,234,.15)' : 'rgba(102,126,234,.07)',
-              border:`1px solid rgba(102,126,234,.25)`,
+              background: isDark ? 'rgba(51,65,85,.15)' : 'rgba(51,65,85,.07)',
+              border:`1px solid rgba(51,65,85,.25)`,
               borderRadius:11, padding:'13px 14px', marginBottom:16,
             }}>
               {[
@@ -229,7 +229,7 @@ export default function InvoiceDemo({ isDark = false }) {
                   <span style={{ color:text, fontWeight:600 }}>{r.value}</span>
                 </div>
               ))}
-              <div style={{ borderTop:`1px solid rgba(102,126,234,.2)`, marginTop:8, paddingTop:8, display:'flex', justifyContent:'space-between' }}>
+              <div style={{ borderTop:`1px solid rgba(51,65,85,.2)`, marginTop:8, paddingTop:8, display:'flex', justifyContent:'space-between' }}>
                 <span style={{ fontWeight:800, fontSize:'.9rem', background:GRAD, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>Total</span>
                 <span style={{ fontWeight:800, fontSize:'.95rem', background:GRAD, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text' }}>{fmt(grandTotal(shownItems))}</span>
               </div>
@@ -244,7 +244,7 @@ export default function InvoiceDemo({ isDark = false }) {
                 padding:'10px 0', borderRadius:10, border:'none', cursor:'default',
                 background: flashPrint ? '#16a34a' : GRAD,
                 color:'#fff', fontWeight:700, fontSize:'.8rem',
-                boxShadow: flashPrint ? '0 4px 14px rgba(22,163,74,.4)' : '0 4px 14px rgba(102,126,234,.35)',
+                boxShadow: flashPrint ? '0 4px 14px rgba(22,163,74,.4)' : '0 4px 14px rgba(51,65,85,.35)',
                 transition:'all .4s ease',
               }}>
                 {flashPrint ? <CheckCircle size={14}/> : <Printer size={14}/>}
@@ -278,7 +278,7 @@ export default function InvoiceDemo({ isDark = false }) {
         border: `1px solid ${border}`,
         borderRadius: 20,
         overflow: 'hidden',
-        boxShadow: isDark ? '0 24px 60px rgba(0,0,0,.4)' : '0 24px 60px rgba(102,126,234,.12)',
+        boxShadow: isDark ? '0 24px 60px rgba(0,0,0,.4)' : '0 24px 60px rgba(51,65,85,.12)',
       }}>
         {/* Invoice header gradient bar */}
         <div style={{ background: GRAD, padding:'22px 24px 18px' }}>
@@ -368,8 +368,8 @@ export default function InvoiceDemo({ isDark = false }) {
               <div style={{
                 display:'flex', alignItems:'center', gap:5,
                 padding:'5px 11px', borderRadius:100,
-                background: flashPrint ? 'rgba(22,163,74,.1)' : 'rgba(102,126,234,.1)',
-                border:`1px solid ${flashPrint ? 'rgba(22,163,74,.3)' : 'rgba(102,126,234,.25)'}`,
+                background: flashPrint ? 'rgba(22,163,74,.1)' : 'rgba(51,65,85,.1)',
+                border:`1px solid ${flashPrint ? 'rgba(22,163,74,.3)' : 'rgba(51,65,85,.25)'}`,
                 transition:'all .4s',
               }}>
                 {flashPrint

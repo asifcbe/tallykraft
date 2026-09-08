@@ -34,8 +34,8 @@ const PAPER_SIZE_VALUES = PAPER_SIZES.map(p => p.value);
 const ORDER_STATUSES = [
   { value: 'Pending',    label: 'Pending',    icon: Clock,        color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
   { value: 'Confirmed',  label: 'Confirmed',  icon: CircleDot,    color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
-  { value: 'Processing', label: 'Processing', icon: PackageCheck, color: '#7c3aed', bg: '#f5f3ff', border: '#ddd6fe' },
-  { value: 'Ready',      label: 'Ready',      icon: CheckCircle2, color: '#6366f1', bg: '#eef2ff', border: '#ddd6fe' },
+  { value: 'Processing', label: 'Processing', icon: PackageCheck, color: '#7c3aed', bg: '#f5f3ff', border: '#e2e8f0' },
+  { value: 'Ready',      label: 'Ready',      icon: CheckCircle2, color: '#334155', bg: '#f1f5f9', border: '#e2e8f0' },
   { value: 'Delivered',  label: 'Delivered',  icon: Truck,        color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
   { value: 'Cancelled',  label: 'Cancelled',  icon: XCircle,      color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
 ];

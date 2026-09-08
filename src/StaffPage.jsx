@@ -366,7 +366,7 @@ export default function StaffPage() {
       {/* ── Hero ── */}
       <Box sx={{
         borderRadius: 4,
-        background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
         p: { xs: 2.5, sm: 3.5 },
         mb: 3,
         position: 'relative',
@@ -394,8 +394,8 @@ export default function StaffPage() {
           </Tooltip>
         </Box>
         <Box sx={{ display: 'flex', gap: { xs: 3, sm: 5 }, mt: 3, flexWrap: 'wrap' }}>
-          <StatCard icon={Users} value={activeMembers.length} label="Total Active Staff" color="#c7d2fe" />
-          <StatCard icon={UserCheck} value={presentToday} label="Present Today" color="#c7d2fe" />
+          <StatCard icon={Users} value={activeMembers.length} label="Total Active Staff" color="#cbd5e1" />
+          <StatCard icon={UserCheck} value={presentToday} label="Present Today" color="#cbd5e1" />
           <StatCard icon={DollarSign} value={`₹${fmt(monthlyPayroll)}`} label="Monthly Payroll" color="#fde68a" />
         </Box>
       </Box>
@@ -815,7 +815,7 @@ export default function StaffPage() {
             PaperProps={{ sx: { borderRadius: '16px', overflow: 'hidden' } }}
           >
             {/* Gradient header */}
-            <Box sx={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)', px: 3, pt: 2.5, pb: 0 }}>
+            <Box sx={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)', px: 3, pt: 2.5, pb: 0 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
                 <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(255,255,255,0.15)', fontSize: '1.1rem', fontWeight: 800, color: '#fff', border: '2px solid rgba(255,255,255,0.3)' }}>
                   {(memberForm.name?.[0] || (memberDialog.editing ? '?' : '+')).toUpperCase()}
@@ -959,7 +959,7 @@ export default function StaffPage() {
               </Box>
               <Button variant="contained" onClick={saveMember} disabled={!memberForm.name?.trim()}
                 sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, px: 2.5,
-                  bgcolor: primary, '&:hover': { bgcolor: '#4338ca' }, '&.Mui-disabled': { bgcolor: alpha(primary, 0.2), color: alpha(primary, 0.45) } }}>
+                  bgcolor: primary, '&:hover': { bgcolor: '#334155' }, '&.Mui-disabled': { bgcolor: alpha(primary, 0.2), color: alpha(primary, 0.45) } }}>
                 {memberDialog.editing ? 'Save Changes' : 'Add Member'}
               </Button>
             </DialogActions>
@@ -1034,7 +1034,7 @@ export default function StaffPage() {
         </DialogContent>
         <DialogActions sx={{ pb: 2.5, px: 2.5, gap: 1 }}>
           <Button onClick={() => { setSalPayDialog(null); setSalPayError(''); }} sx={{ borderRadius: 2 }}>Cancel</Button>
-          <Button variant="contained" sx={{ borderRadius: 2, fontWeight: 700, bgcolor: primary, '&:hover': { bgcolor: '#4338ca' } }}
+          <Button variant="contained" sx={{ borderRadius: 2, fontWeight: 700, bgcolor: primary, '&:hover': { bgcolor: '#334155' } }}
             onClick={confirmSalaryPayment}>
             Confirm Payment
           </Button>

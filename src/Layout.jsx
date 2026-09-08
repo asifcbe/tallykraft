@@ -904,8 +904,8 @@ const Layout = () => {
                 <TallyKraftLogo size={24} variant="icon" />
               </Box>
               <Box component="span" sx={{ fontSize: '1.05rem', lineHeight: 1, letterSpacing: '-0.02em', color: '#fff', whiteSpace: 'nowrap', userSelect: 'none' }}>
-                <Box component="span" sx={{ fontWeight: 800 }}>Tally</Box>
-                <Box component="span" sx={{ fontWeight: 300 }}>Kraft</Box>
+                <Box component="span" sx={{ fontWeight: 700 }}>Tally</Box>
+                <Box component="span" sx={{ fontWeight: 800, color: '#c8a04e' }}>Kraft</Box>
               </Box>
             </Box>
             <Tooltip title="Collapse sidebar" placement="right">
@@ -1597,7 +1597,7 @@ const Layout = () => {
             },
             {
               title: 'Sales & Invoicing',
-              color: '#6366f1',
+              color: '#334155',
               items: [
                 { keys: ['G', 'N'], label: 'New sales invoice (in list view)', seq: true },
                 { keys: ['G', 'B'], label: 'New purchase bill (in list view)', seq: true },

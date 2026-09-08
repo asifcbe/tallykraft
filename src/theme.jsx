@@ -2,9 +2,10 @@ import { createTheme } from '@mui/material/styles';
 
 const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
   const colorPalettes = {
+    // TallyKraft — "Midnight & Gold": slate-navy primary, restrained gold accent.
     indigo: {
-      primary: { main: '#6366f1', light: '#a5b4fc', dark: '#4338ca' },
-      secondary: { main: '#64748b' },
+      primary: { main: '#334155', light: '#64748b', dark: '#1e293b' },
+      secondary: { main: '#c8a04e' }, // gold — used sparingly for highlights / CTAs
     },
     blue: {
       primary: { main: '#2563eb', light: '#60a5fa', dark: '#1d4ed8' },
@@ -22,7 +23,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
 
   const palette = colorPalettes[primaryColor] || colorPalettes.indigo;
   const isLight = mode === 'light';
-  const primaryRgb = primaryColor === 'indigo' ? '99,102,241' : primaryColor === 'blue' ? '37,99,235' : primaryColor === 'green' ? '5,150,105' : '124,58,237';
+  const primaryRgb = primaryColor === 'indigo' ? '51,65,85' : primaryColor === 'blue' ? '37,99,235' : primaryColor === 'green' ? '5,150,105' : '124,58,237';
 
   // Refined shadows — flat, Slate-toned
   const shadows = [
@@ -569,25 +570,26 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
 // sibling app (Layout, POS, Dashboard, CustomerPreviewPanel, App, …). Those
 // files reference BRAND.teal / .tealDark / .tealLight / .emerald / .gradient —
 // the KEY names are kept for import compatibility, but the VALUES are
-// TallyKraft's indigo brand so the shared components render in this app's
-// palette without per-file edits. Do not rename the keys.
-const TK_PRIMARY = '#6366f1';       // indigo-500 (main accent — kept fairly light)
-const TK_PRIMARY_DARK = '#4f46e5';  // indigo-600 (hover / dark accents)
-const TK_PRIMARY_LIGHT = '#a5b4fc'; // indigo-300
-const TK_ACCENT = '#818cf8';        // indigo-400
-const TK_DEEP = '#4338ca';          // indigo-700 (deepest gradient anchor — was indigo-900, too dark)
+// TallyKraft's "Midnight & Gold" brand (slate-navy primary + gold accent) so
+// the shared components render in this app's palette without per-file edits.
+// Do not rename the keys.
+const TK_PRIMARY = '#334155';       // slate-700 — main brand / interactive
+const TK_PRIMARY_DARK = '#1e293b';  // slate-800 — hover / dark chrome
+const TK_PRIMARY_LIGHT = '#94a3b8'; // slate-400
+const TK_ACCENT = '#c8a04e';        // muted gold — highlights & CTAs, used sparingly
+const TK_DEEP = '#0f172a';          // slate-900 — deepest gradient anchor
 export const BRAND = {
-  teal: TK_PRIMARY,
+  teal: TK_PRIMARY,          // (key kept for merged-component compatibility)
   tealDark: TK_PRIMARY_DARK,
   tealLight: TK_PRIMARY_LIGHT,
   tealDeep: TK_DEEP,
-  emerald: TK_ACCENT,
-  emeraldLight: '#c7d2fe',
-  ink: '#312e81',
-  // Softer header/hero gradient — starts at indigo-600 (not indigo-900) so
-  // top bars and dialog headers read as vivid indigo rather than near-navy.
-  gradient: `linear-gradient(135deg, ${TK_PRIMARY_DARK} 0%, ${TK_PRIMARY} 55%, ${TK_ACCENT} 100%)`,
-  gradientVivid: `linear-gradient(135deg, ${TK_PRIMARY} 0%, ${TK_ACCENT} 100%)`,
+  emerald: TK_ACCENT,        // <- gold accent
+  emeraldLight: '#e6d3a8',   // pale gold
+  gold: TK_ACCENT,
+  ink: '#0f172a',
+  // Midnight header/hero gradient: slate-900 -> slate-700.
+  gradient: `linear-gradient(135deg, ${TK_DEEP} 0%, ${TK_PRIMARY_DARK} 52%, ${TK_PRIMARY} 100%)`,
+  gradientVivid: `linear-gradient(135deg, ${TK_PRIMARY_DARK} 0%, ${TK_PRIMARY} 100%)`,
   gradientSoft: `linear-gradient(135deg, ${TK_PRIMARY} 0%, ${TK_PRIMARY_LIGHT} 100%)`,
 };
 

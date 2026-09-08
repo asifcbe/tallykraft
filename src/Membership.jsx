@@ -308,7 +308,7 @@ const MembershipPage = () => {
       {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <Box sx={{
         borderRadius: 3,
-        background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
         p: { xs: 2.5, md: 3 }, mb: 3, position: 'relative', overflow: 'hidden',
       }}>
         <Box sx={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />

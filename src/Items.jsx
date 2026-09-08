@@ -600,7 +600,7 @@ const BulkBarcodeDialog = ({ items, onClose }) => {
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} sx={{ fontWeight: 600 }}>Close</Button>
         <Button variant="contained" startIcon={<Printer size={16} />} onClick={handlePrint}
-          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, background: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)' }}>
+          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}>
           Print {totalLabels} Label{totalLabels !== 1 ? 's' : ''}
         </Button>
       </DialogActions>
@@ -706,7 +706,7 @@ const BarcodeDialog = ({ item, onClose }) => {
         {(item.barcode || printMode === 'qr') && (
           <Button variant="contained" startIcon={<Printer size={16} />}
             onClick={() => printMode === 'qr' ? handleQrPrint() : handleBarcodePrint()}
-            sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, background: 'linear-gradient(135deg, #6366f1 0%, #818cf8 100%)' }}>
+            sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)' }}>
             Print{(Number(copies) || 1) > 1 || (Number(columns) || 1) > 1 ? ` (${Number(copies) || 1} × ${Number(columns) || 1} col)` : ''}
           </Button>
         )}
@@ -945,7 +945,7 @@ const ItemsPage = () => {
       {/* ── Hero Header ── */}
       <Box sx={{
         borderRadius: 3,
-        background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
         p: { xs: 2.5, md: 3.5 }, mb: 3,
         position: 'relative', overflow: 'hidden',
       }}>
@@ -995,7 +995,7 @@ const ItemsPage = () => {
               <Button variant={barcodePrintMode ? 'contained' : 'outlined'} size="small" startIcon={<Printer size={15} />}
                 onClick={() => { setBarcodePrintMode(v => !v); setCheckedIds(new Set()); }}
                 sx={barcodePrintMode
-                  ? { bgcolor: '#6366f1', color: 'white', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', '&:hover': { bgcolor: '#4338ca' } }
+                  ? { bgcolor: '#334155', color: 'white', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', '&:hover': { bgcolor: '#334155' } }
                   : { color: 'white', borderColor: 'rgba(255,255,255,0.5)', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' } }
                 }>
                 {barcodePrintMode ? 'Cancel' : 'Print Labels'}
@@ -1011,8 +1011,8 @@ const ItemsPage = () => {
         {/* Stats row */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, position: 'relative' }}>
           {[
-            { label: t('items.totalItems'), value: items.length, icon: Package, color: '#c7d2fe' },
-            { label: t('items.stockValue'), value: `₹${totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#c7d2fe' },
+            { label: t('items.totalItems'), value: items.length, icon: Package, color: '#cbd5e1' },
+            { label: t('items.stockValue'), value: `₹${totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#cbd5e1' },
             { label: t('items.lowNoStock'), value: lowStockItems, icon: AlertTriangle, color: lowStockItems > 0 ? '#fca5a5' : '#86efac' },
           ].map(({ label, value, icon: Icon, color }) => (
             <Box key={label} sx={{
@@ -1074,9 +1074,9 @@ const ItemsPage = () => {
 
       {/* ── Barcode print selection bar ── */}
       {barcodePrintMode && (
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5, p: 1.25, bgcolor: alpha('#6366f1', 0.07), border: '1.5px solid', borderColor: alpha('#6366f1', 0.3), borderRadius: 2 }}>
-          <Printer size={16} color="#6366f1" />
-          <Typography variant="body2" sx={{ fontWeight: 700, color: '#6366f1', flex: 1 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5, p: 1.25, bgcolor: alpha('#334155', 0.07), border: '1.5px solid', borderColor: alpha('#334155', 0.3), borderRadius: 2 }}>
+          <Printer size={16} color="#334155" />
+          <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155', flex: 1 }}>
             {checkedIds.size === 0 ? 'Click items to select for printing' : `${checkedIds.size} item${checkedIds.size > 1 ? 's' : ''} selected`}
           </Typography>
           {checkedIds.size > 0 && (
@@ -1087,12 +1087,12 @@ const ItemsPage = () => {
               </Button>
               <Button size="small" variant="text"
                 onClick={() => setCheckedIds(new Set(filteredItems.map(i => i.id)))}
-                sx={{ fontWeight: 600, textTransform: 'none', color: '#6366f1', flexShrink: 0 }}>
+                sx={{ fontWeight: 600, textTransform: 'none', color: '#334155', flexShrink: 0 }}>
                 Select All ({filteredItems.length})
               </Button>
               <Button size="small" variant="contained" startIcon={<Printer size={14} />}
                 onClick={() => setBulkBarcodeOpen(true)}
-                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 1.5, flexShrink: 0, bgcolor: '#6366f1', '&:hover': { bgcolor: '#4338ca' } }}>
+                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 1.5, flexShrink: 0, bgcolor: '#334155', '&:hover': { bgcolor: '#334155' } }}>
                 Print Labels ({checkedIds.size})
               </Button>
             </>
@@ -1100,7 +1100,7 @@ const ItemsPage = () => {
           {checkedIds.size === 0 && (
             <Button size="small" variant="text"
               onClick={() => setCheckedIds(new Set(filteredItems.map(i => i.id)))}
-              sx={{ fontWeight: 600, textTransform: 'none', color: '#6366f1', flexShrink: 0 }}>
+              sx={{ fontWeight: 600, textTransform: 'none', color: '#334155', flexShrink: 0 }}>
               Select All ({filteredItems.length})
             </Button>
           )}
@@ -1254,10 +1254,10 @@ const ItemsPage = () => {
               return (
                 <Card key={item.id} elevation={0} onClick={handleCardClick} sx={{
                   border: '1.5px solid',
-                  borderColor: barcodePrintMode ? (isChecked ? '#6366f1' : 'divider') : (isSelected ? primary : 'divider'),
+                  borderColor: barcodePrintMode ? (isChecked ? '#334155' : 'divider') : (isSelected ? primary : 'divider'),
                   borderRadius: 2.5, overflow: 'hidden', position: 'relative', cursor: 'pointer',
                   transition: 'box-shadow 0.2s ease, transform 0.2s ease, border-color 0.15s',
-                  bgcolor: barcodePrintMode ? (isChecked ? alpha('#6366f1', 0.05) : 'background.paper') : (isSelected ? alpha(primary, 0.03) : 'background.paper'),
+                  bgcolor: barcodePrintMode ? (isChecked ? alpha('#334155', 0.05) : 'background.paper') : (isSelected ? alpha(primary, 0.03) : 'background.paper'),
                   '&:hover': { boxShadow: '0 6px 24px rgba(0,0,0,0.09)', transform: 'translateY(-2px)' },
                 }}>
                   {/* Checkbox overlay in print-select mode */}
@@ -1267,7 +1267,7 @@ const ItemsPage = () => {
                         checked={isChecked}
                         onChange={handleCardClick}
                         size="small"
-                        sx={{ p: 0.25, color: '#6366f1', '&.Mui-checked': { color: '#6366f1' } }}
+                        sx={{ p: 0.25, color: '#334155', '&.Mui-checked': { color: '#334155' } }}
                       />
                     </Box>
                   )}
@@ -1379,7 +1379,7 @@ const ItemsPage = () => {
                           {margin !== null && margin > 0 && (
                             <Chip label={`${margin}% margin`} size="small" sx={{
                               height: 20, fontSize: '0.65rem', fontWeight: 700,
-                              bgcolor: alpha('#6366f1', 0.08), color: '#4f46e5', border: 'none',
+                              bgcolor: alpha('#334155', 0.08), color: '#334155', border: 'none',
                             }} />
                           )}
                         </Box>
@@ -1413,8 +1413,8 @@ const ItemsPage = () => {
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                         {item.showInSalesAndPOS === false
                           ? <EyeOff size={12} color="#94a3b8" />
-                          : <Eye size={12} color="#6366f1" />}
-                        <Typography sx={{ fontSize: '0.67rem', color: item.showInSalesAndPOS === false ? 'text.disabled' : '#6366f1', fontWeight: 600 }}>
+                          : <Eye size={12} color="#334155" />}
+                        <Typography sx={{ fontSize: '0.67rem', color: item.showInSalesAndPOS === false ? 'text.disabled' : '#334155', fontWeight: 600 }}>
                           {item.showInSalesAndPOS === false ? 'Hidden in Sales/POS' : 'Visible in Sales/POS'}
                         </Typography>
                       </Box>
@@ -1423,16 +1423,16 @@ const ItemsPage = () => {
                           onClick={() => updateItem('items', item.id, { showInSalesAndPOS: item.showInSalesAndPOS === false ? true : false })}
                           sx={{
                             width: 32, height: 18, borderRadius: '9px', cursor: 'pointer', flexShrink: 0,
-                            bgcolor: item.showInSalesAndPOS === false ? alpha('#94a3b8', 0.25) : alpha('#6366f1', 0.15),
+                            bgcolor: item.showInSalesAndPOS === false ? alpha('#94a3b8', 0.25) : alpha('#334155', 0.15),
                             border: '1.5px solid',
-                            borderColor: item.showInSalesAndPOS === false ? '#cbd5e1' : '#6366f1',
+                            borderColor: item.showInSalesAndPOS === false ? '#cbd5e1' : '#334155',
                             display: 'flex', alignItems: 'center',
                             justifyContent: item.showInSalesAndPOS === false ? 'flex-start' : 'flex-end',
                             px: '2px', transition: 'all 0.15s',
                           }}>
                           <Box sx={{
                             width: 12, height: 12, borderRadius: '50%',
-                            bgcolor: item.showInSalesAndPOS === false ? '#94a3b8' : '#6366f1',
+                            bgcolor: item.showInSalesAndPOS === false ? '#94a3b8' : '#334155',
                             transition: 'all 0.15s',
                           }} />
                         </Box>
@@ -1478,8 +1478,8 @@ const ItemsPage = () => {
       {/* ── Item Detail Panel ── */}
       {!selectedItem && (
         <Box sx={{ width: 300, flexShrink: 0, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, border: '1px dashed', borderColor: 'divider', borderRadius: 2, position: 'sticky', top: 16, height: 260, bgcolor: 'background.paper' }}>
-          <Box sx={{ width: 56, height: 56, borderRadius: '50%', bgcolor: 'rgba(99,102,241,0.07)', border: '2px dashed rgba(99,102,241,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <MousePointerClick size={24} color="rgba(99,102,241,0.4)" />
+          <Box sx={{ width: 56, height: 56, borderRadius: '50%', bgcolor: 'rgba(51,65,85,0.07)', border: '2px dashed rgba(51,65,85,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <MousePointerClick size={24} color="rgba(51,65,85,0.4)" />
           </Box>
           <Box sx={{ textAlign: 'center', px: 2 }}>
             <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: 'text.secondary', mb: 0.4 }}>Select an item to preview</Typography>
@@ -1495,7 +1495,7 @@ const ItemsPage = () => {
         return (
           <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, width: 300, flexShrink: 0, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', position: 'sticky', top: 16, maxHeight: 'calc(100vh - 120px)', overflow: 'hidden' }}>
             {/* Header */}
-            <Box sx={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)', p: 2.5, position: 'relative', overflow: 'hidden' }}>
+            <Box sx={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)', p: 2.5, position: 'relative', overflow: 'hidden' }}>
               <Box sx={{ position: 'absolute', top: -30, right: -30, width: 100, height: 100, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.06)', pointerEvents: 'none' }} />
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
                 <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', fontWeight: 800, fontSize: '1.1rem' }}>
@@ -1564,7 +1564,7 @@ const ItemsPage = () => {
                 {margin !== null && margin > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="caption" color="text.secondary">Margin</Typography>
-                    <Chip label={`${margin}%`} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: alpha('#6366f1', 0.1), color: '#4f46e5' }} />
+                    <Chip label={`${margin}%`} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: alpha('#334155', 0.1), color: '#334155' }} />
                   </Box>
                 )}
                 {(it.taxRate || 0) > 0 && (
@@ -1648,7 +1648,7 @@ const ItemsPage = () => {
         return (
           <Dialog open={!!selectedItem} onClose={() => setSelectedItem(null)} maxWidth="xs" fullWidth
             PaperProps={{ sx: { borderRadius: '16px 16px 0 0', m: 0, mt: 'auto', maxHeight: '85vh', position: 'fixed', bottom: 0, left: 0, right: 0, width: '100%' } }}>
-            <Box sx={{ background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)', p: 2.5, position: 'relative', overflow: 'hidden' }}>
+            <Box sx={{ background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)', p: 2.5, position: 'relative', overflow: 'hidden' }}>
               <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 1.5 }}>
                 <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', fontWeight: 800, fontSize: '1.1rem' }}>
                   {it.name.charAt(0).toUpperCase()}
@@ -1696,7 +1696,7 @@ const ItemsPage = () => {
                 {margin !== null && margin > 0 && (
                   <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
                     <Typography variant="caption" color="text.secondary">Margin</Typography>
-                    <Chip label={`${margin}%`} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: alpha('#6366f1', 0.1), color: '#4f46e5' }} />
+                    <Chip label={`${margin}%`} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 700, bgcolor: alpha('#334155', 0.1), color: '#334155' }} />
                   </Box>
                 )}
                 {(it.taxRate || 0) > 0 && (

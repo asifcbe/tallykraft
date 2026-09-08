@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
-const P    = '#667eea';
-const P2   = '#764ba2';
+const P    = '#334155';
+const P2   = '#1e293b';
 const GRAD = `linear-gradient(135deg,${P},${P2})`;
 const WA   = '#25D366';
 const GRN  = '#16a34a';
@@ -129,7 +129,7 @@ function GSTDemo({ isDark, C }) {
   const fBdr = 'rgba(255,255,255,.12)';
 
   return (
-    <DemoCard isDark={isDark} C={C} accent='#a5b4fc'
+    <DemoCard isDark={isDark} C={C} accent='#94a3b8'
       label="GST Auto-Calculation"
       title="Tax Calculated Automatically"
       desc="Select an item, enter quantity — CGST, SGST, and grand total update instantly. No manual tax math, ever."
@@ -137,7 +137,7 @@ function GSTDemo({ isDark, C }) {
         <div style={{ width: '100%', maxWidth: 260 }}>
           <div style={{ background: '#1e2130', borderRadius: 10, overflow: 'hidden',
             border: '1px solid rgba(255,255,255,.1)' }}>
-            <div style={{ background: 'rgba(102,126,234,.2)', padding: '7px 12px',
+            <div style={{ background: 'rgba(51,65,85,.2)', padding: '7px 12px',
               fontSize: '.68rem', fontWeight: 700, color: P, letterSpacing: '.05em' }}>NEW INVOICE</div>
 
             <div style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
@@ -180,7 +180,7 @@ function GSTDemo({ isDark, C }) {
                 padding: '5px 0', borderTop: '1px solid rgba(255,255,255,.12)',
                 fontWeight: 800, fontSize: '.78rem' }}>
                 <span style={{ color: 'rgba(255,255,255,.9)' }}>Grand Total</span>
-                <span style={{ color: '#a5b4fc' }}>₹2,832</span>
+                <span style={{ color: '#94a3b8' }}>₹2,832</span>
               </div>
             </div>
           </div>
@@ -259,7 +259,7 @@ function StockDemo({ isDark, C }) {
   const phase = useLoop([2200, 1200, 2100]); // 0=normal 1=billing 2=updated
 
   return (
-    <DemoCard isDark={isDark} C={C} accent='#a5b4fc'
+    <DemoCard isDark={isDark} C={C} accent='#94a3b8'
       label="Real-Time Inventory"
       title="Stock Updates on Every Sale"
       desc="When you create an invoice, stock levels drop automatically. Always know your exact inventory without manual counting."
@@ -269,7 +269,7 @@ function StockDemo({ isDark, C }) {
             borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ background: 'rgba(52,211,153,.12)', padding: '7px 12px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#a5b4fc', letterSpacing: '.05em' }}>INVENTORY</span>
+              <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#94a3b8', letterSpacing: '.05em' }}>INVENTORY</span>
               <span style={{ fontSize: '.62rem', color: 'rgba(52,211,153,.6)', fontWeight: 600 }}>
                 {phase === 1 ? '⟳ Updating…' : 'Live'}
               </span>
@@ -288,10 +288,10 @@ function StockDemo({ isDark, C }) {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '.86rem', fontWeight: 800,
-                      color: updated ? '#a5b4fc' : 'rgba(255,255,255,.65)',
+                      color: updated ? '#94a3b8' : 'rgba(255,255,255,.65)',
                       transition: 'color .4s',
                       animation: updated ? 'fd-stockFlash .5s ease' : 'none' }}>{qty}</div>
-                    {updated && <div style={{ fontSize: '.58rem', color: '#a5b4fc', fontWeight: 700 }}>▼ auto-updated</div>}
+                    {updated && <div style={{ fontSize: '.58rem', color: '#94a3b8', fontWeight: 700 }}>▼ auto-updated</div>}
                   </div>
                 </div>
               );
@@ -419,7 +419,7 @@ function OfflineDemo({ isDark, C }) {
             borderRadius: 10, overflow: 'hidden', transition: 'border-color .5s' }}>
             <div style={{ padding: '7px 12px', fontSize: '.68rem', fontWeight: 700,
               letterSpacing: '.05em', display: 'flex', justifyContent: 'space-between',
-              background: !online ? `${GRN}18` : 'rgba(102,126,234,.12)',
+              background: !online ? `${GRN}18` : 'rgba(51,65,85,.12)',
               color: !online ? GRN : P, transition: 'all .5s' }}>
               <span>NEW INVOICE</span>
               {!online && <span style={{ fontSize: '.6rem', opacity: .8 }}>Saved locally ✓</span>}

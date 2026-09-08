@@ -359,8 +359,8 @@ const KpiCard = ({ icon: Icon, label, value, subValue, color, trend }) => {
             <Chip size="small"
               label={trend >= 0 ? `+${fmtRaw(trend)}%` : `${fmtRaw(trend)}%`}
               sx={{ fontSize: '0.62rem', fontWeight: 700, height: 18,
-                bgcolor: trend >= 0 ? alpha('#6366f1', 0.1) : alpha('#dc2626', 0.1),
-                color: trend >= 0 ? '#6366f1' : '#dc2626' }} />
+                bgcolor: trend >= 0 ? alpha('#334155', 0.1) : alpha('#dc2626', 0.1),
+                color: trend >= 0 ? '#334155' : '#dc2626' }} />
           )}
         </Box>
         <Typography variant="caption" sx={{ fontWeight: 600, color: 'text.secondary', display: 'block', mb: 0.2, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</Typography>
@@ -375,7 +375,7 @@ const KpiCard = ({ icon: Icon, label, value, subValue, color, trend }) => {
 const REPORT_GROUPS = [
   {
     label: 'Sales & Purchase',
-    color: '#6366f1',
+    color: '#334155',
     items: [
       { value: 'sales', label: 'Sales', icon: TrendingUp },
       { value: 'purchases', label: 'Purchases', icon: ShoppingCart },
@@ -1060,7 +1060,7 @@ const ReportsPage = () => {
         { key: 'amount', header: 'Amount', align: 'right', isTotal: true },
       ];
       const allNotes = [
-        ...creditNotes.filter(c => inRange(c.date)).map(c => ({ ...c, noteType: 'Credit Note', _noteTypeColor: '#6366f1' })),
+        ...creditNotes.filter(c => inRange(c.date)).map(c => ({ ...c, noteType: 'Credit Note', _noteTypeColor: '#334155' })),
         ...debitNotes.filter(d => inRange(d.date)).map(d => ({ ...d, noteType: 'Debit Note', _noteTypeColor: '#dc2626' })),
       ].sort((a, b) => b.date.localeCompare(a.date));
       rc.rows = allNotes.map(n => ({
@@ -1125,11 +1125,11 @@ const ReportsPage = () => {
       rc.rows = [
         { account: 'Revenue (Sales)', amount: fmt(revenue), _bold: true },
         { account: `(−) Cost of Purchases`, amount: fmt(cogs) },
-        { account: 'Gross Profit', amount: fmt(grossProfit), _bold: true, _color: grossProfit >= 0 ? '#6366f1' : '#dc2626' },
+        { account: 'Gross Profit', amount: fmt(grossProfit), _bold: true, _color: grossProfit >= 0 ? '#334155' : '#dc2626' },
         { account: 'Operating Expenses', amount: '', _section: true },
         ...Object.entries(expByCat).map(([cat, amt]) => ({ account: `   ${cat}`, amount: fmt(amt) })),
         { account: `Total Expenses`, amount: fmt(totalExpenses) },
-        { account: netProfit >= 0 ? 'Net Profit' : 'Net Loss', amount: fmt(Math.abs(netProfit)), _bold: true, _color: netProfit >= 0 ? '#6366f1' : '#dc2626' },
+        { account: netProfit >= 0 ? 'Net Profit' : 'Net Loss', amount: fmt(Math.abs(netProfit)), _bold: true, _color: netProfit >= 0 ? '#334155' : '#dc2626' },
       ];
       rc.totals = {};
 
@@ -1155,7 +1155,7 @@ const ReportsPage = () => {
         { account: 'Revenue (Sales)', percent: '', amount: fmt(ipRevenue), _bold: true, _section: true },
         { account: '(−) Cost of Purchases', percent: '', amount: fmt(ipCogs), _section: true },
         { account: '(−) Total Expenses', percent: '', amount: fmt(ipExpenses), _section: true },
-        { account: ipIsLoss ? 'Net Loss' : 'Net Profit', percent: '', amount: fmt(Math.abs(ipNetProfit)), _bold: true, _color: ipIsLoss ? '#dc2626' : '#6366f1', _section: true },
+        { account: ipIsLoss ? 'Net Loss' : 'Net Profit', percent: '', amount: fmt(Math.abs(ipNetProfit)), _bold: true, _color: ipIsLoss ? '#dc2626' : '#334155', _section: true },
         ...investors.map(inv => {
           const pct = Number(inv.ownershipPercent) || 0;
           const share = ipNetProfit * pct / 100;
@@ -1860,7 +1860,7 @@ const ReportsPage = () => {
         const count = filteredData.length;
         const avg = count ? (totals.totalAmount || 0) / count : 0;
         return [
-          { icon: isSale ? TrendingUp : ShoppingCart, label: isSale ? 'Total Sales' : 'Total Purchases', value: fmt(totals.totalAmount), subValue: `${count} invoice${count !== 1 ? 's' : ''}`, color: isSale ? '#6366f1' : '#7c3aed' },
+          { icon: isSale ? TrendingUp : ShoppingCart, label: isSale ? 'Total Sales' : 'Total Purchases', value: fmt(totals.totalAmount), subValue: `${count} invoice${count !== 1 ? 's' : ''}`, color: isSale ? '#334155' : '#7c3aed' },
           { icon: IndianRupee, label: 'Tax Amount', value: fmt(totals.taxAmount), color: '#ea580c' },
           { icon: BarChart2, label: 'Avg Invoice Value', value: fmt(avg), color: '#2563eb' },
         ];
@@ -1871,7 +1871,7 @@ const ReportsPage = () => {
         // Rows are already sorted by value descending (see reportConfig builder above)
         const topItem = rows[0];
         return [
-          { icon: Package, label: 'Total Value', value: fmt(totals.totalAmount), subValue: `${rows.length} item${rows.length !== 1 ? 's' : ''}`, color: '#6366f1' },
+          { icon: Package, label: 'Total Value', value: fmt(totals.totalAmount), subValue: `${rows.length} item${rows.length !== 1 ? 's' : ''}`, color: '#334155' },
           { icon: BarChart2, label: 'Units Moved', value: totalQty.toLocaleString('en-IN'), color: '#7c3aed' },
           { icon: Tag, label: 'Top Item', value: topItem?.itemName || '—', color: '#ea580c' },
         ];
@@ -1880,9 +1880,9 @@ const ReportsPage = () => {
         const lowStockCount = stockSummaryData?.lowStockCount || 0;
         return [
           { icon: TrendingUp, label: 'Total Sold', value: totals.soldQty || 0, subValue: fmt(totals.soldAmount), color: '#7c3aed' },
-          { icon: Package, label: 'In Stock', value: totals.stock || 0, subValue: stockView === 'category' ? `${rows.length} categories` : `${rows.length} products`, color: '#6366f1' },
-          { icon: IndianRupee, label: 'Stock Value', value: fmt(totals.stockValue), color: '#6366f1' },
-          { icon: AlertCircle, label: 'Low Stock Items', value: lowStockCount, color: lowStockCount > 0 ? '#dc2626' : '#6366f1' },
+          { icon: Package, label: 'In Stock', value: totals.stock || 0, subValue: stockView === 'category' ? `${rows.length} categories` : `${rows.length} products`, color: '#334155' },
+          { icon: IndianRupee, label: 'Stock Value', value: fmt(totals.stockValue), color: '#334155' },
+          { icon: AlertCircle, label: 'Low Stock Items', value: lowStockCount, color: lowStockCount > 0 ? '#dc2626' : '#334155' },
         ];
       }
       case 'party-statement': {
@@ -1891,36 +1891,36 @@ const ReportsPage = () => {
         const closing = rows.length ? rows[rows.length - 1].balance : fmt(Math.abs(Number(party?.openingBalance || 0))) + (Number(party?.openingBalance || 0) >= 0 ? ' Cr' : ' Dr');
         return [
           { icon: ArrowUpRight, label: 'Total Debit', value: fmt(totals.debit), color: '#dc2626' },
-          { icon: ArrowDownRight, label: 'Total Credit', value: fmt(totals.credit), color: '#6366f1' },
-          { icon: Wallet, label: 'Closing Balance', value: closing, color: '#6366f1' },
+          { icon: ArrowDownRight, label: 'Total Credit', value: fmt(totals.credit), color: '#334155' },
+          { icon: Wallet, label: 'Closing Balance', value: closing, color: '#334155' },
         ];
       }
       case 'credit-debit-notes': {
         const creditCount = rows.filter(r => r.noteType === 'Credit Note').length;
         const debitCount = rows.filter(r => r.noteType === 'Debit Note').length;
         return [
-          { icon: FileText, label: 'Total Value', value: fmt(totals.amount), subValue: `${rows.length} note${rows.length !== 1 ? 's' : ''}`, color: '#6366f1' },
-          { icon: TrendingDown, label: 'Credit Notes', value: creditCount, color: '#6366f1' },
+          { icon: FileText, label: 'Total Value', value: fmt(totals.amount), subValue: `${rows.length} note${rows.length !== 1 ? 's' : ''}`, color: '#334155' },
+          { icon: TrendingDown, label: 'Credit Notes', value: creditCount, color: '#334155' },
           { icon: TrendingUp, label: 'Debit Notes', value: debitCount, color: '#dc2626' },
         ];
       }
       case 'gst': {
         return [
-          { icon: IndianRupee, label: 'Taxable Value', value: fmt(totals.taxableValue), color: '#6366f1' },
+          { icon: IndianRupee, label: 'Taxable Value', value: fmt(totals.taxableValue), color: '#334155' },
           { icon: FileText, label: 'Total GST', value: fmt(totals.taxAmount), color: '#ea580c' },
           { icon: BarChart2, label: 'CGST + SGST', value: fmt((totals.cgst || 0) + (totals.sgst || 0)), color: '#7c3aed' },
         ];
       }
       case 'profit-loss': {
         return [
-          { icon: TrendingUp, label: 'Revenue', value: fmt(kpis.totalSales), color: '#6366f1' },
+          { icon: TrendingUp, label: 'Revenue', value: fmt(kpis.totalSales), color: '#334155' },
           { icon: ShoppingCart, label: 'Cost of Purchases', value: fmt(kpis.totalPurchases), color: '#7c3aed' },
-          { icon: kpis.grossProfit >= 0 ? TrendingUp : TrendingDown, label: kpis.grossProfit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(kpis.grossProfit)), color: kpis.grossProfit >= 0 ? '#6366f1' : '#dc2626' },
+          { icon: kpis.grossProfit >= 0 ? TrendingUp : TrendingDown, label: kpis.grossProfit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(kpis.grossProfit)), color: kpis.grossProfit >= 0 ? '#334155' : '#dc2626' },
         ];
       }
       case 'investor-pl': {
         return [
-          { icon: kpis.grossProfit >= 0 ? TrendingUp : TrendingDown, label: kpis.grossProfit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(kpis.grossProfit)), color: kpis.grossProfit >= 0 ? '#6366f1' : '#dc2626' },
+          { icon: kpis.grossProfit >= 0 ? TrendingUp : TrendingDown, label: kpis.grossProfit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(kpis.grossProfit)), color: kpis.grossProfit >= 0 ? '#334155' : '#dc2626' },
           { icon: UserCheck, label: 'Active Investors', value: investors.length, color: '#7c3aed' },
         ];
       }
@@ -1928,17 +1928,17 @@ const ReportsPage = () => {
         const profit = totals.profit || 0;
         const margin = totals.revenue ? (profit / totals.revenue) * 100 : 0;
         return [
-          { icon: TrendingUp, label: 'Total Revenue', value: fmt(totals.revenue), subValue: `${rows.length} invoice${rows.length !== 1 ? 's' : ''}`, color: '#6366f1' },
+          { icon: TrendingUp, label: 'Total Revenue', value: fmt(totals.revenue), subValue: `${rows.length} invoice${rows.length !== 1 ? 's' : ''}`, color: '#334155' },
           { icon: ShoppingCart, label: 'Total Cost (COGS)', value: fmt(totals.cost), color: '#7c3aed' },
-          { icon: profit >= 0 ? TrendingUp : TrendingDown, label: profit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(profit)), subValue: `${margin.toFixed(1)}% margin`, color: profit >= 0 ? '#6366f1' : '#dc2626' },
+          { icon: profit >= 0 ? TrendingUp : TrendingDown, label: profit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(profit)), subValue: `${margin.toFixed(1)}% margin`, color: profit >= 0 ? '#334155' : '#dc2626' },
         ];
       }
       case 'party-profit': {
         const profit = totals.profit || 0;
         const top = rows[0];
         return [
-          { icon: Users, label: 'Total Revenue', value: fmt(totals.revenue), subValue: `${rows.length} customer${rows.length !== 1 ? 's' : ''}`, color: '#6366f1' },
-          { icon: profit >= 0 ? TrendingUp : TrendingDown, label: profit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(profit)), color: profit >= 0 ? '#6366f1' : '#dc2626' },
+          { icon: Users, label: 'Total Revenue', value: fmt(totals.revenue), subValue: `${rows.length} customer${rows.length !== 1 ? 's' : ''}`, color: '#334155' },
+          { icon: profit >= 0 ? TrendingUp : TrendingDown, label: profit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(profit)), color: profit >= 0 ? '#334155' : '#dc2626' },
           { icon: UserCheck, label: 'Most Profitable', value: top?.partyName || '—', color: '#ea580c' },
         ];
       }
@@ -1946,17 +1946,17 @@ const ReportsPage = () => {
         const profit = totals.profit || 0;
         const top = rows[0];
         return [
-          { icon: Package, label: 'Total Revenue', value: fmt(totals.revenue), subValue: `${rows.length} item${rows.length !== 1 ? 's' : ''}`, color: '#6366f1' },
-          { icon: profit >= 0 ? TrendingUp : TrendingDown, label: profit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(profit)), color: profit >= 0 ? '#6366f1' : '#dc2626' },
+          { icon: Package, label: 'Total Revenue', value: fmt(totals.revenue), subValue: `${rows.length} item${rows.length !== 1 ? 's' : ''}`, color: '#334155' },
+          { icon: profit >= 0 ? TrendingUp : TrendingDown, label: profit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(profit)), color: profit >= 0 ? '#334155' : '#dc2626' },
           { icon: Tag, label: 'Most Profitable', value: top?.itemName || '—', color: '#ea580c' },
         ];
       }
       case 'cash-flow': {
         const net = (totals.inflow || 0) - (totals.outflow || 0);
         return [
-          { icon: ArrowDownRight, label: 'Total Inflow', value: fmt(totals.inflow), color: '#6366f1' },
+          { icon: ArrowDownRight, label: 'Total Inflow', value: fmt(totals.inflow), color: '#334155' },
           { icon: ArrowUpRight, label: 'Total Outflow', value: fmt(totals.outflow), color: '#dc2626' },
-          { icon: Wallet, label: 'Net Cash Flow', value: fmt(Math.abs(net)), subValue: net >= 0 ? 'Positive' : 'Negative', color: net >= 0 ? '#6366f1' : '#dc2626' },
+          { icon: Wallet, label: 'Net Cash Flow', value: fmt(Math.abs(net)), subValue: net >= 0 ? 'Positive' : 'Negative', color: net >= 0 ? '#334155' : '#dc2626' },
         ];
       }
       case 'expenses': {
@@ -1976,7 +1976,7 @@ const ReportsPage = () => {
       }
       case 'payment-mode': {
         return [
-          { icon: TrendingUp, label: 'Sales Received', value: fmt(totals.salesAmount), subValue: `${totals.salesCount || 0} txns`, color: '#6366f1' },
+          { icon: TrendingUp, label: 'Sales Received', value: fmt(totals.salesAmount), subValue: `${totals.salesCount || 0} txns`, color: '#334155' },
           { icon: CreditCard, label: 'Expenses Paid', value: fmt(totals.expenseAmount), subValue: `${totals.expenseCount || 0} txns`, color: '#dc2626' },
         ];
       }
@@ -1984,30 +1984,30 @@ const ReportsPage = () => {
         const inCount = payments.filter(p => inRange(p.date) && (!filters.partyId || p.partyId === filters.partyId) && (p.type === 'PaymentIn' || p.mode === 'payment-in')).length;
         const outCount = payments.filter(p => inRange(p.date) && (!filters.partyId || p.partyId === filters.partyId) && !(p.type === 'PaymentIn' || p.mode === 'payment-in')).length;
         return [
-          { icon: ArrowDownRight, label: 'Total Payments', value: fmt(totals.totalAmount), subValue: `${rows.length} record${rows.length !== 1 ? 's' : ''}`, color: '#6366f1' },
-          { icon: TrendingUp, label: 'Payment In', value: inCount, color: '#6366f1' },
+          { icon: ArrowDownRight, label: 'Total Payments', value: fmt(totals.totalAmount), subValue: `${rows.length} record${rows.length !== 1 ? 's' : ''}`, color: '#334155' },
+          { icon: TrendingUp, label: 'Payment In', value: inCount, color: '#334155' },
           { icon: TrendingDown, label: 'Payment Out', value: outCount, color: '#dc2626' },
         ];
       }
       case 'day-book': {
         const net = (totals.moneyIn || 0) - (totals.moneyOut || 0);
         return [
-          { icon: ArrowDownRight, label: 'Total Money-In', value: fmt(totals.moneyIn), color: '#6366f1' },
+          { icon: ArrowDownRight, label: 'Total Money-In', value: fmt(totals.moneyIn), color: '#334155' },
           { icon: ArrowUpRight, label: 'Total Money-Out', value: fmt(totals.moneyOut), color: '#dc2626' },
-          { icon: BarChart2, label: 'Money In − Money Out', value: `${net < 0 ? '-' : ''}${fmt(Math.abs(net))}`, color: net < 0 ? '#dc2626' : '#6366f1' },
+          { icon: BarChart2, label: 'Money In − Money Out', value: `${net < 0 ? '-' : ''}${fmt(Math.abs(net))}`, color: net < 0 ? '#dc2626' : '#334155' },
         ];
       }
       case 'top-customers': {
         const top = rows[0];
         return [
-          { icon: Users, label: 'Total Revenue', value: fmt(totals.totalAmount), subValue: `${rows.length} customers`, color: '#6366f1' },
+          { icon: Users, label: 'Total Revenue', value: fmt(totals.totalAmount), subValue: `${rows.length} customers`, color: '#334155' },
           { icon: TrendingUp, label: 'Top Customer', value: top?.partyName || '—', subValue: top?.totalAmount, color: '#ea580c' },
         ];
       }
       case 'top-items': {
         const top = rows[0];
         return [
-          { icon: Tag, label: 'Total Revenue', value: fmt(totals.totalAmount), subValue: `${rows.length} items`, color: '#6366f1' },
+          { icon: Tag, label: 'Total Revenue', value: fmt(totals.totalAmount), subValue: `${rows.length} items`, color: '#334155' },
           { icon: Package, label: 'Units Sold', value: (totals.qty || 0).toLocaleString('en-IN'), color: '#7c3aed' },
           { icon: TrendingUp, label: 'Most Bought', value: top?.itemName || '—', subValue: top ? `${top.orders} time${top.orders !== 1 ? 's' : ''}` : undefined, color: '#ea580c' },
         ];
@@ -2016,9 +2016,9 @@ const ReportsPage = () => {
         const paidCount = rows.filter(r => r.status === 'Paid').length;
         const pendingCount = rows.length - paidCount;
         return [
-          { icon: UserCheck, label: 'Total Payroll', value: fmt(totals.netSalary), subValue: `${rows.length} record${rows.length !== 1 ? 's' : ''}`, color: '#6366f1' },
-          { icon: TrendingUp, label: 'Paid', value: paidCount, color: '#6366f1' },
-          { icon: AlertCircle, label: 'Pending', value: pendingCount, color: pendingCount > 0 ? '#dc2626' : '#6366f1' },
+          { icon: UserCheck, label: 'Total Payroll', value: fmt(totals.netSalary), subValue: `${rows.length} record${rows.length !== 1 ? 's' : ''}`, color: '#334155' },
+          { icon: TrendingUp, label: 'Paid', value: paidCount, color: '#334155' },
+          { icon: AlertCircle, label: 'Pending', value: pendingCount, color: pendingCount > 0 ? '#dc2626' : '#334155' },
         ];
       }
       case 'aged-receivables':
@@ -2225,7 +2225,7 @@ const ReportsPage = () => {
         { label: 'Purchase Value', value: fmt(purchaseValue) },
         { label: 'Current Stock', value: stock.toLocaleString('en-IN') + (master?.unit ? ` ${master.unit}` : '') },
         { label: 'Stock Value', value: fmt(stock * purchPrice) },
-        { label: 'Profit (COGS basis)', value: fmt(profit), color: profit >= 0 ? '#6366f1' : '#dc2626' },
+        { label: 'Profit (COGS basis)', value: fmt(profit), color: profit >= 0 ? '#334155' : '#dc2626' },
         { label: 'Margin', value: saleRevenue ? `${((profit / saleRevenue) * 100).toFixed(1)}%` : '—' },
       ],
       recentSales: recentSales.slice(0, 8),
@@ -2264,7 +2264,7 @@ const ReportsPage = () => {
       stats: [
         { label: 'Total Sales', value: fmt(totalRevenue), sub: `${pSales.length} invoice${pSales.length !== 1 ? 's' : ''}` },
         { label: 'Total Purchases', value: fmt(totalPurchaseValue), sub: `${pPurchases.length} bill${pPurchases.length !== 1 ? 's' : ''}` },
-        { label: 'Profit (from sales)', value: fmt(profit), color: profit >= 0 ? '#6366f1' : '#dc2626' },
+        { label: 'Profit (from sales)', value: fmt(profit), color: profit >= 0 ? '#334155' : '#dc2626' },
         { label: 'Current Balance', value: `₹${Math.abs(balance).toLocaleString('en-IN')}`, sub: balance === 0 ? 'Settled' : (balance > 0 ? 'To Collect' : 'To Pay'), color: balance > 0 ? '#dc2626' : (balance < 0 ? '#b45309' : undefined) },
       ],
       recentSales: pSales.slice(0, 8).map(tx => ({ id: tx.id, date: tx.date, invoiceNumber: tx.invoiceNumber, amount: Number(tx.totalAmount || 0) })),
@@ -2403,7 +2403,7 @@ const ReportsPage = () => {
   };
 
   const activeGroup = REPORT_GROUPS.find(g => g.items.some(i => i.value === reportType));
-  const activeColor = activeGroup?.color || '#6366f1';
+  const activeColor = activeGroup?.color || '#334155';
   // Any report whose rows can trace back to a single sale/purchase invoice
   // gets a "Bill" action column — sales/purchases show it always (every
   // row is one), the rest only for rows that actually resolve (e.g. Day
@@ -2470,7 +2470,7 @@ const ReportsPage = () => {
           other page. ── */}
       <Box sx={{
         borderRadius: 2.5,
-        background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
         px: { xs: 1.75, md: 2.25 }, py: { xs: 1.1, md: 1.35 }, mb: 1.75,
         display: 'flex', alignItems: 'center', gap: 1.25,
       }}>
@@ -2746,7 +2746,7 @@ const ReportsPage = () => {
                               </IconButton>
                             </Tooltip>
                             <Tooltip title="Export Excel">
-                              <IconButton size="small" onClick={() => handleGSTExport(reportType, 'xlsx')} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, color: '#6366f1' }}>
+                              <IconButton size="small" onClick={() => handleGSTExport(reportType, 'xlsx')} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, color: '#334155' }}>
                                 <FileDown size={15} />
                               </IconButton>
                             </Tooltip>
@@ -2987,7 +2987,7 @@ const ReportsPage = () => {
                   <Button size="small" variant="outlined" startIcon={<Printer size={13} />} onClick={handlePrint}
                     sx={{ textTransform: 'none', borderRadius: 1.5, fontSize: '0.76rem' }}>Print</Button>
                   <Button size="small" variant="outlined" startIcon={<FileDown size={13} />} onClick={handleExcelExport}
-                    sx={{ textTransform: 'none', borderRadius: 1.5, fontSize: '0.76rem', color: '#6366f1', borderColor: '#6366f1' }}>Excel</Button>
+                    sx={{ textTransform: 'none', borderRadius: 1.5, fontSize: '0.76rem', color: '#334155', borderColor: '#334155' }}>Excel</Button>
                   <Button size="small" variant="outlined" startIcon={<Share2 size={13} />} onClick={handleShare}
                     sx={{ textTransform: 'none', borderRadius: 1.5, fontSize: '0.76rem', color: '#25D366', borderColor: '#25D366' }}>Share</Button>
                 </Stack>
@@ -3005,7 +3005,7 @@ const ReportsPage = () => {
                     </IconButton>
                   </Tooltip>
                   <Tooltip title="Export Excel">
-                    <IconButton size="small" onClick={handleExcelExport} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, color: '#6366f1' }}>
+                    <IconButton size="small" onClick={handleExcelExport} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, color: '#334155' }}>
                       <FileDown size={15} />
                     </IconButton>
                   </Tooltip>
@@ -3127,7 +3127,7 @@ const ReportsPage = () => {
                               <Typography sx={{
                                 fontSize: col.key === 'timeStr' ? '0.68rem' : '0.8rem',
                                 fontWeight: col.key === 'timeStr' ? 500 : (col.isTotal || row._bold) ? 700 : 500,
-                                color: (col.key === 'moneyIn' && row[col.key] !== '—') ? '#6366f1'
+                                color: (col.key === 'moneyIn' && row[col.key] !== '—') ? '#334155'
                                   : (col.key === 'moneyOut' && row[col.key] !== '—') ? '#dc2626'
                                   : row._color || 'text.primary',
                               }}>
@@ -3239,7 +3239,7 @@ const ReportsPage = () => {
                                 {row[col.key]}
                               </Box>
                             ) : (col.key === 'moneyIn' || col.key === 'moneyOut') && row[col.key] !== '—' ? (
-                              <Typography component="span" sx={{ fontWeight: 700, fontSize: 'inherit', color: col.key === 'moneyIn' ? '#6366f1' : '#dc2626' }}>
+                              <Typography component="span" sx={{ fontWeight: 700, fontSize: 'inherit', color: col.key === 'moneyIn' ? '#334155' : '#dc2626' }}>
                                 {row[col.key]}
                               </Typography>
                             ) : col.key === 'timeStr' ? (
@@ -3377,7 +3377,7 @@ const ReportsPage = () => {
         {detailContent && (
           <>
             <Box sx={{
-              background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)',
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
               px: 2, py: 1.5, display: 'flex', alignItems: 'center', gap: 1.25, flexShrink: 0,
             }}>
               <Avatar sx={{ bgcolor: 'rgba(255,255,255,0.18)', color: 'white', fontWeight: 800, width: 34, height: 34 }}>
@@ -3433,7 +3433,7 @@ const ReportsPage = () => {
                             {r.date}{r.partyName ? ` · ${r.partyName}` : ''}{r.qty != null ? ` · ${r.qty} units` : ''}
                           </Typography>
                         </Box>
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#6366f1', whiteSpace: 'nowrap' }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#334155', whiteSpace: 'nowrap' }}>
                           {fmt(r.amount)}
                         </Typography>
                       </Box>

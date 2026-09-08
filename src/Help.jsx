@@ -17,7 +17,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 const SECTIONS = [
   {
-    id: 'dashboard', icon: LayoutDashboard, color: '#6366f1', badge: 'Start here',
+    id: 'dashboard', icon: LayoutDashboard, color: '#334155', badge: 'Start here',
     title: 'Dashboard',
     summary: 'Your business at a glance — sales, purchases, cash, bank, and recent activity.',
     steps: [
@@ -66,7 +66,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: 'sales', icon: ReceiptText, color: '#6366f1',
+    id: 'sales', icon: ReceiptText, color: '#334155',
     title: 'Sales Invoices',
     summary: 'Create, print, and manage all your sales bills.',
     steps: [
@@ -197,7 +197,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: 'backup', icon: Download, color: '#6366f1',
+    id: 'backup', icon: Download, color: '#334155',
     title: 'Backup & Restore',
     summary: 'Keep your data safe — download a backup and restore it any time.',
     steps: [

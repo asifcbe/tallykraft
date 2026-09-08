@@ -609,7 +609,7 @@ const OpticalsPage = () => {
 
         {/* Gradient header */}
         <Box sx={{
-          background: 'linear-gradient(135deg, #6366f1 0%, #a5b4fc 100%)',
+          background: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
           px: { xs: 2, md: 4 }, py: 2.5,
           display: 'flex', alignItems: 'center', gap: 2,
         }}>
@@ -730,7 +730,7 @@ const OpticalsPage = () => {
 
             {/* Refraction Data */}
             <Paper elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden' }}>
-              <Box sx={{ px: 2.5, py: 1.75, background: 'linear-gradient(135deg, #6366f1 0%, #a5b4fc 100%)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Box sx={{ px: 2.5, py: 1.75, background: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)', display: 'flex', alignItems: 'center', gap: 1.5 }}>
                 <Eye size={16} color="white" />
                 <Typography variant="subtitle2" sx={{ fontWeight: 800, color: 'white', letterSpacing: '0.08em', textTransform: 'uppercase', fontSize: '0.75rem' }}>
                   Refraction Data
@@ -885,7 +885,7 @@ const OpticalsPage = () => {
 
         {/* Gradient header */}
         <Box sx={{
-          background: 'linear-gradient(135deg, #6366f1 0%, #a5b4fc 100%)',
+          background: 'linear-gradient(135deg, #1e293b 0%, #475569 100%)',
           px: { xs: 2, md: 4 }, py: 2.5,
           display: 'flex', alignItems: 'center', gap: 2,
         }}>
@@ -1214,7 +1214,7 @@ const OpticalsPage = () => {
       {/* Hero Header */}
       <Box sx={{
         borderRadius: 3,
-        background: 'linear-gradient(135deg, #4f46e5 0%, #6366f1 50%, #818cf8 100%)',
+        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #334155 100%)',
         p: { xs: 2.5, md: 3.5 }, mb: 3,
         position: 'relative', overflow: 'hidden',
       }}>
@@ -1249,9 +1249,9 @@ const OpticalsPage = () => {
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1.5, position: 'relative' }}>
           {[
-            { label: 'Total Exams', value: readings.length, icon: Eye, color: '#ddd6fe' },
+            { label: 'Total Exams', value: readings.length, icon: Eye, color: '#e2e8f0' },
             { label: 'Total Orders', value: orders.length, icon: ShoppingBag, color: '#bfdbfe' },
-            { label: 'Pending', value: pendingOrders, icon: Clock, color: pendingOrders > 0 ? '#fde68a' : '#ddd6fe' },
+            { label: 'Pending', value: pendingOrders, icon: Clock, color: pendingOrders > 0 ? '#fde68a' : '#e2e8f0' },
             { label: 'Order Value', value: `₹${totalOrderValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#c4b5fd' },
           ].map(({ label, value, icon: Icon, color }) => (
             <Box key={label} sx={{ bgcolor: 'rgba(255,255,255,0.08)', borderRadius: 2, p: 1.5, border: '1px solid rgba(255,255,255,0.1)' }}>
