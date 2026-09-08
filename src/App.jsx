@@ -22,12 +22,9 @@ import { NetworkProvider } from './NetworkContext';
 import NetworkStatusBanner from './NetworkStatusBanner';
 
 const BeforeUnloadGuard = () => {
-  const { backupNow } = useData();
-  useEffect(() => {
-    const handler = () => { backupNow?.(); };
-    window.addEventListener('beforeunload', handler);
-    return () => window.removeEventListener('beforeunload', handler);
-  }, [backupNow]);
+  useData(); // keep context wired; the data layer now write-throughs to
+             // IndexedDB immediately on every mutation, so no beforeunload
+             // flush is needed.
   return null;
 };
 
