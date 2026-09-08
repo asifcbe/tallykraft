@@ -367,29 +367,29 @@ const InvoicePreviewDialog = ({
       >
         {/* Gradient header */}
         <Box sx={{
-          background: '#ffffff', borderBottom: '1px solid #e4e8ee',
+          background: '#ffffff', borderBottom: '1px solid #ece2db',
           px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0,
         }}>
-          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', mt: 0.5, flexShrink: 0 }}>
-            <Eye size={18} color="#334155" />
+          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex', mt: 0.5, flexShrink: 0 }}>
+            <Eye size={18} color="#5c1f22" />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: '#475569', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+            <Typography variant="overline" sx={{ color: '#7a2e30', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
               {isSale ? 'Invoice Preview' : 'Bill Preview'}
             </Typography>
-            <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, mt: 0.5, fontSize: '1.05rem', fontFamily: 'monospace', letterSpacing: '0.02em' }}>
+            <Typography variant="h6" sx={{ color: '#5c1f22', fontWeight: 800, mt: 0.5, fontSize: '1.05rem', fontFamily: 'monospace', letterSpacing: '0.02em' }}>
               {transaction?.invoiceNumber || '—'}
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, mt: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
               {transaction?.partyName && (
-                <Typography variant="caption" sx={{ color: '#475569', fontWeight: 600 }}>{transaction.partyName}</Typography>
+                <Typography variant="caption" sx={{ color: '#7a2e30', fontWeight: 600 }}>{transaction.partyName}</Typography>
               )}
               {transaction?.date && (
-                <Typography variant="caption" sx={{ color: '#475569' }}>{transaction.date}</Typography>
+                <Typography variant="caption" sx={{ color: '#7a2e30' }}>{transaction.date}</Typography>
               )}
               {transaction?.totalAmount != null && (
-                <Box sx={{ px: 1.25, py: 0.25, bgcolor: 'rgba(51,65,85,0.08)', borderRadius: '100px', border: '1px solid #e4e8ee' }}>
-                  <Typography variant="caption" sx={{ color: '#1e293b', fontWeight: 800, fontSize: '0.8rem' }}>
+                <Box sx={{ px: 1.25, py: 0.25, bgcolor: 'rgba(92,31,34,0.08)', borderRadius: '100px', border: '1px solid #ece2db' }}>
+                  <Typography variant="caption" sx={{ color: '#5c1f22', fontWeight: 800, fontSize: '0.8rem' }}>
                     ₹{transaction.totalAmount.toLocaleString('en-IN')}
                   </Typography>
                 </Box>
@@ -398,7 +398,7 @@ const InvoicePreviewDialog = ({
                 const isOverdue = transaction.dueDate && transaction.status !== 'paid' && new Date(transaction.dueDate + 'T00:00:00') < new Date();
                 const label = transaction.status === 'paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Unpaid';
                 return (
-                  <Box sx={{ px: 1, py: 0.2, bgcolor: isOverdue ? '#fee2e2' : 'rgba(51,65,85,0.08)', borderRadius: '100px', border: isOverdue ? '1px solid #fecaca' : '1px solid #e4e8ee' }}>
+                  <Box sx={{ px: 1, py: 0.2, bgcolor: isOverdue ? '#fee2e2' : 'rgba(92,31,34,0.08)', borderRadius: '100px', border: isOverdue ? '1px solid #fecaca' : '1px solid #ece2db' }}>
                     <Typography variant="caption" sx={{ color: isOverdue ? '#7f1d1d' : 'white', fontWeight: 800, fontSize: '0.68rem' }}>
                       {label}
                     </Typography>
@@ -408,16 +408,16 @@ const InvoicePreviewDialog = ({
             </Box>
           </Box>
           <Tooltip title="Edit">
-            <IconButton onClick={handleEdit} size="small" sx={{ color: '#475569', mt: -0.5, '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
+            <IconButton onClick={handleEdit} size="small" sx={{ color: '#7a2e30', mt: -0.5, '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
               <Edit size={17} />
             </IconButton>
           </Tooltip>
           <Tooltip title="Delete">
-            <IconButton onClick={handleDeleteTx} size="small" sx={{ color: '#475569', mt: -0.5, '&:hover': { color: '#fecaca', bgcolor: 'rgba(220,38,38,0.18)' } }}>
+            <IconButton onClick={handleDeleteTx} size="small" sx={{ color: '#7a2e30', mt: -0.5, '&:hover': { color: '#fecaca', bgcolor: 'rgba(220,38,38,0.18)' } }}>
               <Trash2 size={17} />
             </IconButton>
           </Tooltip>
-          <IconButton onClick={onClose} size="small" sx={{ color: '#475569', mt: -0.5, mr: -0.5, '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
+          <IconButton onClick={onClose} size="small" sx={{ color: '#7a2e30', mt: -0.5, mr: -0.5, '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
             <X size={18} />
           </IconButton>
         </Box>
@@ -476,7 +476,7 @@ const InvoicePreviewDialog = ({
           <Tooltip title="Download as PDF">
             <IconButton
               onClick={() => downloadInvoicePDF()} disabled={pdfLoading} size="small"
-              sx={{ border: '1px solid rgba(124,58,237,0.28)', borderRadius: 1.5, color: '#3f3f46', px: 1, '&:hover': { bgcolor: 'rgba(124,58,237,0.06)' } }}
+              sx={{ border: '1px solid rgba(124,58,237,0.28)', borderRadius: 1.5, color: '#5c1f22', px: 1, '&:hover': { bgcolor: 'rgba(124,58,237,0.06)' } }}
             >
               <FileDown size={17} />
             </IconButton>
@@ -527,7 +527,7 @@ const InvoicePreviewDialog = ({
           <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5 }}>
             {[
               { value: 'Cash', icon: <Banknote size={14} />, color: '#16a34a' },
-              { value: 'Bank', icon: <Landmark size={14} />, color: '#27272a' },
+              { value: 'Bank', icon: <Landmark size={14} />, color: '#5c1f22' },
               { value: 'Split', icon: <Wallet size={14} />, color: '#7c3aed' },
             ].map((opt) => {
               const sel = receivePayMode === opt.value;
@@ -569,7 +569,7 @@ const InvoicePreviewDialog = ({
               Less (Discount / Write-off)
             </Typography>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: receivePayLess ? '#d97706' : '#cbd5e1' }}>₹</Typography>
+              <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: receivePayLess ? '#d97706' : '#ddd0c9' }}>₹</Typography>
               <InputBase
                 fullWidth type="number" placeholder="0 (optional)"
                 value={receivePayLess}

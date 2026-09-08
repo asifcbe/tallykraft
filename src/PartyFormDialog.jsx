@@ -217,17 +217,17 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
             flexShrink: 0,
           }}>
             <Box>
-              <Typography sx={{ color: '#1e293b', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>
+              <Typography sx={{ color: '#5c1f22', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>
                 {title}
               </Typography>
               {editingParty?.partyId && (
-                <Typography sx={{ color: '#64748b', fontSize: '0.68rem', fontFamily: 'monospace' }}>
+                <Typography sx={{ color: '#6b5550', fontSize: '0.68rem', fontFamily: 'monospace' }}>
                   {editingParty.partyId}
                 </Typography>
               )}
             </Box>
             <IconButton size="small" onClick={onClose}
-              sx={{ color: '#64748b', '&:hover': { bgcolor: 'rgba(51,65,85,0.08)' } }}>
+              sx={{ color: '#6b5550', '&:hover': { bgcolor: 'rgba(92,31,34,0.08)' } }}>
               <X size={17} />
             </IconButton>
           </Box>
@@ -459,7 +459,7 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
                     </Typography>
                     <Box sx={{ display: 'flex', gap: 1, mb: 1 }}>
                       {[
-                        { dir: 'collect', label: 'To Collect', color: '#334155', bg: '#64748b' },
+                        { dir: 'collect', label: 'To Collect', color: '#5c1f22', bg: '#6b5550' },
                         { dir: 'pay',     label: 'To Pay',     color: '#dc2626', bg: '#ef4444' },
                       ].map(({ dir, label, color, bg }) => {
                         const active = balanceDir === dir;

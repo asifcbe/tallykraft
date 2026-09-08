@@ -351,7 +351,7 @@ const Cash = () => {
   };
 
   const cashColor = '#0891b2';
-  const bankColor = '#334155';
+  const bankColor = '#5c1f22';
   const green     = '#16a34a';
   const red       = '#dc2626';
 
@@ -365,7 +365,7 @@ const Cash = () => {
             p: 1, borderRadius: 2, display: 'flex',
             background: activeTab === 'cash'
               ? `linear-gradient(135deg, ${cashColor}, #22d3ee)`
-              : `linear-gradient(135deg, ${bankColor}, #64748b)`,
+              : `linear-gradient(135deg, ${bankColor}, #6b5550)`,
             boxShadow: `0 4px 12px ${alpha(activeTab === 'cash' ? cashColor : bankColor, 0.35)}`,
             transition: 'all 0.25s ease',
           }}>

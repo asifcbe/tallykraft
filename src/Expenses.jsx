@@ -296,7 +296,7 @@ const ExpensesPage = () => {
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1.5, flexWrap: 'wrap', mb: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #18181b, #3f3f46)', display: 'flex', boxShadow: '0 4px 12px rgba(190,24,93,0.3)' }}>
+          <Box sx={{ p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #3f1417, #5c1f22)', display: 'flex', boxShadow: '0 4px 12px rgba(190,24,93,0.3)' }}>
             <TrendingDown size={20} color="#fff" />
           </Box>
           <Box>
@@ -593,10 +593,10 @@ const ExpensesPage = () => {
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth fullScreen={isMobile}
         slotProps={{ paper: { sx: { borderRadius: isMobile ? 0 : 3 } } }}>
         <form onSubmit={handleSubmit}>
-          <Box sx={{ background: 'linear-gradient(135deg, #18181b, #3f3f46)', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.1)', display: 'flex' }}><TrendingDown size={18} color="#fff" /></Box>
-            <Typography sx={{ color: '#1e293b', fontWeight: 800, fontSize: '1.05rem', flex: 1 }}>{editingExpense ? t('exp.editExpense') : t('exp.addNew')}</Typography>
-            <IconButton size="small" onClick={handleClose} sx={{ color: '#64748b' }}><X size={18} /></IconButton>
+          <Box sx={{ background: 'linear-gradient(135deg, #3f1417, #5c1f22)', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+            <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: 'rgba(92,31,34,0.1)', display: 'flex' }}><TrendingDown size={18} color="#fff" /></Box>
+            <Typography sx={{ color: '#5c1f22', fontWeight: 800, fontSize: '1.05rem', flex: 1 }}>{editingExpense ? t('exp.editExpense') : t('exp.addNew')}</Typography>
+            <IconButton size="small" onClick={handleClose} sx={{ color: '#6b5550' }}><X size={18} /></IconButton>
           </Box>
           <DialogContent dividers sx={{ p: 2.5 }}>
             {/* Amount — prominent */}
@@ -710,32 +710,32 @@ const ExpensesPage = () => {
       <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth
         PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.22)' } }}>
         {/* Gradient header */}
-        <Box sx={{ background: '#ffffff', borderBottom: '1px solid #e4e8ee', px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
-          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', alignItems: 'center', mt: 0.5, flexShrink: 0 }}>
-            <Eye size={18} color="#334155" />
+        <Box sx={{ background: '#ffffff', borderBottom: '1px solid #ece2db', px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
+          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex', alignItems: 'center', mt: 0.5, flexShrink: 0 }}>
+            <Eye size={18} color="#5c1f22" />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+            <Typography variant="overline" sx={{ color: '#6b5550', fontWeight: 700, fontSize: '0.65rem', letterSpacing: '0.1em', lineHeight: 1 }}>
               Expense Preview
             </Typography>
-            <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, mt: 0.5, fontSize: '1.05rem' }}>
+            <Typography variant="h6" sx={{ color: '#5c1f22', fontWeight: 800, mt: 0.5, fontSize: '1.05rem' }}>
               {previewRecord?.category || '—'}
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, mt: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
               {previewRecord?.date && (
-                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>{previewRecord.date}</Typography>
+                <Typography variant="caption" sx={{ color: '#6b5550', fontWeight: 600 }}>{previewRecord.date}</Typography>
               )}
               {previewRecord?.description && (
-                <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600 }}>{previewRecord.description}</Typography>
+                <Typography variant="caption" sx={{ color: '#6b5550', fontWeight: 600 }}>{previewRecord.description}</Typography>
               )}
               {previewRecord?.amount != null && (
-                <Box sx={{ px: 1.25, py: 0.25, bgcolor: 'rgba(51,65,85,0.1)', borderRadius: '100px', border: '1px solid #e4e8ee' }}>
-                  <Typography variant="caption" sx={{ color: '#1e293b', fontWeight: 800, fontSize: '0.8rem' }}>₹{previewRecord.amount.toFixed(2)}</Typography>
+                <Box sx={{ px: 1.25, py: 0.25, bgcolor: 'rgba(92,31,34,0.1)', borderRadius: '100px', border: '1px solid #ece2db' }}>
+                  <Typography variant="caption" sx={{ color: '#5c1f22', fontWeight: 800, fontSize: '0.8rem' }}>₹{previewRecord.amount.toFixed(2)}</Typography>
                 </Box>
               )}
             </Box>
           </Box>
-          <IconButton onClick={() => setPreviewOpen(false)} size="small" sx={{ color: '#64748b', mt: -0.5, '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
+          <IconButton onClick={() => setPreviewOpen(false)} size="small" sx={{ color: '#6b5550', mt: -0.5, '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
             <X size={18} />
           </IconButton>
         </Box>
@@ -750,7 +750,7 @@ const ExpensesPage = () => {
           <Box sx={{ flex: 1 }} />
           <Button startIcon={<Printer size={15} />} variant="contained" size="small" disableElevation
             onClick={() => { setPrintingData(previewRecord); setPreviewOpen(false); setTimeout(() => handlePrint(), 100); }}
-            sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 1.5, bgcolor: '#3f3f46', '&:hover': { bgcolor: '#9d174d' } }}>
+            sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 1.5, bgcolor: '#5c1f22', '&:hover': { bgcolor: '#9d174d' } }}>
             Print
           </Button>
         </Box>

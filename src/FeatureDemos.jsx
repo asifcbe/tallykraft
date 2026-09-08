@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 
-const P    = '#334155';
-const P2   = '#1e293b';
+const P    = '#5c1f22';
+const P2   = '#3f1417';
 const GRAD = `linear-gradient(135deg,${P},${P2})`;
 const WA   = '#25D366';
 const GRN  = '#16a34a';
@@ -27,11 +27,11 @@ function useLoop(durations, offset = 0) {
 /* shared card shell */
 function DemoCard({ preview, label, title, desc, accent = P, isDark, C }) {
   const bg     = isDark ? 'rgba(255,255,255,.045)' : '#fff';
-  const border = isDark ? 'rgba(255,255,255,.08)'  : '#e2e8f0';
+  const border = isDark ? 'rgba(255,255,255,.08)'  : '#e8ddd6';
   return (
     <div style={{ background: bg, border: `1px solid ${border}`, borderRadius: 18, overflow: 'hidden',
       display: 'flex', flexDirection: 'column',
-      boxShadow: isDark ? 'none' : '0 2px 20px rgba(15,23,42,.07)' }}>
+      boxShadow: isDark ? 'none' : '0 2px 20px rgba(63,20,23,.07)' }}>
       {/* animated preview */}
       <div style={{ background: isDark ? 'rgba(0,0,0,.22)' : `${accent}09`,
         borderBottom: `1px solid ${border}`, minHeight: 178,
@@ -43,7 +43,7 @@ function DemoCard({ preview, label, title, desc, accent = P, isDark, C }) {
       <div style={{ padding: '16px 20px 22px' }}>
         <div style={{ fontSize: '.66rem', fontWeight: 700, color: accent,
           letterSpacing: '.08em', textTransform: 'uppercase', marginBottom: 5 }}>{label}</div>
-        <div style={{ fontWeight: 700, fontSize: '.9rem', color: isDark ? '#fff' : '#0f172a',
+        <div style={{ fontWeight: 700, fontSize: '.9rem', color: isDark ? '#fff' : '#3f1417',
           marginBottom: 6, lineHeight: 1.3 }}>{title}</div>
         <div style={{ fontSize: '.81rem', color: C.muted, lineHeight: 1.65 }}>{desc}</div>
       </div>
@@ -111,7 +111,7 @@ function BarcodeDemo({ isDark, C }) {
                 background: isDark ? 'rgba(22,28,40,.95)' : 'rgba(255,255,255,.97)',
                 border: `1px solid ${GRN}55`, borderRadius: 8, padding: '5px 14px',
                 boxShadow: '0 4px 14px rgba(0,0,0,.18)', animation: 'fd-popUp .35s cubic-bezier(.34,1.56,.64,1)' }}>
-                <span style={{ fontSize: '.72rem', fontWeight: 800, color: isDark ? '#fff' : '#0f172a' }}>USB-C Hub</span>
+                <span style={{ fontSize: '.72rem', fontWeight: 800, color: isDark ? '#fff' : '#3f1417' }}>USB-C Hub</span>
                 <span style={{ fontSize: '.68rem', color: GRN, fontWeight: 700 }}>₹1,200 · Added ✓</span>
               </div>
             )}
@@ -129,7 +129,7 @@ function GSTDemo({ isDark, C }) {
   const fBdr = 'rgba(255,255,255,.12)';
 
   return (
-    <DemoCard isDark={isDark} C={C} accent='#94a3b8'
+    <DemoCard isDark={isDark} C={C} accent='#9c8a84'
       label="GST Auto-Calculation"
       title="Tax Calculated Automatically"
       desc="Select an item, enter quantity — CGST, SGST, and grand total update instantly. No manual tax math, ever."
@@ -137,7 +137,7 @@ function GSTDemo({ isDark, C }) {
         <div style={{ width: '100%', maxWidth: 260 }}>
           <div style={{ background: '#1e2130', borderRadius: 10, overflow: 'hidden',
             border: '1px solid rgba(255,255,255,.1)' }}>
-            <div style={{ background: 'rgba(51,65,85,.2)', padding: '7px 12px',
+            <div style={{ background: 'rgba(92,31,34,.2)', padding: '7px 12px',
               fontSize: '.68rem', fontWeight: 700, color: P, letterSpacing: '.05em' }}>NEW INVOICE</div>
 
             <div style={{ padding: '8px 10px', borderBottom: '1px solid rgba(255,255,255,.06)' }}>
@@ -180,7 +180,7 @@ function GSTDemo({ isDark, C }) {
                 padding: '5px 0', borderTop: '1px solid rgba(255,255,255,.12)',
                 fontWeight: 800, fontSize: '.78rem' }}>
                 <span style={{ color: 'rgba(255,255,255,.9)' }}>Grand Total</span>
-                <span style={{ color: '#94a3b8' }}>₹2,832</span>
+                <span style={{ color: '#9c8a84' }}>₹2,832</span>
               </div>
             </div>
           </div>
@@ -211,7 +211,7 @@ function WhatsAppDemo({ isDark, C }) {
 
           {/* action buttons */}
           <div style={{ display: 'flex', gap: 6 }}>
-            {[{ key:'Print', color:'#64748b' }, { key:'WhatsApp', color: WA }, { key:'PDF', color:'#ef4444' }].map(({ key, color }) => {
+            {[{ key:'Print', color:'#6b5550' }, { key:'WhatsApp', color: WA }, { key:'PDF', color:'#ef4444' }].map(({ key, color }) => {
               const isWA  = key === 'WhatsApp';
               const active = isWA && phase >= 1;
               return (
@@ -259,7 +259,7 @@ function StockDemo({ isDark, C }) {
   const phase = useLoop([2200, 1200, 2100]); // 0=normal 1=billing 2=updated
 
   return (
-    <DemoCard isDark={isDark} C={C} accent='#94a3b8'
+    <DemoCard isDark={isDark} C={C} accent='#9c8a84'
       label="Real-Time Inventory"
       title="Stock Updates on Every Sale"
       desc="When you create an invoice, stock levels drop automatically. Always know your exact inventory without manual counting."
@@ -269,7 +269,7 @@ function StockDemo({ isDark, C }) {
             borderRadius: 10, overflow: 'hidden' }}>
             <div style={{ background: 'rgba(52,211,153,.12)', padding: '7px 12px',
               display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#94a3b8', letterSpacing: '.05em' }}>INVENTORY</span>
+              <span style={{ fontSize: '.68rem', fontWeight: 700, color: '#9c8a84', letterSpacing: '.05em' }}>INVENTORY</span>
               <span style={{ fontSize: '.62rem', color: 'rgba(52,211,153,.6)', fontWeight: 600 }}>
                 {phase === 1 ? '⟳ Updating…' : 'Live'}
               </span>
@@ -288,10 +288,10 @@ function StockDemo({ isDark, C }) {
                   </div>
                   <div style={{ textAlign: 'right' }}>
                     <div style={{ fontSize: '.86rem', fontWeight: 800,
-                      color: updated ? '#94a3b8' : 'rgba(255,255,255,.65)',
+                      color: updated ? '#9c8a84' : 'rgba(255,255,255,.65)',
                       transition: 'color .4s',
                       animation: updated ? 'fd-stockFlash .5s ease' : 'none' }}>{qty}</div>
-                    {updated && <div style={{ fontSize: '.58rem', color: '#94a3b8', fontWeight: 700 }}>▼ auto-updated</div>}
+                    {updated && <div style={{ fontSize: '.58rem', color: '#9c8a84', fontWeight: 700 }}>▼ auto-updated</div>}
                   </div>
                 </div>
               );
@@ -419,7 +419,7 @@ function OfflineDemo({ isDark, C }) {
             borderRadius: 10, overflow: 'hidden', transition: 'border-color .5s' }}>
             <div style={{ padding: '7px 12px', fontSize: '.68rem', fontWeight: 700,
               letterSpacing: '.05em', display: 'flex', justifyContent: 'space-between',
-              background: !online ? `${GRN}18` : 'rgba(51,65,85,.12)',
+              background: !online ? `${GRN}18` : 'rgba(92,31,34,.12)',
               color: !online ? GRN : P, transition: 'all .5s' }}>
               <span>NEW INVOICE</span>
               {!online && <span style={{ fontSize: '.6rem', opacity: .8 }}>Saved locally ✓</span>}
@@ -530,11 +530,11 @@ function PrintDemo({ isDark, C }) {
             boxShadow: '0 4px 18px rgba(0,0,0,.3)', overflow: 'hidden' }}>
             {/* content lines */}
             <div style={{ padding: '10px 8px' }}>
-              <div style={{ height: 8, background: '#e2e8f0', borderRadius: 2, marginBottom: 6, width: '80%', margin: '0 auto 6px' }} />
-              <div style={{ height: 5, background: '#f1f5f9', borderRadius: 2, marginBottom: 4 }} />
-              <div style={{ height: 5, background: '#f1f5f9', borderRadius: 2, marginBottom: 4, width: '75%' }} />
-              <div style={{ height: 5, background: '#f1f5f9', borderRadius: 2, marginBottom: 8, width: '60%' }} />
-              <div style={{ height: 1, background: '#e2e8f0', marginBottom: 6 }} />
+              <div style={{ height: 8, background: '#e8ddd6', borderRadius: 2, marginBottom: 6, width: '80%', margin: '0 auto 6px' }} />
+              <div style={{ height: 5, background: '#f6efe9', borderRadius: 2, marginBottom: 4 }} />
+              <div style={{ height: 5, background: '#f6efe9', borderRadius: 2, marginBottom: 4, width: '75%' }} />
+              <div style={{ height: 5, background: '#f6efe9', borderRadius: 2, marginBottom: 8, width: '60%' }} />
+              <div style={{ height: 1, background: '#e8ddd6', marginBottom: 6 }} />
               <div style={{ height: 7, background: '#dbeafe', borderRadius: 2, marginBottom: 4 }} />
               <div style={{ height: 7, background: '#dbeafe', borderRadius: 2, width: '85%' }} />
             </div>

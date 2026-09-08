@@ -277,16 +277,16 @@ const Backup = () => {
       <Box sx={{
         display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
         p: 2, mb: 2.5, borderRadius: 2.5,
-        background: '#ffffff', border: '1px solid #e4e8ee',
+        background: '#ffffff', border: '1px solid #ece2db',
       }}>
-        <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', flexShrink: 0 }}>
-          <RefreshCw size={20} color="#334155" />
+        <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex', flexShrink: 0 }}>
+          <RefreshCw size={20} color="#5c1f22" />
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography sx={{ color: '#1e293b', fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }}>
+          <Typography sx={{ color: '#5c1f22', fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }}>
             Switching from Vyapar or My Bill Book?
           </Typography>
-          <Typography sx={{ color: '#64748b', fontSize: '0.8rem' }}>
+          <Typography sx={{ color: '#6b5550', fontSize: '0.8rem' }}>
             Import your Items, Customers, Vendors, Sales & Purchases in one step.
           </Typography>
         </Box>
@@ -296,8 +296,8 @@ const Backup = () => {
           endIcon={<ArrowRight size={15} />}
           sx={{
             textTransform: 'none', fontWeight: 700, borderRadius: 2, flexShrink: 0,
-            bgcolor: '#94a3b8', color: '#1e293b', border: '1px solid #e4e8ee',
-            '&:hover': { bgcolor: '#94a3b8' },
+            bgcolor: '#9c8a84', color: '#5c1f22', border: '1px solid #ece2db',
+            '&:hover': { bgcolor: '#9c8a84' },
           }}
         >
           Migrate Data

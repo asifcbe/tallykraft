@@ -6,7 +6,7 @@ const SectionPrintTemplate = React.forwardRef(({ section, record, business }, re
   return (
     <div ref={ref} style={{ padding: '40px', fontFamily: 'Arial, sans-serif', maxWidth: '210mm', color: '#111' }}>
       {/* Business Header */}
-      <div style={{ textAlign: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: `3px solid ${section.color || '#3f3f46'}` }}>
+      <div style={{ textAlign: 'center', marginBottom: '24px', paddingBottom: '16px', borderBottom: `3px solid ${section.color || '#5c1f22'}` }}>
         {business?.logo && (
           <img src={business.logo} alt="Logo" style={{ height: '56px', marginBottom: '8px', objectFit: 'contain' }} />
         )}
@@ -18,7 +18,7 @@ const SectionPrintTemplate = React.forwardRef(({ section, record, business }, re
 
       {/* Section Title */}
       <div style={{ marginBottom: '20px' }}>
-        <h3 style={{ margin: '0 0 12px', fontSize: '17px', fontWeight: 700, color: section.color || '#3f3f46', textTransform: 'uppercase', letterSpacing: '1px' }}>
+        <h3 style={{ margin: '0 0 12px', fontSize: '17px', fontWeight: 700, color: section.color || '#5c1f22', textTransform: 'uppercase', letterSpacing: '1px' }}>
           {section.name}
         </h3>
         <div style={{ display: 'flex', gap: '32px', fontSize: '13px', padding: '8px 12px', backgroundColor: '#f5f5f5', borderRadius: '4px' }}>
@@ -57,7 +57,7 @@ const SectionPrintTemplate = React.forwardRef(({ section, record, business }, re
               {multiTab && (
                 <div style={{
                   padding: '6px 14px', marginBottom: '4px',
-                  backgroundColor: section.color || '#3f3f46',
+                  backgroundColor: section.color || '#5c1f22',
                   color: '#fff', fontWeight: 700, fontSize: '12px',
                   borderRadius: '4px', letterSpacing: '0.5px'
                 }}>
@@ -80,7 +80,7 @@ const SectionPrintTemplate = React.forwardRef(({ section, record, business }, re
 
       {/* Notes */}
       {record.notes && (
-        <div style={{ padding: '12px 16px', backgroundColor: '#f9f9f9', borderLeft: `4px solid ${section.color || '#3f3f46'}`, borderRadius: '0 4px 4px 0', marginTop: '16px' }}>
+        <div style={{ padding: '12px 16px', backgroundColor: '#f9f9f9', borderLeft: `4px solid ${section.color || '#5c1f22'}`, borderRadius: '0 4px 4px 0', marginTop: '16px' }}>
           <strong style={{ fontSize: '13px', display: 'block', marginBottom: '4px' }}>Notes</strong>
           <p style={{ margin: 0, fontSize: '13px', color: '#444', whiteSpace: 'pre-wrap' }}>{record.notes}</p>
         </div>

@@ -418,24 +418,24 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
 
           {/* ── Header ── */}
-          <Box sx={{ background: '#ffffff', borderBottom: '1px solid #e4e8ee', px: 2.5, py: 1.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
+          <Box sx={{ background: '#ffffff', borderBottom: '1px solid #ece2db', px: 2.5, py: 1.75, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box sx={{ bgcolor: '#94a3b8', borderRadius: 1.5, p: 0.6, display: 'flex' }}>
-                {editingItem ? <Edit2 size={16} color="#334155" /> : <Plus size={16} color="#334155" />}
+              <Box sx={{ bgcolor: '#9c8a84', borderRadius: 1.5, p: 0.6, display: 'flex' }}>
+                {editingItem ? <Edit2 size={16} color="#5c1f22" /> : <Plus size={16} color="#5c1f22" />}
               </Box>
               <Box>
-                <Typography sx={{ color: '#1e293b', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>
+                <Typography sx={{ color: '#5c1f22', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2 }}>
                   {editingItem ? 'Edit Item' : 'Add New Item'}
                 </Typography>
                 {editingItem && (
-                  <Typography sx={{ color: '#64748b', fontSize: '0.7rem', lineHeight: 1.3 }}>
+                  <Typography sx={{ color: '#6b5550', fontSize: '0.7rem', lineHeight: 1.3 }}>
                     {editingItem.name}
                   </Typography>
                 )}
               </Box>
             </Box>
             <IconButton size="small" onClick={onClose}
-              sx={{ color: '#64748b', '&:hover': { bgcolor: 'rgba(51,65,85,0.08)' } }}>
+              sx={{ color: '#6b5550', '&:hover': { bgcolor: 'rgba(92,31,34,0.08)' } }}>
               <CloseIcon size={17} />
             </IconButton>
           </Box>
@@ -832,7 +832,7 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                     bgcolor: hasRecipe ? alpha(primary, 0.06) : 'background.paper',
                   }}
                 >
-                  <Layers size={16} color={hasRecipe ? primary : '#94a3b8'} />
+                  <Layers size={16} color={hasRecipe ? primary : '#9c8a84'} />
                   <Box sx={{ flex: 1 }}>
                     <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: hasRecipe ? primary : 'text.primary' }}>
                       Made from other items (recipe)
@@ -967,7 +967,7 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
             <Button type="submit" variant="contained"
               sx={{
                 borderRadius: 1.5,
-                background: '#ffffff', borderBottom: '1px solid #e4e8ee',
+                background: '#ffffff', borderBottom: '1px solid #ece2db',
                 boxShadow: `0 3px 10px ${alpha(primary, 0.3)}`,
                 fontWeight: 700, px: 3,
                 '&:hover': { opacity: 0.9, boxShadow: `0 4px 14px ${alpha(primary, 0.4)}` },

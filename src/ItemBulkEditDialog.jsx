@@ -166,8 +166,8 @@ const ItemBulkEditDialog = ({ open, onClose, items = [], onSuccess }) => {
       PaperProps={{ sx: { borderRadius: 3, maxHeight: '92vh', position: 'relative' } }}
     >
       <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.8)', flexDirection: 'column', gap: 1.5 }}>
-        <CircularProgress size={40} sx={{ color: '#334155' }} />
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155' }}>Saving {rows.length} items…</Typography>
+        <CircularProgress size={40} sx={{ color: '#5c1f22' }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#5c1f22' }}>Saving {rows.length} items…</Typography>
       </Backdrop>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1, pt: 2.5, px: 3 }}>
         <Box>

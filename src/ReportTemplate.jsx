@@ -39,7 +39,7 @@ const ReportTemplate = forwardRef(({ reportData, business, filters, title, paper
             <img src={business.logo} alt="Logo" style={{ maxHeight: '64px', maxWidth: '140px', objectFit: 'contain' }} />
           )}
           <div>
-            <h1 style={{ fontSize: '22px', fontWeight: 'bold', color: '#3f3f46', margin: '0 0 4px 0' }}>
+            <h1 style={{ fontSize: '22px', fontWeight: 'bold', color: '#5c1f22', margin: '0 0 4px 0' }}>
               {business.name}
             </h1>
             <p style={{ margin: '2px 0' }}>{business.address}</p>
@@ -55,8 +55,8 @@ const ReportTemplate = forwardRef(({ reportData, business, filters, title, paper
         </div>
       </div>
 
-      <div style={{ backgroundColor: '#f8fafc', padding: '10px', borderRadius: '4px', marginBottom: '20px', border: '1px solid #e2e8f0' }}>
-        <h4 style={{ margin: '0 0 5px 0', fontSize: '11px', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Report Period & Filters</h4>
+      <div style={{ backgroundColor: '#f6efe9', padding: '10px', borderRadius: '4px', marginBottom: '20px', border: '1px solid #e8ddd6' }}>
+        <h4 style={{ margin: '0 0 5px 0', fontSize: '11px', color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Report Period & Filters</h4>
         <div style={{ display: 'flex', gap: '20px', flexWrap: 'wrap' }}>
           {filters.periodLabel ? (
             <div><strong>Period:</strong> {filters.periodLabel}</div>
@@ -74,13 +74,13 @@ const ReportTemplate = forwardRef(({ reportData, business, filters, title, paper
       {/* Report Table */}
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '30px', tableLayout: 'auto' }}>
         <thead>
-          <tr style={{ backgroundColor: '#f1f5f9' }}>
+          <tr style={{ backgroundColor: '#f6efe9' }}>
             {reportData.columns.map((col, idx) => (
               <th key={idx} style={{
                 padding: '10px',
                 textAlign: col.align || 'left',
                 fontWeight: 'bold',
-                border: '1px solid #e2e8f0',
+                border: '1px solid #e8ddd6',
                 fontSize: '11px',
                 textTransform: 'uppercase',
                 whiteSpace: 'nowrap',
@@ -96,11 +96,11 @@ const ReportTemplate = forwardRef(({ reportData, business, filters, title, paper
               {reportData.columns.map((col, colIdx) => (
                 <td key={colIdx} style={{
                   padding: '8px 10px',
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid #e8ddd6',
                   textAlign: col.align || 'left',
                   fontWeight: row._bold ? 'bold' : 'normal',
                   color: row._color || 'inherit',
-                  backgroundColor: row._section ? '#f8fafc' : 'inherit',
+                  backgroundColor: row._section ? '#f6efe9' : 'inherit',
                 }}>
                   {row[col.key]}
                 </td>
@@ -110,11 +110,11 @@ const ReportTemplate = forwardRef(({ reportData, business, filters, title, paper
         </tbody>
         {reportData.totals && Object.keys(reportData.totals).length > 0 && (
           <tfoot>
-            <tr style={{ backgroundColor: '#f8fafc', fontWeight: 'bold' }}>
+            <tr style={{ backgroundColor: '#f6efe9', fontWeight: 'bold' }}>
               {reportData.columns.map((col, idx) => (
                 <td key={idx} style={{
                   padding: '10px',
-                  border: '1px solid #e2e8f0',
+                  border: '1px solid #e8ddd6',
                   textAlign: col.align || 'left',
                 }}>
                   {col.isTotal && reportData.totals[col.key] != null
@@ -128,7 +128,7 @@ const ReportTemplate = forwardRef(({ reportData, business, filters, title, paper
       </table>
 
       {/* Footer */}
-      <div style={{ marginTop: 'auto', paddingTop: '40px', textAlign: 'center', color: '#94a3b8', fontSize: '10px' }}>
+      <div style={{ marginTop: 'auto', paddingTop: '40px', textAlign: 'center', color: '#9c8a84', fontSize: '10px' }}>
         <p>This is a computer-generated report and does not require a physical signature.</p>
         <p>© DIGITZEBRA Accounting Software</p>
       </div>

@@ -20,10 +20,10 @@ const EFFECTIVE_DATE = 'June 8, 2026';
 
 const Section = ({ n, title, children }) => (
   <section style={{ marginBottom: 28 }}>
-    <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#0f172a', margin: '0 0 8px', display: 'flex', alignItems: 'baseline', gap: 8 }}>
+    <h2 style={{ fontSize: '1.05rem', fontWeight: 800, color: '#3f1417', margin: '0 0 8px', display: 'flex', alignItems: 'baseline', gap: 8 }}>
       <span style={{ color: '#0e7490' }}>{n}.</span> {title}
     </h2>
-    <div style={{ fontSize: '0.92rem', lineHeight: 1.65, color: '#334155' }}>{children}</div>
+    <div style={{ fontSize: '0.92rem', lineHeight: 1.65, color: '#5c1f22' }}>{children}</div>
   </section>
 );
 
@@ -41,7 +41,7 @@ export default function PrivacyPolicy({ onBack }) {
   const sellerState = billing?.sellerState?.trim() || '';
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f8fafc', padding: '0 0 64px' }}>
+    <div style={{ minHeight: '100vh', background: '#f6efe9', padding: '0 0 64px' }}>
       {/* Header */}
       <div style={{ background: 'linear-gradient(135deg, #0f2733 0%, #0e7490 100%)', color: '#fff', padding: '28px 20px' }}>
         <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
@@ -68,7 +68,7 @@ export default function PrivacyPolicy({ onBack }) {
 
       {/* Body */}
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '32px 20px', background: '#fff', borderRadius: 0 }}>
-        <p style={{ fontSize: '0.92rem', lineHeight: 1.65, color: '#334155', marginTop: 0 }}>
+        <p style={{ fontSize: '0.92rem', lineHeight: 1.65, color: '#5c1f22', marginTop: 0 }}>
           TallyKraft ("we", "our", or "us") is committed to protecting the privacy of our users. This
           Privacy Policy explains how we collect, use, store, and protect your information when you use
           our web-based billing and accounting software available at {SITE} (the "Service").
@@ -191,7 +191,7 @@ export default function PrivacyPolicy({ onBack }) {
 
         <Section n={12} title="Contact Us">
           <div style={{ background: '#f0fdfa', border: '1px solid #99f6e4', borderRadius: 10, padding: '14px 16px' }}>
-            <div style={{ fontWeight: 800, color: '#0f172a', marginBottom: 4 }}>{legalName}</div>
+            <div style={{ fontWeight: 800, color: '#3f1417', marginBottom: 4 }}>{legalName}</div>
             <div>Email: {SUPPORT_EMAIL}</div>
             <div>Website: {SITE}</div>
             {gstin && <div>GSTIN: {gstin}</div>}
@@ -201,7 +201,7 @@ export default function PrivacyPolicy({ onBack }) {
           </div>
         </Section>
 
-        <p style={{ textAlign: 'center', color: '#94a3b8', fontSize: '0.78rem', marginTop: 32 }}>
+        <p style={{ textAlign: 'center', color: '#9c8a84', fontSize: '0.78rem', marginTop: 32 }}>
           © {new Date().getFullYear()} TallyKraft. All rights reserved. · {SITE}
         </p>
       </div>

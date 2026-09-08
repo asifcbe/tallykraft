@@ -22,8 +22,8 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
 
   const tableHeaderStyle = {
     padding: '10px',
-    backgroundColor: '#f1f5f9',
-    border: '1px solid #e2e8f0',
+    backgroundColor: '#f6efe9',
+    border: '1px solid #e8ddd6',
     fontWeight: 'bold',
     fontSize: '11px',
     textTransform: 'uppercase',
@@ -32,7 +32,7 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
 
   const cellStyle = {
     padding: '12px 10px',
-    border: '1px solid #e2e8f0',
+    border: '1px solid #e8ddd6',
     textAlign: 'center',
     fontSize: '14px',
     fontWeight: '500'
@@ -50,13 +50,13 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
       lineHeight: '1.5'
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px', borderBottom: '2px solid #3f3f46', paddingBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px', borderBottom: '2px solid #5c1f22', paddingBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', flex: 1 }}>
           {business.logo && (
             <img src={business.logo} alt="Logo" style={{ maxHeight: '64px', maxWidth: '140px', objectFit: 'contain' }} />
           )}
           <div>
-            <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#3f3f46', margin: '0 0 5px 0' }}>
+            <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#5c1f22', margin: '0 0 5px 0' }}>
               {business.name}
             </h1>
             <p style={{ margin: '2px 0', fontSize: '14px' }}>{business.address}</p>
@@ -70,21 +70,21 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
       </div>
 
       {/* Patient Info */}
-      <div style={{ marginBottom: '40px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px' }}>
+      <div style={{ marginBottom: '40px', backgroundColor: '#f6efe9', padding: '15px', borderRadius: '8px' }}>
         <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
-          <div><span style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Patient Name:</span> <br/> <strong style={{ fontSize: '18px' }}>{patientName}</strong></div>
-          <div><span style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Phone:</span> <br/> <strong style={{ fontSize: '18px' }}>{phone || 'N/A'}</strong></div>
+          <div><span style={{ color: '#6b5550', fontSize: '12px', textTransform: 'uppercase' }}>Patient Name:</span> <br/> <strong style={{ fontSize: '18px' }}>{patientName}</strong></div>
+          <div><span style={{ color: '#6b5550', fontSize: '12px', textTransform: 'uppercase' }}>Phone:</span> <br/> <strong style={{ fontSize: '18px' }}>{phone || 'N/A'}</strong></div>
           {gender && (
-            <div><span style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Gender:</span> <br/> <strong style={{ fontSize: '18px' }}>{gender}</strong></div>
+            <div><span style={{ color: '#6b5550', fontSize: '12px', textTransform: 'uppercase' }}>Gender:</span> <br/> <strong style={{ fontSize: '18px' }}>{gender}</strong></div>
           )}
           {age && (
-            <div><span style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Age:</span> <br/> <strong style={{ fontSize: '18px' }}>{age} yrs</strong></div>
+            <div><span style={{ color: '#6b5550', fontSize: '12px', textTransform: 'uppercase' }}>Age:</span> <br/> <strong style={{ fontSize: '18px' }}>{age} yrs</strong></div>
           )}
         </div>
       </div>
 
       {/* Refraction Table */}
-      <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#1e293b', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '1px' }}>
+      <h3 style={{ fontSize: '14px', fontWeight: 'bold', color: '#5c1f22', marginBottom: '15px', textTransform: 'uppercase', letterSpacing: '1px' }}>
         Refraction Details
       </h3>
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '40px' }}>
@@ -101,7 +101,7 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
         </thead>
         <tbody>
           <tr>
-            <td style={{ ...cellStyle, textAlign: 'left', fontWeight: 'bold', color: '#3f3f46' }}>Right Eye (OD)</td>
+            <td style={{ ...cellStyle, textAlign: 'left', fontWeight: 'bold', color: '#5c1f22' }}>Right Eye (OD)</td>
             <td style={cellStyle}>{rightEye.sphere || '0.00'}</td>
             <td style={cellStyle}>{rightEye.cylinder || '0.00'}</td>
             <td style={cellStyle}>{rightEye.axis || '0'}°</td>
@@ -124,26 +124,26 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
       {/* Recommendations */}
       <div style={{ display: 'flex', gap: '30px', marginBottom: '40px' }}>
         <div style={{ flex: 1 }}>
-          <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Frame Recommended</h4>
-          <div style={{ padding: '10px', border: '1px solid #e2e8f0', borderRadius: '4px', minHeight: '40px' }}>{frameType || 'N/A'}</div>
+          <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b5550', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Frame Recommended</h4>
+          <div style={{ padding: '10px', border: '1px solid #e8ddd6', borderRadius: '4px', minHeight: '40px' }}>{frameType || 'N/A'}</div>
         </div>
         <div style={{ flex: 1 }}>
-          <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Lens Recommended</h4>
-          <div style={{ padding: '10px', border: '1px solid #e2e8f0', borderRadius: '4px', minHeight: '40px' }}>{lensType || 'N/A'}</div>
+          <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b5550', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Lens Recommended</h4>
+          <div style={{ padding: '10px', border: '1px solid #e8ddd6', borderRadius: '4px', minHeight: '40px' }}>{lensType || 'N/A'}</div>
         </div>
       </div>
 
       {/* Clinical Notes */}
       <div style={{ marginBottom: '60px' }}>
-        <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Clinical Notes & Advice</h4>
-        <div style={{ padding: '15px', border: '1px solid #e2e8f0', borderRadius: '4px', minHeight: '80px', fontSize: '14px', color: '#334155' }}>
+        <h4 style={{ fontSize: '12px', fontWeight: 'bold', color: '#6b5550', textTransform: 'uppercase', margin: '0 0 10px 0' }}>Clinical Notes & Advice</h4>
+        <div style={{ padding: '15px', border: '1px solid #e8ddd6', borderRadius: '4px', minHeight: '80px', fontSize: '14px', color: '#5c1f22' }}>
           {notes || 'No additional notes.'}
         </div>
       </div>
 
       {/* Footer */}
       <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '40px' }}>
-        <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+        <div style={{ fontSize: '10px', color: '#9c8a84' }}>
           <p>© DIGITZEBRA Optical Management</p>
           <p>This prescription is valid for 6 months from the date of examination.</p>
         </div>

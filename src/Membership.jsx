@@ -287,7 +287,7 @@ const MembershipPage = () => {
     const cfg = {
       overdue:          { label: `${daysOverdue}d overdue`, color: '#dc2626', bg: '#fee2e2' },
       due_today:        { label: 'Due today',              color: '#d97706', bg: '#fef3c7' },
-      awaiting_payment: { label: 'Awaiting payment',       color: '#27272a', bg: '#dbeafe' },
+      awaiting_payment: { label: 'Awaiting payment',       color: '#5c1f22', bg: '#dbeafe' },
       upcoming:         { label: daysLeft != null ? `Due in ${daysLeft}d` : 'Upcoming', color: '#16a34a', bg: '#dcfce7' },
       paused:           { label: 'Paused',                 color: '#6b7280', bg: '#f3f4f6' },
       cancelled:        { label: 'Cancelled',              color: '#ef4444', bg: '#fee2e2' },
@@ -308,22 +308,22 @@ const MembershipPage = () => {
       {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <Box sx={{
         borderRadius: 3,
-        background: '#ffffff', border: '1px solid #e4e8ee',
+        background: '#ffffff', border: '1px solid #ece2db',
         p: { xs: 2.5, md: 3 }, mb: 3, position: 'relative', overflow: 'hidden',
       }}>
         <Box sx={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, borderRadius: '50%', bgcolor: 'transparent', pointerEvents: 'none' }} />
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2.5, gap: 2 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
-              <CreditCard size={20} color="#334155" />
+            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex' }}>
+              <CreditCard size={20} color="#5c1f22" />
             </Box>
             <Box>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: '#1e293b', lineHeight: 1.1 }}>Memberships</Typography>
-              <Typography variant="body2" sx={{ color: '#64748b', mt: 0.25 }}>Recurring subscriptions & billing</Typography>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: '#5c1f22', lineHeight: 1.1 }}>Memberships</Typography>
+              <Typography variant="body2" sx={{ color: '#6b5550', mt: 0.25 }}>Recurring subscriptions & billing</Typography>
             </Box>
           </Box>
           <Button variant="contained" disableElevation startIcon={<Plus size={15} />} onClick={openAdd}
-            sx={{ bgcolor: '#334155', color: '#ffffff', fontWeight: 700, borderRadius: 2, textTransform: 'none', flexShrink: 0, '&:hover': { bgcolor: '#1e293b' } }}>
+            sx={{ bgcolor: '#5c1f22', color: '#ffffff', fontWeight: 700, borderRadius: 2, textTransform: 'none', flexShrink: 0, '&:hover': { bgcolor: '#3f1417' } }}>
             New Membership
           </Button>
         </Box>
@@ -334,8 +334,8 @@ const MembershipPage = () => {
             { label: 'Awaiting Payment', value: awaitingCount, color: awaitingCount > 0 ? '#fca5a5' : '#bbf7d0' },
             { label: 'Monthly Revenue', value: fmtAmt(monthlyMRR), color: '#bbf7d0' },
           ].map(({ label, value, color }) => (
-            <Box key={label} sx={{ bgcolor: 'rgba(51,65,85,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #e4e8ee' }}>
-              <Typography sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>
+            <Box key={label} sx={{ bgcolor: 'rgba(92,31,34,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #ece2db' }}>
+              <Typography sx={{ color: '#6b5550', fontWeight: 600, fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>
                 {label}
               </Typography>
               <Typography sx={{ color, fontWeight: 800, fontSize: { xs: '0.9rem', sm: '1.05rem' } }}>{value}</Typography>
@@ -393,7 +393,7 @@ const MembershipPage = () => {
                   const isActive = m.status === 'active';
                   const canInvoice = isActive && bState.state !== 'awaiting_payment';
                   const rowBg = bState.state === 'overdue' ? alpha('#dc2626', 0.03)
-                    : bState.state === 'awaiting_payment' ? alpha('#27272a', 0.03)
+                    : bState.state === 'awaiting_payment' ? alpha('#5c1f22', 0.03)
                     : bState.state === 'due_today' ? alpha('#d97706', 0.03)
                     : 'transparent';
 
@@ -481,7 +481,7 @@ const MembershipPage = () => {
                                   sx={{
                                     fontSize: '0.72rem', textTransform: 'none', borderRadius: 1.5, whiteSpace: 'nowrap',
                                     ...(bState.state === 'overdue' || bState.state === 'due_today'
-                                      ? { bgcolor: '#27272a', '&:hover': { bgcolor: '#111111' } }
+                                      ? { bgcolor: '#5c1f22', '&:hover': { bgcolor: '#111111' } }
                                       : {}),
                                   }}
                                 >

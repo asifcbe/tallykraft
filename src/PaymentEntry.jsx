@@ -37,7 +37,7 @@ const formatDate = (dateStr) => {
 
 const MODE_COLORS = {
   Cash:   { bg: alpha('#16a34a', 0.1), color: '#16a34a' },
-  Bank:   { bg: alpha('#27272a', 0.1), color: '#27272a' },
+  Bank:   { bg: alpha('#5c1f22', 0.1), color: '#5c1f22' },
   Split:  { bg: alpha('#7c3aed', 0.1), color: '#7c3aed' },
 };
 
@@ -129,7 +129,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
 
   const isPaymentIn = tabValue === 0;
   // Payment-In reads as money coming in (emerald); Payment-Out as money leaving (amber).
-  const accentColor = isPaymentIn ? '#334155' : '#d97706';
+  const accentColor = isPaymentIn ? '#5c1f22' : '#d97706';
   const accentGradient = accentColor; // solid accent fill (white theme: no gradients)
 
   const parties = getItems('parties').filter(p => p.businessId === currentBusiness?.id);
@@ -387,7 +387,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         {/* Tab strip */}
         <Box sx={{ display: 'flex', borderBottom: `1px solid ${alpha(accentColor, 0.12)}`, bgcolor: alpha(accentColor, 0.02) }}>
           {[
-            { label: t('pay.paymentIn'), sub: 'Money Received', icon: <ArrowDownRight size={14} />, color: '#334155' },
+            { label: t('pay.paymentIn'), sub: 'Money Received', icon: <ArrowDownRight size={14} />, color: '#5c1f22' },
             { label: t('pay.paymentOut'), sub: 'Money Paid Out', icon: <ArrowUpRight size={14} />, color: '#d97706' },
           ].map((tab, i) => (
             <Box key={i} onClick={() => { setTabValue(i); setFormData(f => ({ ...f, partyId: '' })); }}
@@ -397,12 +397,12 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                 transition: 'all 0.15s',
                 '&:hover': { bgcolor: alpha(tab.color, 0.04) },
               }}>
-              <Box sx={{ p: 0.5, borderRadius: '6px', bgcolor: tabValue === i ? alpha(tab.color, 0.12) : 'transparent', color: tabValue === i ? tab.color : '#94a3b8', display: 'flex', transition: 'all 0.15s' }}>
+              <Box sx={{ p: 0.5, borderRadius: '6px', bgcolor: tabValue === i ? alpha(tab.color, 0.12) : 'transparent', color: tabValue === i ? tab.color : '#9c8a84', display: 'flex', transition: 'all 0.15s' }}>
                 {tab.icon}
               </Box>
               <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.2, color: tabValue === i ? '#0f172a' : '#64748b' }}>{tab.label}</Typography>
-                <Typography sx={{ fontSize: '0.68rem', color: '#94a3b8', lineHeight: 1 }}>{tab.sub}</Typography>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.2, color: tabValue === i ? '#3f1417' : '#6b5550' }}>{tab.label}</Typography>
+                <Typography sx={{ fontSize: '0.68rem', color: '#9c8a84', lineHeight: 1 }}>{tab.sub}</Typography>
               </Box>
               {editingId && tabValue === i && <Chip label="Editing" size="small" sx={{ ml: 'auto', height: 18, fontSize: '0.65rem', bgcolor: alpha(accentColor, 0.1), color: accentColor, fontWeight: 700 }} />}
             </Box>
@@ -451,18 +451,18 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
 
             {/* Row 2: Payment mode + Less side by side */}
             <Grid size={{ xs: 12, sm: 7 }}>
-              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Payment Via</Typography>
+              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Payment Via</Typography>
               <Box sx={{ display: 'flex', gap: 0.75 }}>
                 {[
                   { value: 'Cash',  icon: <Banknote size={14} />,   color: '#16a34a' },
-                  { value: 'Bank',  icon: <Landmark size={14} />,   color: '#27272a' },
+                  { value: 'Bank',  icon: <Landmark size={14} />,   color: '#5c1f22' },
                   { value: 'Split', icon: <ArrowLeft size={14} style={{ transform: 'rotate(135deg)' }} />, color: '#7c3aed' },
                 ].map(opt => {
                   const sel = formData.paymentMode === opt.value;
                   return (
                     <Box key={opt.value} onClick={() => setFormData({ ...formData, paymentMode: opt.value })}
                       sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, borderRadius: '8px', border: '1.5px solid', cursor: 'pointer', userSelect: 'none', transition: 'all 0.12s', fontWeight: 700, fontSize: '0.8rem',
-                        borderColor: sel ? opt.color : '#e5e7eb', bgcolor: sel ? alpha(opt.color, 0.07) : '#fafafa', color: sel ? opt.color : '#64748b',
+                        borderColor: sel ? opt.color : '#e5e7eb', bgcolor: sel ? alpha(opt.color, 0.07) : '#fafafa', color: sel ? opt.color : '#6b5550',
                         '&:hover': { borderColor: opt.color, color: opt.color, bgcolor: alpha(opt.color, 0.05) } }}>
                       {opt.icon}{opt.value}
                     </Box>
@@ -472,18 +472,18 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
             </Grid>
 
             <Grid size={{ xs: 12, sm: 5 }}>
-              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Less — Discount / Write-off</Typography>
+              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Less — Discount / Write-off</Typography>
               <Box sx={{ border: `1.5px solid`, borderColor: lessAmount ? '#d97706' : '#e5e7eb', borderRadius: '10px', px: 1.5, py: 0.75, bgcolor: lessAmount ? alpha('#d97706', 0.03) : '#fafafa', transition: 'all 0.2s', '&:focus-within': { borderColor: '#d97706' } }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: lessAmount ? '#d97706' : '#cbd5e1' }}>₹</Typography>
+                  <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: lessAmount ? '#d97706' : '#ddd0c9' }}>₹</Typography>
                   <InputBase fullWidth type="number" placeholder="0 (optional)" value={lessAmount}
                     onChange={(e) => setLessAmount(e.target.value)} onFocus={(e) => e.target.select()}
                     inputProps={{ min: 0, step: 0.01, style: { padding: 0 } }}
-                    sx={{ '& input': { fontSize: '1rem', fontWeight: 700, color: '#d97706', '&::placeholder': { color: '#cbd5e1', fontWeight: 500 } } }}
+                    sx={{ '& input': { fontSize: '1rem', fontWeight: 700, color: '#d97706', '&::placeholder': { color: '#ddd0c9', fontWeight: 500 } } }}
                   />
                   {(parseFloat(formData.amount) > 0 || parseFloat(lessAmount) > 0) && (
-                    <Box sx={{ textAlign: 'right', flexShrink: 0, pl: 1, borderLeft: '1px solid #f1f5f9' }}>
-                      <Typography sx={{ fontSize: '0.6rem', color: '#94a3b8', lineHeight: 1.2 }}>Settled</Typography>
+                    <Box sx={{ textAlign: 'right', flexShrink: 0, pl: 1, borderLeft: '1px solid #f6efe9' }}>
+                      <Typography sx={{ fontSize: '0.6rem', color: '#9c8a84', lineHeight: 1.2 }}>Settled</Typography>
                       <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', color: accentColor, lineHeight: 1.2 }}>
                         ₹{((parseFloat(formData.amount) || 0) + (parseFloat(lessAmount) || 0)).toLocaleString('en-IN')}
                       </Typography>
@@ -558,7 +558,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
             border: `1px solid ${selectedParty ? alpha(accentColor, 0.3) : '#e5e7eb'}`,
             borderRadius: '14px', overflow: 'hidden', transition: 'border-color 0.2s ease',
           }}>
-            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', bgcolor: '#fafafa' }}>
+            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', bgcolor: '#fafafa' }}>
               <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Party Balance</Typography>
             </Box>
             <CardContent sx={{ p: 3, textAlign: 'center' }}>
@@ -635,7 +635,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
             up to it, so recording the payment is a single next step. */}
         <Grid size={{ xs: 12, lg: 5 }}>
       <Card ref={outstandingListRef} elevation={0} sx={{ borderRadius: '14px', border: `1px solid ${alpha(accentColor, 0.2)}`, overflow: 'hidden', scrollMarginTop: 16 }}>
-        <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', bgcolor: alpha(accentColor, 0.03), display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+        <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', bgcolor: alpha(accentColor, 0.03), display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Box sx={{ p: 0.625, borderRadius: '8px', bgcolor: alpha(accentColor, 0.1), color: accentColor, display: 'flex' }}>
               <Users size={15} />
@@ -691,7 +691,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                 }}
                 sx={{
                   display: 'flex', alignItems: 'center', gap: 1.25, px: 2, py: 1.125, cursor: 'pointer',
-                  borderTop: idx > 0 ? '1px solid #f1f5f9' : 'none',
+                  borderTop: idx > 0 ? '1px solid #f6efe9' : 'none',
                   bgcolor: formData.partyId === p.id ? alpha(accentColor, 0.06) : 'transparent',
                   '&:hover': { bgcolor: alpha(accentColor, 0.05) },
                 }}>
@@ -722,7 +722,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         <Grid size={{ xs: 12, lg: 7 }}>
           <Card elevation={0} sx={{ border: `1px solid #e5e7eb`, borderRadius: '14px', overflow: 'hidden' }}>
             {/* History header */}
-            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, bgcolor: '#fafafa' }}>
+            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, bgcolor: '#fafafa' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
                   {isPaymentIn ? t('pay.paymentIn') : t('pay.paymentOut')} History
@@ -731,7 +731,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                   <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: accentColor }}>{filteredHistory.length}</Typography>
                 </Box>
               </Box>
-              <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>
+              <Typography sx={{ fontSize: '0.75rem', color: '#6b5550' }}>
                 Total&nbsp;<Box component="span" sx={{ fontWeight: 800, color: accentColor }}>₹{filteredTotal.toLocaleString('en-IN')}</Box>
               </Typography>
             </Box>

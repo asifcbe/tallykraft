@@ -173,14 +173,14 @@ const CustomerPreviewPanel = ({ party, onClose, onRedeem, redeemedPoints = 0, la
     }}>
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <Box sx={{
-        background: '#ffffff', borderBottom: '1px solid #e4e8ee',
+        background: '#ffffff', borderBottom: '1px solid #ece2db',
         px: 2, pt: 2, pb: 2.5, position: 'relative',
       }}>
         {onClose && (
           <IconButton size="small" onClick={onClose} sx={{
             position: 'absolute', top: 8, right: 8,
-            color: '#64748b',
-            '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' },
+            color: '#6b5550',
+            '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' },
           }}>
             <X size={14} />
           </IconButton>
@@ -190,22 +190,22 @@ const CustomerPreviewPanel = ({ party, onClose, onRedeem, redeemedPoints = 0, la
           {/* Avatar */}
           <Box sx={{
             width: 44, height: 44, borderRadius: '50%', flexShrink: 0,
-            background: 'rgba(51,65,85,0.1)',
-            border: '2px solid #e4e8ee',
+            background: 'rgba(92,31,34,0.1)',
+            border: '2px solid #ece2db',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
           }}>
-            <Typography sx={{ color: '#1e293b', fontWeight: 900, fontSize: '1rem', letterSpacing: '-0.02em' }}>
+            <Typography sx={{ color: '#5c1f22', fontWeight: 900, fontSize: '1rem', letterSpacing: '-0.02em' }}>
               {initials}
             </Typography>
           </Box>
 
           <Box sx={{ minWidth: 0, flex: 1, pt: 0.25 }}>
-            <Typography sx={{ color: '#1e293b', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2, wordBreak: 'break-word' }}>
+            <Typography sx={{ color: '#5c1f22', fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.2, wordBreak: 'break-word' }}>
               {party.name}
             </Typography>
             {party.partyId && (
-              <Typography sx={{ color: '#64748b', fontSize: '0.65rem', fontFamily: 'monospace', mt: 0.2 }}>
+              <Typography sx={{ color: '#6b5550', fontSize: '0.65rem', fontFamily: 'monospace', mt: 0.2 }}>
                 {party.partyId}
               </Typography>
             )}
@@ -234,8 +234,8 @@ const CustomerPreviewPanel = ({ party, onClose, onRedeem, redeemedPoints = 0, la
                 </Box>
               )}
               {party.category && (
-                <Box sx={{ px: 0.75, py: 0.2, borderRadius: '6px', bgcolor: 'rgba(51,65,85,0.08)', border: '1px solid #e4e8ee' }}>
-                  <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#475569' }}>{party.category}</Typography>
+                <Box sx={{ px: 0.75, py: 0.2, borderRadius: '6px', bgcolor: 'rgba(92,31,34,0.08)', border: '1px solid #ece2db' }}>
+                  <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#7a2e30' }}>{party.category}</Typography>
                 </Box>
               )}
             </Box>
@@ -251,14 +251,14 @@ const CustomerPreviewPanel = ({ party, onClose, onRedeem, redeemedPoints = 0, la
                 sx={{
                   display: 'flex', alignItems: 'center', gap: 0.5,
                   px: 1, py: 0.4, borderRadius: '8px',
-                  bgcolor: 'rgba(51,65,85,0.08)', border: '1px solid #e4e8ee',
+                  bgcolor: 'rgba(92,31,34,0.08)', border: '1px solid #ece2db',
                   textDecoration: 'none', cursor: 'pointer',
-                  '&:hover': { bgcolor: '#94a3b8' },
+                  '&:hover': { bgcolor: '#9c8a84' },
                   transition: 'all 0.15s',
                 }}
               >
-                <Phone size={11} color="#94a3b8" />
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#475569', fontFamily: 'monospace' }}>
+                <Phone size={11} color="#9c8a84" />
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 600, color: '#7a2e30', fontFamily: 'monospace' }}>
                   {party.phone}
                 </Typography>
               </Box>
@@ -272,8 +272,8 @@ const CustomerPreviewPanel = ({ party, onClose, onRedeem, redeemedPoints = 0, la
                   target="_blank"
                   rel="noopener noreferrer"
                   sx={{
-                    color: '#25D366', bgcolor: 'rgba(51,65,85,0.08)',
-                    border: '1px solid #e4e8ee',
+                    color: '#25D366', bgcolor: 'rgba(92,31,34,0.08)',
+                    border: '1px solid #ece2db',
                     borderRadius: '8px', width: 28, height: 28,
                     '&:hover': { bgcolor: 'rgba(37,211,102,0.2)' },
                   }}

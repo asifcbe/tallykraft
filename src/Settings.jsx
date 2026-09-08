@@ -176,7 +176,7 @@ const ColumnOrderEditor = ({ bpo, getChecked, primary, dragKeyRef, onChange }) =
             }}
           >
             <GripVertical size={14} color="#b0b8c1" style={{ flexShrink: 0 }} />
-            <Typography sx={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: isOn ? '#0f172a' : '#94a3b8' }}>
+            <Typography sx={{ flex: 1, fontSize: '0.8rem', fontWeight: 600, color: isOn ? '#3f1417' : '#9c8a84' }}>
               {COLUMN_LABELS[key]}
             </Typography>
             {!isOn && (
@@ -238,7 +238,7 @@ const CustomTemplateEditor = ({ customTemplate, primary, dragKeyRef, onChange })
           >
             <GripVertical size={16} color="#b0b8c1" style={{ flexShrink: 0 }} />
             <Box sx={{ flex: 1, minWidth: 0 }}>
-              <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: isOn ? '#0f172a' : '#94a3b8', lineHeight: 1.3 }}>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 700, color: isOn ? '#3f1417' : '#9c8a84', lineHeight: 1.3 }}>
                 {meta?.label || s.key}
               </Typography>
               <Typography sx={{ fontSize: '0.7rem', color: isOn ? 'text.secondary' : '#c0c7d1', lineHeight: 1.3 }}>
@@ -720,7 +720,7 @@ const SettingsPage = () => {
       name: 'TallyKraft',
       description: `${plan.label} Plan${pendingBizData?.name ? ` — ${pendingBizData.name}` : ''}`,
       prefill: { email: currentUser?.email || '', name: currentUser?.displayName || '' },
-      theme: { color: (theme?.palette?.primary?.main) || '#334155' },
+      theme: { color: (theme?.palette?.primary?.main) || '#5c1f22' },
       modal: { ondismiss: () => setBizPaying(null) },
       handler: async (response) => {
         try {
@@ -924,12 +924,12 @@ const SettingsPage = () => {
   // Compact row toggle (label + switch, no border)
   const ToggleRow = ({ label, desc, checked, onChange, disabled }) => (
     <Box onClick={disabled ? undefined : () => onChange(!checked)}
-      sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1, py: 0.6, borderRadius: '8px', cursor: disabled ? 'default' : 'pointer', '&:hover': disabled ? {} : { bgcolor: '#f8fafc' } }}>
+      sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1, py: 0.6, borderRadius: '8px', cursor: disabled ? 'default' : 'pointer', '&:hover': disabled ? {} : { bgcolor: '#f6efe9' } }}>
       <Switch size="small" checked={checked} disabled={disabled}
         onChange={e => { e.stopPropagation(); onChange(e.target.checked); }} sx={{ flexShrink: 0 }} />
       <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', lineHeight: 1.2, color: checked ? '#0f172a' : '#64748b' }}>{label}</Typography>
-        {desc && <Typography variant="caption" sx={{ color: '#94a3b8', lineHeight: 1.2, fontSize: '0.72rem' }}>{desc}</Typography>}
+        <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', lineHeight: 1.2, color: checked ? '#3f1417' : '#6b5550' }}>{label}</Typography>
+        {desc && <Typography variant="caption" sx={{ color: '#9c8a84', lineHeight: 1.2, fontSize: '0.72rem' }}>{desc}</Typography>}
       </Box>
     </Box>
   );
@@ -940,8 +940,8 @@ const SettingsPage = () => {
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
         <Icon size={15} color={primary} style={{ flexShrink: 0, opacity: 0.8 }} />
         <Box>
-          <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.3, color: '#0f172a' }}>{title}</Typography>
-          {subtitle && <Typography variant="caption" sx={{ color: '#64748b', lineHeight: 1.4, display: 'block' }}>{subtitle}</Typography>}
+          <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', lineHeight: 1.3, color: '#3f1417' }}>{title}</Typography>
+          {subtitle && <Typography variant="caption" sx={{ color: '#6b5550', lineHeight: 1.4, display: 'block' }}>{subtitle}</Typography>}
         </Box>
       </Box>
       {action}
@@ -1072,9 +1072,9 @@ const SettingsPage = () => {
           <SlidersHorizontal size={20} color={primary} />
         </Box>
         <Box>
-          <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.2, color: '#0f172a' }}>Settings</Typography>
+          <Typography sx={{ fontWeight: 800, fontSize: '1.25rem', lineHeight: 1.2, color: '#3f1417' }}>Settings</Typography>
           {currentBusiness && (
-            <Typography sx={{ color: '#64748b', fontSize: '0.82rem' }}>{currentBusiness.name}</Typography>
+            <Typography sx={{ color: '#6b5550', fontSize: '0.82rem' }}>{currentBusiness.name}</Typography>
           )}
         </Box>
       </Box>
@@ -1097,8 +1097,8 @@ const SettingsPage = () => {
               <Box key={key} onClick={() => setActiveTab(key)} sx={{
                 display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75,
                 borderRadius: '100px', cursor: 'pointer', whiteSpace: 'nowrap', flexShrink: 0,
-                bgcolor: active ? primary : '#f1f5f9',
-                color: active ? 'white' : '#475569',
+                bgcolor: active ? primary : '#f6efe9',
+                color: active ? 'white' : '#7a2e30',
                 transition: 'all 0.15s',
               }}>
                 <Icon size={13} />
@@ -1118,15 +1118,15 @@ const SettingsPage = () => {
             <Box sx={{ bgcolor: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', overflow: 'hidden', mb: 2 }}>
               {/* Search */}
               <Box sx={{ px: 1.5, pt: 1.5, pb: 0.75 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.875, borderRadius: '10px', bgcolor: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                  <Search size={13} color="#94a3b8" />
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.875, borderRadius: '10px', bgcolor: '#f6efe9', border: '1px solid #e8ddd6' }}>
+                  <Search size={13} color="#9c8a84" />
                   <Box component="input"
                     placeholder="Search…"
                     value={navSearch}
                     onChange={e => setNavSearch(e.target.value)}
                     name="settingsNavSearch"
                     autoComplete="off"
-                    style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '0.82rem', color: '#334155', width: '100%', fontFamily: 'inherit' }}
+                    style={{ border: 'none', outline: 'none', background: 'transparent', fontSize: '0.82rem', color: '#5c1f22', width: '100%', fontFamily: 'inherit' }}
                   />
                 </Box>
               </Box>
@@ -1140,9 +1140,9 @@ const SettingsPage = () => {
                       borderRadius: '10px', cursor: 'pointer',
                       borderLeft: active ? `3px solid ${primary}` : '3px solid transparent',
                       bgcolor: active ? alpha(primary, 0.07) : 'transparent',
-                      color: active ? primary : '#475569',
+                      color: active ? primary : '#7a2e30',
                       transition: 'all 0.15s',
-                      '&:hover': { bgcolor: active ? alpha(primary, 0.09) : '#f8fafc', color: active ? primary : '#334155' },
+                      '&:hover': { bgcolor: active ? alpha(primary, 0.09) : '#f6efe9', color: active ? primary : '#5c1f22' },
                     }}>
                       <Icon size={15} />
                       <Typography sx={{ fontSize: '0.85rem', fontWeight: active ? 700 : 500 }}>{label}</Typography>
@@ -1154,8 +1154,8 @@ const SettingsPage = () => {
 
             {/* Quick Toggles */}
             <Box sx={{ bgcolor: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', overflow: 'hidden' }}>
-              <Box sx={{ px: 1.75, py: 1.25, borderBottom: '1px solid #f1f5f9' }}>
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick Toggles</Typography>
+              <Box sx={{ px: 1.75, py: 1.25, borderBottom: '1px solid #f6efe9' }}>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Quick Toggles</Typography>
               </Box>
               <Box sx={{ px: 1.5, py: 0.75 }}>
                 {[
@@ -1170,8 +1170,8 @@ const SettingsPage = () => {
                     <Box key={key} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', py: 0.6, cursor: 'pointer' }}
                       onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                        <Icon size={12} color={on ? primary : '#94a3b8'} />
-                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 500, color: on ? '#0f172a' : '#64748b' }}>{label}</Typography>
+                        <Icon size={12} color={on ? primary : '#9c8a84'} />
+                        <Typography sx={{ fontSize: '0.8rem', fontWeight: 500, color: on ? '#3f1417' : '#6b5550' }}>{label}</Typography>
                       </Box>
                       <Switch size="small" checked={on} disabled={featuresSaving}
                         onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }}
@@ -1193,9 +1193,9 @@ const SettingsPage = () => {
           {/* Left: form */}
           <Grid size={{ xs: 12, md: 7 }}>
             <Card elevation={0} sx={{ ...cardSx.sx }}>
-              <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Building2 size={13} color={primary} style={{ opacity: 0.7 }} />
-                <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#0f172a' }}>Business Details</Typography>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#3f1417' }}>Business Details</Typography>
               </Box>
               <CardContent sx={{ p: 2 }}>
                 <form onSubmit={handleSaveListUpdate}>
@@ -1226,7 +1226,7 @@ const SettingsPage = () => {
                           {STATE_NAMES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
                         </Select>
                       </FormControl>
-                      <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '0.68rem', display: 'block', mt: 0.375 }}>
+                      <Typography variant="caption" sx={{ color: '#9c8a84', fontSize: '0.68rem', display: 'block', mt: 0.375 }}>
                         Used as the GST "Place of Supply" on every bill
                       </Typography>
                     </Grid>
@@ -1260,9 +1260,9 @@ const SettingsPage = () => {
                     <Grid size={12}>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 1, mb: -0.25 }}>
                         <Landmark size={13} color={primary} style={{ opacity: 0.7 }} />
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#0f172a' }}>Bank & UPI Details</Typography>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#3f1417' }}>Bank & UPI Details</Typography>
                       </Box>
-                      <Typography variant="caption" sx={{ color: '#94a3b8', fontSize: '0.7rem', display: 'block', mt: 0.25 }}>
+                      <Typography variant="caption" sx={{ color: '#9c8a84', fontSize: '0.7rem', display: 'block', mt: 0.25 }}>
                         Shown on printed bills when "Bank Details" is enabled in Invoice settings — the payment QR appears with the UPI ID/number below it.
                       </Typography>
                     </Grid>
@@ -1273,7 +1273,7 @@ const SettingsPage = () => {
                       <Box sx={{ display: 'flex', gap: 1.25, alignItems: 'flex-start' }}>
                         <Box sx={{ flexShrink: 0, width: 64, textAlign: 'center' }}>
                           {formData.upiId ? (
-                            <Box sx={{ width: 64, height: 64, borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', bgcolor: '#fff' }}>
+                            <Box sx={{ width: 64, height: 64, borderRadius: '8px', border: '1px solid #e8ddd6', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden', bgcolor: '#fff' }}>
                               <UpiQrImage value={buildUpiUri({ upiId: formData.upiId, payeeName: currentBusiness?.name })} size={64} />
                             </Box>
                           ) : (
@@ -1281,7 +1281,7 @@ const SettingsPage = () => {
                               <QrCode size={20} color={alpha(primary, 0.45)} />
                             </Box>
                           )}
-                          <Typography sx={{ fontSize: '0.62rem', color: '#94a3b8', fontWeight: 600, mt: 0.375, lineHeight: 1.2 }}>
+                          <Typography sx={{ fontSize: '0.62rem', color: '#9c8a84', fontWeight: 600, mt: 0.375, lineHeight: 1.2 }}>
                             {formData.upiId ? 'Payment QR' : 'Add UPI ID →'}
                           </Typography>
                         </Box>
@@ -1331,13 +1331,13 @@ const SettingsPage = () => {
               {/* Branding: logo. Payment QR moved into Bank & UPI Details
                   (left column) since it's payment-related, not branding. */}
               <Card elevation={0} sx={{ ...cardSx.sx }}>
-                <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
                   <Image size={13} color={primary} style={{ opacity: 0.7 }} />
                   <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Branding</Typography>
                 </Box>
                 <CardContent sx={{ p: 2 }}>
                   <Box sx={{ maxWidth: 200, mx: 'auto', border: '1px dashed #d1d5db', borderRadius: '10px', p: 1.5, textAlign: 'center' }}>
-                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#64748b', display: 'block', mb: 1, fontSize: '0.72rem' }}>LOGO</Typography>
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: '#6b5550', display: 'block', mb: 1, fontSize: '0.72rem' }}>LOGO</Typography>
                     {currentBusiness?.logo ? (
                       <Box>
                         <img src={currentBusiness.logo} alt="Logo" style={{ maxHeight: 56, maxWidth: '100%', objectFit: 'contain', display: 'block', margin: '0 auto 8px' }} />
@@ -1365,7 +1365,7 @@ const SettingsPage = () => {
               {/* Businesses — visible to Google-auth admins and business-code admins alike */}
               {config.multiBusiness && (!staffSession || staffSession.role === 'admin') && (
                 <Card elevation={0} sx={{ ...cardSx.sx }}>
-                  <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                       <Building2 size={13} color={primary} style={{ opacity: 0.7 }} />
                       <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Businesses</Typography>
@@ -1380,7 +1380,7 @@ const SettingsPage = () => {
                       const isActive = biz._key === currentBusiness?._key;
                       return (
                         <Box key={biz._key} onClick={() => { if (!isActive) { setIsNew(false); switchBusiness(biz._key); } }}
-                          sx={{ mb: 0.75, p: 1.25, borderRadius: '10px', border: '1px solid', borderColor: isActive ? alpha(primary, 0.35) : '#e5e7eb', bgcolor: isActive ? alpha(primary, 0.04) : 'transparent', display: 'flex', alignItems: 'center', gap: 1.25, cursor: isActive ? 'default' : 'pointer', '&:hover': !isActive ? { bgcolor: '#f8fafc' } : {} }}>
+                          sx={{ mb: 0.75, p: 1.25, borderRadius: '10px', border: '1px solid', borderColor: isActive ? alpha(primary, 0.35) : '#e5e7eb', bgcolor: isActive ? alpha(primary, 0.04) : 'transparent', display: 'flex', alignItems: 'center', gap: 1.25, cursor: isActive ? 'default' : 'pointer', '&:hover': !isActive ? { bgcolor: '#f6efe9' } : {} }}>
                           <Avatar sx={{ width: 30, height: 30, fontSize: '0.75rem', bgcolor: isActive ? primary : alpha(primary, 0.12), color: isActive ? 'white' : primary, fontWeight: 700 }}>
                             {(biz.name?.[0] || '?').toUpperCase()}
                           </Avatar>
@@ -1409,16 +1409,16 @@ const SettingsPage = () => {
       {/* ── Features / Modules ── */}
       <Box sx={{ mb: 4, display: activeTab === 'features' ? 'block' : 'none' }}>
         <Card elevation={0} sx={{ ...cardSx.sx, mb: 2 }}>
-          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Package size={13} color={primary} style={{ opacity: 0.7 }} />
             <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Sections & Modules</Typography>
-            <Typography variant="caption" sx={{ color: '#94a3b8', ml: 0.5 }}>
+            <Typography variant="caption" sx={{ color: '#9c8a84', ml: 0.5 }}>
               — hidden when off · applies to {currentBusiness?.name || 'this business'} only
             </Typography>
           </Box>
           <CardContent sx={{ p: 1.5 }}>
             {/* Core */}
-            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75 }}>Core</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75 }}>Core</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 0.5, mb: 1.5 }}>
               {[
                 { key: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
@@ -1438,9 +1438,9 @@ const SettingsPage = () => {
                 const on = config.features?.[key] !== false;
                 return (
                   <Box key={key} onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f1f5f9' } }}>
-                    <Icon size={13} color={on ? primary : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#0f172a' : '#94a3b8', lineHeight: 1.2 }}>{label}</Typography>
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f6efe9' } }}>
+                    <Icon size={13} color={on ? primary : '#9c8a84'} style={{ flexShrink: 0 }} />
+                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#9c8a84', lineHeight: 1.2 }}>{label}</Typography>
                     <Switch size="small" checked={on} disabled={featuresSaving} onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }} sx={{ transform: 'scale(0.8)', mr: -0.5 }} />
                   </Box>
                 );
@@ -1448,7 +1448,7 @@ const SettingsPage = () => {
             </Box>
             <Divider sx={{ my: 1 }} />
             {/* Optional */}
-            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75, mt: 1 }}>Optional Modules</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75, mt: 1 }}>Optional Modules</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 0.5 }}>
               {[
                 { key: 'estimates',     icon: FileSearch,   label: 'Estimates' },
@@ -1466,9 +1466,9 @@ const SettingsPage = () => {
                 const on = !!config.features?.[key];
                 return (
                   <Box key={key} onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f1f5f9' } }}>
-                    <Icon size={13} color={on ? primary : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#0f172a' : '#94a3b8', lineHeight: 1.2 }}>{label}</Typography>
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f6efe9' } }}>
+                    <Icon size={13} color={on ? primary : '#9c8a84'} style={{ flexShrink: 0 }} />
+                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#9c8a84', lineHeight: 1.2 }}>{label}</Typography>
                     <Switch size="small" checked={on} disabled={featuresSaving} onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }} sx={{ transform: 'scale(0.8)', mr: -0.5 }} />
                   </Box>
                 );
@@ -1476,7 +1476,7 @@ const SettingsPage = () => {
             </Box>
             <Divider sx={{ my: 1 }} />
             {/* Sales & POS options */}
-            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75, mt: 1 }}>Sales & POS Options</Typography>
+            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75, mt: 1 }}>Sales & POS Options</Typography>
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 0.5 }}>
               {[
                 { key: 'customerPreview',        icon: Users,       label: 'Customer Preview Panel' },
@@ -1492,9 +1492,9 @@ const SettingsPage = () => {
                 const on = off ? config.features?.[key] === true : config.features?.[key] !== false;
                 return (
                   <Box key={key} onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f1f5f9' } }}>
-                    <Icon size={13} color={on ? primary : '#94a3b8'} style={{ flexShrink: 0 }} />
-                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#0f172a' : '#94a3b8', lineHeight: 1.2 }}>{label}</Typography>
+                    sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f6efe9' } }}>
+                    <Icon size={13} color={on ? primary : '#9c8a84'} style={{ flexShrink: 0 }} />
+                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#9c8a84', lineHeight: 1.2 }}>{label}</Typography>
                     <Switch size="small" checked={on} disabled={featuresSaving} onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }} sx={{ transform: 'scale(0.8)', mr: -0.5 }} />
                   </Box>
                 );
@@ -1508,14 +1508,14 @@ const SettingsPage = () => {
       <Box sx={{ mb: 2, display: activeTab === 'features' ? 'block' : 'none' }}>
         <Card elevation={0} sx={{ ...cardSx.sx }}>
           {/* Tab pills */}
-          <Box sx={{ px: 2, pt: 1.25, pb: 0, borderBottom: '1px solid #f1f5f9', display: 'flex', gap: 0.5 }}>
+          <Box sx={{ px: 2, pt: 1.25, pb: 0, borderBottom: '1px solid #f6efe9', display: 'flex', gap: 0.5 }}>
             {[
               { key: 'barcode', icon: Barcode, label: 'Barcode Label', dirty: isDirty.barcode },
               { key: 'loyalty', icon: Coins, label: 'Loyalty Points', dirty: isDirty.loyalty },
               { key: 'gst', icon: Percent, label: 'GST Defaults', dirty: isDirty.gst },
             ].map(({ key, icon: Icon, label, dirty }) => (
               <Box key={key} onClick={() => setAdvancedTab(key)}
-                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, cursor: 'pointer', borderBottom: advancedTab === key ? `2px solid ${primary}` : '2px solid transparent', color: advancedTab === key ? primary : '#64748b', transition: 'all 0.15s', '&:hover': { color: primary } }}>
+                sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, cursor: 'pointer', borderBottom: advancedTab === key ? `2px solid ${primary}` : '2px solid transparent', color: advancedTab === key ? primary : '#6b5550', transition: 'all 0.15s', '&:hover': { color: primary } }}>
                 <Icon size={13} />
                 <Typography sx={{ fontSize: '0.82rem', fontWeight: advancedTab === key ? 700 : 500 }}>{label}</Typography>
                 {dirty && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: 'warning.main' }} />}
@@ -1815,7 +1815,7 @@ const SettingsPage = () => {
                       value={loyaltyEff.programName ?? 'Reward Points'}
                       onChange={e => setLoyaltyDraft(d => ({ ...(d ?? config.loyalty ?? {}), programName: e.target.value }))} sx={fieldSx} />
                     <Box sx={{ p: 1.5, borderRadius: '10px', border: '1px solid #e5e7eb', bgcolor: '#fafafa' }}>
-                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1 }}>Earn Rule</Typography>
+                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1 }}>Earn Rule</Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap' }}>
                         <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>Customer earns</Typography>
                         <TextField size="small" type="number" value={loyaltyEff.pointsPerRupee ?? 1}
@@ -1834,7 +1834,7 @@ const SettingsPage = () => {
                       </Typography>
                     </Box>
                     <Box sx={{ p: 1.5, borderRadius: '10px', border: '1px solid #e5e7eb', bgcolor: '#fafafa' }}>
-                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1 }}>Redeem Rule</Typography>
+                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 1 }}>Redeem Rule</Typography>
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, flexWrap: 'wrap', mb: 0.75 }}>
                         <Typography sx={{ fontSize: '0.82rem', color: 'text.secondary' }}>1 pt =</Typography>
                         <TextField size="small" type="number" value={loyaltyEff.rupeePerPoint ?? 0.25}
@@ -1904,15 +1904,15 @@ const SettingsPage = () => {
                       const half = (rate / 2).toFixed(rate % 1 === 0 ? 0 : 2);
                       const secondLabel = gstEff.gstType === 'utgst' ? 'UTGST' : 'SGST';
                       return (
-                        <Box sx={{ display: 'flex', gap: 1, p: 1, borderRadius: '10px', bgcolor: '#f8fafc', border: '1px solid #e5e7eb' }}>
+                        <Box sx={{ display: 'flex', gap: 1, p: 1, borderRadius: '10px', bgcolor: '#f6efe9', border: '1px solid #e5e7eb' }}>
                           <Box sx={{ flex: 1, textAlign: 'center', py: 0.5 }}>
-                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>CGST</Typography>
-                            <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>{half}%</Typography>
+                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.04em' }}>CGST</Typography>
+                            <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#3f1417' }}>{half}%</Typography>
                           </Box>
                           <Box sx={{ width: '1px', bgcolor: '#e5e7eb' }} />
                           <Box sx={{ flex: 1, textAlign: 'center', py: 0.5 }}>
-                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{secondLabel}</Typography>
-                            <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#0f172a' }}>{half}%</Typography>
+                            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{secondLabel}</Typography>
+                            <Typography sx={{ fontSize: '1rem', fontWeight: 800, color: '#3f1417' }}>{half}%</Typography>
                           </Box>
                         </Box>
                       );
@@ -1939,7 +1939,7 @@ const SettingsPage = () => {
           {/* Barcode Label */}
           <Grid item xs={12} md={4}>
             <Card elevation={0} sx={{ ...cardSx.sx, height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ display: 'flex', opacity: 0.7 }}>
                   <Barcode size={13} color={primary} />
                 </Box>
@@ -1969,9 +1969,9 @@ const SettingsPage = () => {
                           display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1,
                           px: 1.25, py: 0.6, borderRadius: '8px',
                           cursor: 'pointer', transition: 'background 0.12s',
-                          '&:hover': { bgcolor: '#f8fafc' },
+                          '&:hover': { bgcolor: '#f6efe9' },
                         }}>
-                        <Typography sx={{ fontWeight: 500, fontSize: '0.82rem', color: on ? '#0f172a' : '#94a3b8', lineHeight: 1.2 }}>{label}</Typography>
+                        <Typography sx={{ fontWeight: 500, fontSize: '0.82rem', color: on ? '#3f1417' : '#9c8a84', lineHeight: 1.2 }}>{label}</Typography>
                         <Switch size="small" checked={on} onChange={e => { e.stopPropagation(); setBarcodeDraft(d => ({ ...(d ?? config.barcodeLabel ?? {}), [key]: e.target.checked })); }} />
                       </Box>
                     );
@@ -2023,7 +2023,7 @@ const SettingsPage = () => {
           {/* Loyalty */}
           <Grid item xs={12} md={4}>
             <Card elevation={0} sx={{ ...cardSx.sx, height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ display: 'flex', opacity: 0.7 }}>
                   <Coins size={13} color={primary} />
                 </Box>
@@ -2143,7 +2143,7 @@ const SettingsPage = () => {
           {/* Item GST Defaults */}
           <Grid item xs={12} md={4}>
             <Card elevation={0} sx={{ ...cardSx.sx, height: '100%', display: 'flex', flexDirection: 'column' }}>
-              <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ px: 2.5, py: 1.5, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Box sx={{ display: 'flex', opacity: 0.7 }}>
                   <Percent size={13} color={primary} />
                 </Box>
@@ -2251,10 +2251,10 @@ const SettingsPage = () => {
 
       <Box sx={{ mb: 2, display: activeTab === 'features' ? 'block' : 'none' }}>
         <Card elevation={0} sx={{ ...cardSx.sx }}>
-          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Package size={13} color={primary} style={{ opacity: 0.7 }} />
             <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Custom Sections</Typography>
-            <Typography variant="caption" sx={{ color: '#94a3b8', ml: 0.5 }}>
+            <Typography variant="caption" sx={{ color: '#9c8a84', ml: 0.5 }}>
               — applies to {currentBusiness?.name || 'this business'} only
             </Typography>
           </Box>
@@ -2269,7 +2269,7 @@ const SettingsPage = () => {
         <SH icon={BookOpen} title="Lists & Categories" subtitle="Reusable categories and units picked from dropdowns across Expenses and Items" />
         <Card elevation={0} sx={{ ...cardSx.sx }}>
           <Grid container>
-            <Grid size={{ xs: 12, md: 6 }} sx={{ p: 2.25, borderRight: { md: '1px solid #f1f5f9' }, borderBottom: { xs: '1px solid #f1f5f9', md: 'none' } }}>
+            <Grid size={{ xs: 12, md: 6 }} sx={{ p: 2.25, borderRight: { md: '1px solid #f6efe9' }, borderBottom: { xs: '1px solid #f6efe9', md: 'none' } }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
                 <Box sx={{ width: 26, height: 26, borderRadius: '7px', bgcolor: alpha('#ea580c', 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                   <CreditCard size={13} color="#ea580c" />
@@ -2288,7 +2288,7 @@ const SettingsPage = () => {
                   onClick={async () => { if (!newExpenseCat.trim()) return; const cats = config.expenseCategories || []; if (!cats.includes(newExpenseCat.trim())) await saveConfig({ ...config, expenseCategories: [...cats, newExpenseCat.trim()] }); setNewExpenseCat(''); }}
                   sx={{ ...gradBtnSx, flexShrink: 0, textTransform: 'none' }}>Add</Button>
               </Box>
-              <Box sx={{ p: 1.25, borderRadius: '10px', bgcolor: '#fafafa', border: '1px solid #f1f5f9', minHeight: 56, display: 'flex', flexWrap: 'wrap', gap: 0.5, alignContent: 'flex-start' }}>
+              <Box sx={{ p: 1.25, borderRadius: '10px', bgcolor: '#fafafa', border: '1px solid #f6efe9', minHeight: 56, display: 'flex', flexWrap: 'wrap', gap: 0.5, alignContent: 'flex-start' }}>
                 {(config.expenseCategories || []).length === 0 ? (
                   <Typography variant="caption" sx={{ color: 'text.disabled', fontStyle: 'italic', px: 0.5, py: 0.5 }}>No categories yet — add one above</Typography>
                 ) : (config.expenseCategories || []).map(item => (
@@ -2324,7 +2324,7 @@ const SettingsPage = () => {
                   onClick={async () => { if (!newItemUnit.trim()) return; const units = config.itemUnits || []; if (!units.includes(newItemUnit.trim())) await saveConfig({ ...config, itemUnits: [...units, newItemUnit.trim()] }); setNewItemUnit(''); }}
                   sx={{ ...gradBtnSx, flexShrink: 0, textTransform: 'none' }}>Add</Button>
               </Box>
-              <Box sx={{ p: 1.25, borderRadius: '10px', bgcolor: '#fafafa', border: '1px solid #f1f5f9', minHeight: 56, display: 'flex', flexWrap: 'wrap', gap: 0.5, alignContent: 'flex-start' }}>
+              <Box sx={{ p: 1.25, borderRadius: '10px', bgcolor: '#fafafa', border: '1px solid #f6efe9', minHeight: 56, display: 'flex', flexWrap: 'wrap', gap: 0.5, alignContent: 'flex-start' }}>
                 {(config.itemUnits || []).length === 0 ? (
                   <Typography variant="caption" sx={{ color: 'text.disabled', fontStyle: 'italic', px: 0.5, py: 0.5 }}>No units yet — add one above</Typography>
                 ) : (config.itemUnits || []).map(item => (
@@ -2358,8 +2358,8 @@ const SettingsPage = () => {
                         return (
                           <Box key={value} onClick={() => saveConfig({ ...config, [key]: value })}
                             sx={{ px: 1.5, py: 0.4, cursor: 'pointer', fontWeight: 700, fontSize: '0.75rem', transition: 'all 0.12s', userSelect: 'none',
-                              bgcolor: active ? primary : 'transparent', color: active ? '#fff' : '#64748b',
-                              '&:hover': { bgcolor: active ? primary : '#f1f5f9' } }}>
+                              bgcolor: active ? primary : 'transparent', color: active ? '#fff' : '#6b5550',
+                              '&:hover': { bgcolor: active ? primary : '#f6efe9' } }}>
                             {lbl}
                           </Box>
                         );
@@ -2371,8 +2371,8 @@ const SettingsPage = () => {
             </Grid>
 
             {/* Invoice Numbering */}
-            <Box sx={{ pt: 1.5, borderTop: '1px solid #f1f5f9' }}>
-              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', mb: 1.25, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Numbering</Typography>
+            <Box sx={{ pt: 1.5, borderTop: '1px solid #f6efe9' }}>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#6b5550', mb: 1.25, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Numbering</Typography>
               <Grid container spacing={1.5}>
                 {[
                   { label: 'Sales', typeKey: 'salesType', prefixKey: 'salesPrefix', numKey: 'salesStartingNumber', prefixDef: 'INV', resetKey: 'salesCounterOverride' },
@@ -2423,7 +2423,7 @@ const SettingsPage = () => {
               </Grid>
             </Box>
 
-            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, pt: 1.5, mt: 1, borderTop: '1px solid #f1f5f9' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, pt: 1.5, mt: 1, borderTop: '1px solid #f6efe9' }}>
               {isDirty.invoiceNum && <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600, mr: 'auto' }}>Unsaved changes</Typography>}
               <Button size="small" variant="outlined" disabled={!isDirty.invoiceNum} onClick={() => setInvoiceNumDraft(null)}
                 sx={{ borderRadius: '6px', textTransform: 'none', fontSize: '0.8rem' }}>Discard</Button>
@@ -2526,7 +2526,7 @@ const SettingsPage = () => {
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2.5 }}>
                 {THEME_COLORS.map(c => {
-                  const isSel = (printOptsEff.themeColor || '#334155') === c.value;
+                  const isSel = (printOptsEff.themeColor || '#5c1f22') === c.value;
                   return (
                     <Tooltip key={c.value} title={c.label}>
                       <Box
@@ -2549,7 +2549,7 @@ const SettingsPage = () => {
                 })}
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 0.5 }}>
                   <Box component="input" type="color"
-                    value={printOptsEff.themeColor || '#334155'}
+                    value={printOptsEff.themeColor || '#5c1f22'}
                     onChange={e => setPrintOptsDraft(d => ({ ...(d ?? config.billPrintOptions ?? {}), themeColor: e.target.value }))}
                     style={{ width: 28, height: 28, border: 'none', padding: 0, cursor: 'pointer', borderRadius: '50%', background: 'none' }}
                   />
@@ -2719,12 +2719,12 @@ const SettingsPage = () => {
                                       display: 'flex', alignItems: 'center', gap: 1.25, px: 1, py: 0.55,
                                       borderRadius: '8px', cursor: 'pointer',
                                       transition: 'background 0.12s',
-                                      '&:hover': { bgcolor: '#f8fafc' },
+                                      '&:hover': { bgcolor: '#f6efe9' },
                                     }}>
                                     <Switch size="small" checked={isChecked} onChange={() => toggle(key)} sx={{ flexShrink: 0 }} />
                                     <Box sx={{ flex: 1, minWidth: 0 }}>
-                                      <Typography sx={{ fontWeight: 500, fontSize: '0.82rem', lineHeight: 1.2, color: isChecked ? '#0f172a' : '#64748b' }}>{label}</Typography>
-                                      <Typography variant="caption" sx={{ color: '#94a3b8', lineHeight: 1.2, fontSize: '0.72rem' }}>{desc}</Typography>
+                                      <Typography sx={{ fontWeight: 500, fontSize: '0.82rem', lineHeight: 1.2, color: isChecked ? '#3f1417' : '#6b5550' }}>{label}</Typography>
+                                      <Typography variant="caption" sx={{ color: '#9c8a84', lineHeight: 1.2, fontSize: '0.72rem' }}>{desc}</Typography>
                                     </Box>
                                   </Box>
                                 );
@@ -2819,15 +2819,15 @@ const SettingsPage = () => {
 
           {/* Credentials row — business code + admin password in one card */}
           <Card elevation={0} sx={{ ...cardSx.sx, mb: 2 }}>
-            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
               <KeyRound size={13} color={primary} style={{ opacity: 0.7 }} />
               <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Login Credentials</Typography>
             </Box>
             <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0 }}>
               {/* Business Code */}
               {scopedBiz?.businessCode && (
-                <Box sx={{ flex: '1 1 200px', px: 2, py: 1.5, borderRight: { sm: '1px solid #f1f5f9' }, borderBottom: { xs: '1px solid #f1f5f9', sm: 'none' } }}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Business Code</Typography>
+                <Box sx={{ flex: '1 1 200px', px: 2, py: 1.5, borderRight: { sm: '1px solid #f6efe9' }, borderBottom: { xs: '1px solid #f6efe9', sm: 'none' } }}>
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Business Code</Typography>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 1.5, py: 1, borderRadius: '8px', bgcolor: alpha(primary, 0.05), border: `1px solid ${alpha(primary, 0.12)}` }}>
                     <Typography sx={{ fontWeight: 900, letterSpacing: 5, fontFamily: 'monospace', color: primary, fontSize: '1.2rem', flex: 1 }}>
                       {scopedBiz.businessCode}
@@ -2838,14 +2838,14 @@ const SettingsPage = () => {
                       </IconButton>
                     </Tooltip>
                   </Box>
-                  <Typography variant="caption" sx={{ color: '#94a3b8', mt: 0.75, display: 'block' }}>Share with staff for login to this business</Typography>
+                  <Typography variant="caption" sx={{ color: '#9c8a84', mt: 0.75, display: 'block' }}>Share with staff for login to this business</Typography>
                 </Box>
               )}
 
               {/* Admin Password */}
               <Box sx={{ flex: '2 1 320px', px: 2, py: 1.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Admin Password</Typography>
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Admin Password</Typography>
                   {scopedBiz?.adminPassword && <Chip label="Active" size="small" sx={{ height: 16, fontSize: '0.65rem', bgcolor: alpha('#16a34a', 0.1), color: '#16a34a', fontWeight: 700 }} />}
                 </Box>
                 {adminPwdMsg.text && (
@@ -2891,7 +2891,7 @@ const SettingsPage = () => {
                 <Lock size={13} color={primary} style={{ opacity: 0.7, flexShrink: 0 }} />
                 <Box>
                   <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Business Switch Lock</Typography>
-                  <Typography variant="caption" sx={{ color: '#94a3b8' }}>
+                  <Typography variant="caption" sx={{ color: '#9c8a84' }}>
                     {config.features?.businessSwitchLock
                       ? 'Switching businesses requires the admin password.'
                       : 'Off — anyone can switch businesses freely.'}
@@ -2908,7 +2908,7 @@ const SettingsPage = () => {
 
           {/* Staff — list on left, form on right, unified card */}
           <Card elevation={0} sx={{ ...cardSx.sx, overflow: 'hidden' }}>
-            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Users size={13} color={primary} style={{ opacity: 0.7 }} />
                 <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Staff Accounts</Typography>
@@ -2929,11 +2929,11 @@ const SettingsPage = () => {
 
             <Box sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, minHeight: 0 }}>
               {/* Left: staff list */}
-              <Box sx={{ width: { xs: '100%', md: 220 }, flexShrink: 0, borderRight: { md: '1px solid #f1f5f9' }, borderBottom: { xs: '1px solid #f1f5f9', md: 'none' }, overflowY: 'auto', maxHeight: { md: 520 } }}>
+              <Box sx={{ width: { xs: '100%', md: 220 }, flexShrink: 0, borderRight: { md: '1px solid #f6efe9' }, borderBottom: { xs: '1px solid #f6efe9', md: 'none' }, overflowY: 'auto', maxHeight: { md: 520 } }}>
                 {staffList.length === 0 ? (
                   <Box sx={{ py: 5, textAlign: 'center', px: 2 }}>
                     <Users size={28} color={alpha(primary, 0.2)} style={{ margin: '0 auto 8px' }} />
-                    <Typography variant="caption" sx={{ color: '#94a3b8', display: 'block', fontWeight: 600 }}>No staff yet</Typography>
+                    <Typography variant="caption" sx={{ color: '#9c8a84', display: 'block', fontWeight: 600 }}>No staff yet</Typography>
                   </Box>
                 ) : (
                   <Box sx={{ p: 1 }}>
@@ -2945,7 +2945,7 @@ const SettingsPage = () => {
                           bgcolor: isSel ? alpha(primary, 0.07) : 'transparent',
                           display: 'flex', alignItems: 'center', gap: 1.25,
                           transition: 'all 0.12s',
-                          '&:hover': { bgcolor: isSel ? alpha(primary, 0.09) : '#f8fafc' },
+                          '&:hover': { bgcolor: isSel ? alpha(primary, 0.09) : '#f6efe9' },
                         }}>
                           <Avatar sx={{ width: 30, height: 30, fontSize: '0.75rem', fontWeight: 800, flexShrink: 0,
                             bgcolor: isSel ? primary : alpha(primary, 0.12),
@@ -2953,12 +2953,12 @@ const SettingsPage = () => {
                             {(s.name?.[0] || '?').toUpperCase()}
                           </Avatar>
                           <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', lineHeight: 1.2, color: isSel ? primary : '#0f172a', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', lineHeight: 1.2, color: isSel ? primary : '#3f1417', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                               {s.name}
                             </Typography>
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                              <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: s.active !== false ? '#16a34a' : '#94a3b8', flexShrink: 0 }} />
-                              <Typography sx={{ fontSize: '0.7rem', color: '#94a3b8', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{s.username}</Typography>
+                              <Box sx={{ width: 5, height: 5, borderRadius: '50%', bgcolor: s.active !== false ? '#16a34a' : '#9c8a84', flexShrink: 0 }} />
+                              <Typography sx={{ fontSize: '0.7rem', color: '#9c8a84', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>@{s.username}</Typography>
                             </Box>
                           </Box>
                           <Tooltip title="Delete">
@@ -2978,14 +2978,14 @@ const SettingsPage = () => {
               {/* Right: staff form */}
               <Box sx={{ flex: 1, p: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.5 }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                     {selectedStaff ? `Editing — ${selectedStaff.name}` : 'New Staff Account'}
                   </Typography>
                 </Box>
 
                 {/* Identity row — login credentials */}
                 <Box sx={{ mb: 1 }}>
-                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Login Credentials</Typography>
+                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Login Credentials</Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     <TextField size="small" label="Full Name *" value={staffForm.name} placeholder="e.g. Rahul Kumar"
                       onChange={e => setStaffForm(f => ({ ...f, name: e.target.value }))} sx={{ ...fieldSx, flex: '1 1 140px' }} />
@@ -3007,7 +3007,7 @@ const SettingsPage = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: '#fafafa', flexShrink: 0, height: 40 }}>
                       <Switch size="small" checked={staffForm.active} color="success"
                         onChange={e => setStaffForm(f => ({ ...f, active: e.target.checked }))} />
-                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: staffForm.active ? '#16a34a' : '#94a3b8', whiteSpace: 'nowrap' }}>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: staffForm.active ? '#16a34a' : '#9c8a84', whiteSpace: 'nowrap' }}>
                         {staffForm.active ? 'Active' : 'Inactive'}
                       </Typography>
                     </Box>
@@ -3015,8 +3015,8 @@ const SettingsPage = () => {
                 </Box>
 
                 {/* HR details */}
-                <Box sx={{ pt: 1, borderTop: '1px solid #f1f5f9', mb: 1 }}>
-                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>HR Details</Typography>
+                <Box sx={{ pt: 1, borderTop: '1px solid #f6efe9', mb: 1 }}>
+                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>HR Details</Typography>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
                     <TextField size="small" select label="Role" value={staffForm.role || 'Sales Staff'}
                       onChange={e => setStaffForm(f => ({ ...f, role: e.target.value }))} sx={{ ...fieldSx, flex: '1 1 120px' }}>
@@ -3042,26 +3042,26 @@ const SettingsPage = () => {
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: '#fafafa', height: 40, flexShrink: 0 }}>
                       <Switch size="small" checked={!!staffForm.showInSalesSelector}
                         onChange={e => setStaffForm(f => ({ ...f, showInSalesSelector: e.target.checked }))} />
-                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#64748b', whiteSpace: 'nowrap' }}>Show in Sales/POS</Typography>
+                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 600, color: '#6b5550', whiteSpace: 'nowrap' }}>Show in Sales/POS</Typography>
                     </Box>
                   </Box>
                 </Box>
 
                 {/* Permissions */}
-                <Box sx={{ pt: 1, borderTop: '1px solid #f1f5f9' }}>
+                <Box sx={{ pt: 1, borderTop: '1px solid #f6efe9' }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-                    <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Permissions</Typography>
+                    <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Permissions</Typography>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
                       <Button size="small" onClick={() => setStaffForm(f => ({ ...f, features: STAFF_FEATURE_KEYS.reduce((a, k) => ({ ...a, [k]: true }), {}) }))}
                         sx={{ fontSize: '0.68rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: primary, '&:hover': { bgcolor: alpha(primary, 0.06) } }}>All On</Button>
                       <Button size="small" onClick={() => setStaffForm(f => ({ ...f, features: STAFF_FEATURE_KEYS.reduce((a, k) => ({ ...a, [k]: false }), {}) }))}
-                        sx={{ fontSize: '0.68rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#94a3b8', '&:hover': { bgcolor: '#f1f5f9' } }}>All Off</Button>
+                        sx={{ fontSize: '0.68rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#9c8a84', '&:hover': { bgcolor: '#f6efe9' } }}>All Off</Button>
                     </Box>
                   </Box>
                   <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
                     {STAFF_FEATURE_GROUPS.map(({ group, keys }) => (
                       <Box key={group}>
-                        <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#cbd5e1', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.5 }}>{group}</Typography>
+                        <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#ddd0c9', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.5 }}>{group}</Typography>
                         <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))', gap: 0.5 }}>
                           {keys.map(key => {
                             const on = !!staffForm.features[key];
@@ -3071,12 +3071,12 @@ const SettingsPage = () => {
                                 sx={{
                                   display: 'flex', alignItems: 'center', gap: 0.75, px: 1, py: 0.625, borderRadius: '6px',
                                   cursor: 'pointer', border: '1px solid', transition: 'all 0.12s',
-                                  borderColor: on ? alpha(primary, 0.25) : '#f1f5f9',
+                                  borderColor: on ? alpha(primary, 0.25) : '#f6efe9',
                                   bgcolor: on ? alpha(primary, 0.05) : '#fafafa',
-                                  '&:hover': { bgcolor: on ? alpha(primary, 0.08) : '#f1f5f9' },
+                                  '&:hover': { bgcolor: on ? alpha(primary, 0.08) : '#f6efe9' },
                                 }}>
-                                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: on ? primary : '#e2e8f0', flexShrink: 0, transition: 'background 0.12s' }} />
-                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: on ? primary : '#64748b', lineHeight: 1.2, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: on ? primary : '#e8ddd6', flexShrink: 0, transition: 'background 0.12s' }} />
+                                <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: on ? primary : '#6b5550', lineHeight: 1.2, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {STAFF_FEATURE_LABELS[key] || key}
                                 </Typography>
                               </Box>
@@ -3088,7 +3088,7 @@ const SettingsPage = () => {
                   </Box>
                 </Box>
 
-                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 1.5, mt: 1, borderTop: '1px solid #f1f5f9' }}>
+                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 1.5, mt: 1, borderTop: '1px solid #f6efe9' }}>
                   <Button size="small" variant="outlined" onClick={resetStaffForm}
                     sx={{ borderRadius: '6px', textTransform: 'none', fontSize: '0.8rem' }}>Cancel</Button>
                   <Button size="small" variant="contained" startIcon={<Save size={13} />} onClick={handleSaveStaff}
@@ -3107,7 +3107,7 @@ const SettingsPage = () => {
       {currentUser && !staffSession && (
         <Box sx={{ mb: 2, display: activeTab === 'billing' ? 'block' : 'none' }}>
           <Card elevation={0} sx={{ ...cardSx.sx }}>
-            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
               <CreditCard size={13} color={primary} style={{ opacity: 0.7 }} />
               <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>{t('settings.billing')}</Typography>
             </Box>
@@ -3121,14 +3121,14 @@ const SettingsPage = () => {
       {/* ── Appearance ── */}
       <Box sx={{ mb: 2, display: activeTab === 'appearance' ? 'block' : 'none' }}>
         <Card elevation={0} sx={{ ...cardSx.sx }}>
-          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Palette size={13} color={primary} style={{ opacity: 0.7 }} />
             <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>{t('settings.appearance')}</Typography>
           </Box>
           <CardContent sx={{ p: 2 }}>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 5, md: 4 }}>
-                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.language')}</Typography>
+                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#6b5550', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{t('settings.language')}</Typography>
                 <TextField select size="small" fullWidth value={lang} onChange={(e) => setLang(e.target.value)} sx={fieldSx}>
                   {languages.map((l) => (
                     <MenuItem key={l.code} value={l.code}>{l.native}{l.native !== l.label ? ` · ${l.label}` : ''}</MenuItem>
@@ -3136,7 +3136,7 @@ const SettingsPage = () => {
                 </TextField>
               </Grid>
               <Grid size={{ xs: 12, sm: 7, md: 8 }}>
-                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Display Options</Typography>
+                <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#6b5550', mb: 0.75, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Display Options</Typography>
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
                   {[
                     { key: 'compactTables', label: 'Compact Tables', desc: 'Smaller row height in lists' },
@@ -3161,7 +3161,7 @@ const SettingsPage = () => {
       {/* ── Sidebar Order ── */}
       <Box sx={{ mb: 2, display: activeTab === 'appearance' ? 'block' : 'none' }}>
         <Card elevation={0} sx={{ ...cardSx.sx }}>
-          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
             <LayoutList size={13} color={primary} style={{ opacity: 0.7 }} />
             <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', flex: 1 }}>Sidebar Order</Typography>
             {sidebarOrderDirty && (
@@ -3179,7 +3179,7 @@ const SettingsPage = () => {
             </Button>
           </Box>
           <CardContent sx={{ p: 2 }}>
-            <Typography sx={{ fontSize: '0.78rem', color: '#64748b', mb: 1.5 }}>
+            <Typography sx={{ fontSize: '0.78rem', color: '#6b5550', mb: 1.5 }}>
               Drag items to rearrange the left navigation menu. Section labels stay attached to whichever item is above them.
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, maxWidth: 420 }}>
@@ -3190,7 +3190,7 @@ const SettingsPage = () => {
                 return (
                   <React.Fragment key={item.path}>
                     {showGroupLabel && (
-                      <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', mt: idx > 0 ? 1 : 0, mb: 0.25 }}>
+                      <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.06em', mt: idx > 0 ? 1 : 0, mb: 0.25 }}>
                         {item._group}
                       </Typography>
                     )}
@@ -3208,8 +3208,8 @@ const SettingsPage = () => {
                       }}
                     >
                       <GripVertical size={14} color="#b0b8c1" style={{ flexShrink: 0 }} />
-                      {Icon && <Icon size={15} color="#64748b" style={{ flexShrink: 0 }} />}
-                      <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#0f172a' }}>{item.text}</Typography>
+                      {Icon && <Icon size={15} color="#6b5550" style={{ flexShrink: 0 }} />}
+                      <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: '#3f1417' }}>{item.text}</Typography>
                     </Box>
                   </React.Fragment>
                 );
@@ -3222,7 +3222,7 @@ const SettingsPage = () => {
       {/* ── Export Business Data ── */}
       <Box sx={{ mb: 2, display: activeTab === 'data' ? 'block' : 'none' }}>
         <Card elevation={0} sx={{ ...cardSx.sx }}>
-          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Download size={13} color={primary} style={{ opacity: 0.7 }} />
             <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Export Data</Typography>
           </Box>
@@ -3236,14 +3236,14 @@ const SettingsPage = () => {
                 onClick: () => { const biz = currentBusiness; if (!biz) return; exportFullBusinessToExcel({ businessName: biz.name, businessId: biz.id, allData: data, customSections: config.customSections || [] }); },
               },
               {
-                icon: FileDown, iconColor: '#334155',
+                icon: FileDown, iconColor: '#5c1f22',
                 title: 'Export to Tally XML',
                 desc: 'Sales & Purchase vouchers as Tally-compatible XML. Import via Gateway → Import Data → Vouchers',
                 label: 'Export XML',
                 onClick: () => { const biz = currentBusiness; if (!biz) return; exportToTallyXML({ sales: getItems('sales').filter(s => s.businessId === biz.id), purchases: getItems('purchases').filter(p => p.businessId === biz.id), businessName: biz.name, filename: `${biz.name}_tally_export.xml` }); },
               },
             ].map(({ icon: Icon, iconColor, title, desc, label, onClick }, i, arr) => (
-              <Box key={title} sx={{ display: 'flex', alignItems: 'center', gap: 2, px: 2, py: 1.5, borderBottom: i < arr.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
+              <Box key={title} sx={{ display: 'flex', alignItems: 'center', gap: 2, px: 2, py: 1.5, borderBottom: i < arr.length - 1 ? '1px solid #f6efe9' : 'none' }}>
                 <Box sx={{ width: 36, height: 36, borderRadius: '8px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(iconColor, 0.1) }}>
                   <Icon size={16} color={iconColor} />
                 </Box>

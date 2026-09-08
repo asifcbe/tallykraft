@@ -143,13 +143,13 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
             : '#ffffff',
           boxShadow: plan.highlight
             ? `0 20px 50px ${alpha(primary, 0.22)}`
-            : '0 4px 18px rgba(15,23,42,0.05)',
+            : '0 4px 18px rgba(63,20,23,0.05)',
           transition: 'transform 0.22s ease, box-shadow 0.22s ease',
           '&:hover': {
             transform: 'translateY(-6px)',
             boxShadow: plan.highlight
               ? `0 28px 60px ${alpha(primary, 0.28)}`
-              : `0 16px 38px rgba(15,23,42,0.12)`,
+              : `0 16px 38px rgba(63,20,23,0.12)`,
           },
         }}
       >
@@ -160,9 +160,9 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
             size="small"
             sx={{
               position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)',
-              background: '#334155',
+              background: '#5c1f22',
               color: 'white', fontWeight: 800, fontSize: '0.68rem', letterSpacing: '0.02em',
-              px: 0.5, boxShadow: `0 6px 16px ${alpha('#64748b', 0.4)}`,
+              px: 0.5, boxShadow: `0 6px 16px ${alpha('#6b5550', 0.4)}`,
               '& .MuiChip-icon': { color: 'white' },
             }}
           />
@@ -189,11 +189,11 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
                 display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
                 background: plan.highlight
                   ? `linear-gradient(135deg, ${primary} 0%, ${primaryDark} 100%)`
-                  : alpha('#0f172a', 0.05),
+                  : alpha('#3f1417', 0.05),
                 boxShadow: plan.highlight ? `0 6px 16px ${alpha(primary, 0.35)}` : 'none',
               }}
             >
-              <plan.icon size={18} color={plan.highlight ? '#fff' : '#475569'} />
+              <plan.icon size={18} color={plan.highlight ? '#fff' : '#7a2e30'} />
             </Box>
             <Box sx={{ minWidth: 0 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
@@ -201,7 +201,7 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
                   {plan.name}
                 </Typography>
                 {plan.privacyBadge && (
-                  <Chip label={plan.privacyBadge} size="small" icon={<Lock size={9} />} sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: alpha('#64748b', 0.1), color: '#334155', border: `1px solid ${alpha('#64748b', 0.25)}`, '& .MuiChip-icon': { color: '#334155' } }} />
+                  <Chip label={plan.privacyBadge} size="small" icon={<Lock size={9} />} sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: alpha('#6b5550', 0.1), color: '#5c1f22', border: `1px solid ${alpha('#6b5550', 0.25)}`, '& .MuiChip-icon': { color: '#5c1f22' } }} />
                 )}
               </Box>
             </Box>
@@ -224,7 +224,7 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
                 <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.74rem' }}>
                   ≈ ₹{yearlyMonthly.toLocaleString('en-IN')}/mo
                 </Typography>
-                <Chip label={plan.yearlyNote} size="small" sx={{ height: 19, fontSize: '0.64rem', fontWeight: 700, bgcolor: alpha('#64748b', 0.12), color: '#334155' }} />
+                <Chip label={plan.yearlyNote} size="small" sx={{ height: 19, fontSize: '0.64rem', fontWeight: 700, bgcolor: alpha('#6b5550', 0.12), color: '#5c1f22' }} />
               </>
             ) : (
               <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.74rem' }}>
@@ -245,9 +245,9 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
                 ? {
                     borderRadius: `${baseRadius + 3}px`,
                     fontWeight: 800, textTransform: 'none', py: 1.35, fontSize: '0.95rem',
-                    borderWidth: 1.5, borderColor: alpha('#64748b', 0.5), color: '#334155',
-                    bgcolor: alpha('#64748b', 0.06),
-                    '&.Mui-disabled': { borderColor: alpha('#64748b', 0.4), color: '#334155', opacity: 1 },
+                    borderWidth: 1.5, borderColor: alpha('#6b5550', 0.5), color: '#5c1f22',
+                    bgcolor: alpha('#6b5550', 0.06),
+                    '&.Mui-disabled': { borderColor: alpha('#6b5550', 0.4), color: '#5c1f22', opacity: 1 },
                   }
                 : plan.highlight
                 ? {
@@ -286,8 +286,8 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
                   ? <Typography sx={{ fontSize: '0.82rem', color: 'text.primary', fontWeight: 700, lineHeight: 1.45 }}>{f}</Typography>
                   : (
                     <>
-                      <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: plan.highlight ? alpha(primary, 0.14) : alpha('#64748b', 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, mt: 0.15 }}>
-                        <Check size={11} color={plan.highlight ? primary : '#334155'} strokeWidth={3} />
+                      <Box sx={{ width: 18, height: 18, borderRadius: '50%', bgcolor: plan.highlight ? alpha(primary, 0.14) : alpha('#6b5550', 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, mt: 0.15 }}>
+                        <Check size={11} color={plan.highlight ? primary : '#5c1f22'} strokeWidth={3} />
                       </Box>
                       <Typography sx={{ fontSize: '0.82rem', lineHeight: 1.45, color: 'text.primary' }}>{f}</Typography>
                     </>
@@ -524,7 +524,7 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
           <Chip
             icon={<CheckCircle2 size={13} />}
             label={`Plan active${daysLeft !== null ? ` — ${daysLeft} day${daysLeft !== 1 ? 's' : ''} left` : ''}`}
-            sx={{ mb: 1.5, fontWeight: 700, fontSize: '0.78rem', bgcolor: alpha('#64748b', 0.12), color: '#334155', border: `1px solid ${alpha('#64748b', 0.3)}`, '& .MuiChip-icon': { color: '#334155' } }}
+            sx={{ mb: 1.5, fontWeight: 700, fontSize: '0.78rem', bgcolor: alpha('#6b5550', 0.12), color: '#5c1f22', border: `1px solid ${alpha('#6b5550', 0.3)}`, '& .MuiChip-icon': { color: '#5c1f22' } }}
           />
           <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.75, textAlign: 'center' }}>
             Manage your plan
@@ -607,7 +607,7 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
 
       {/* No auto-renewal notice */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 3, maxWidth: 580 }}>
-        <ShieldCheck size={14} color="#334155" style={{ flexShrink: 0 }} />
+        <ShieldCheck size={14} color="#5c1f22" style={{ flexShrink: 0 }} />
         <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.75rem', lineHeight: 1.5 }}>
           {NO_AUTORENEWAL_NOTE}
         </Typography>

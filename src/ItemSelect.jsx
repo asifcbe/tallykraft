@@ -213,13 +213,13 @@ const ItemSelect = ({
                   ₹{Number(price).toFixed(2)}{option.unit ? ` / ${option.unit}` : ''}
                 </Typography>
                 {option.color && (
-                  <Chip label={option.color} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(236,72,153,0.08)', color: '#3f3f46', border: 'none', flexShrink: 0 }} />
+                  <Chip label={option.color} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(236,72,153,0.08)', color: '#5c1f22', border: 'none', flexShrink: 0 }} />
                 )}
                 {option.size && (
-                  <Chip label={option.size} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(14,165,233,0.08)', color: '#27272a', border: 'none', flexShrink: 0 }} />
+                  <Chip label={option.size} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(14,165,233,0.08)', color: '#5c1f22', border: 'none', flexShrink: 0 }} />
                 )}
                 {option.category && (
-                  <Chip label={option.category} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(17,17,17,0.06)', color: '#27272a', border: 'none', flexShrink: 0 }} />
+                  <Chip label={option.category} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(17,17,17,0.06)', color: '#5c1f22', border: 'none', flexShrink: 0 }} />
                 )}
               </Box>
             </Box>

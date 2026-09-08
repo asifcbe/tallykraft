@@ -14,8 +14,8 @@ import TallyKraftLogo from './TallyKraftLogo';
 import FeatureDemos from './FeatureDemos';
 
 /* ── accent (fixed regardless of theme) ── */
-const P    = '#334155';
-const P2   = '#1e293b';
+const P    = '#5c1f22';
+const P2   = '#3f1417';
 const GRAD = `linear-gradient(135deg, ${P} 0%, ${P2} 100%)`;
 
 /* ── static data ── */
@@ -59,7 +59,7 @@ const PLAN_FEATURES = [
 /* ── carousel examples ── */
 const EXAMPLES = [
   {
-    badge:'OPTICALS SHOP', icon:Eye, color:'#64748b',
+    badge:'OPTICALS SHOP', icon:Eye, color:'#6b5550',
     sectionTitle:'Eye Examination', heading:'Eye Exam + Order Tracking',
     desc:'Track every prescription linked to the customer. Store Right/Left eye readings, PD, Add power, frame choice, and lens type — printable as a prescription slip.',
     tabs:['Exam Details','Order Details'],
@@ -239,7 +239,7 @@ export default function LandingPage({ onLoginClick }) {
     outlineBtn:   'rgba(255,255,255,0.06)',
     outlineBdr:   'rgba(255,255,255,0.14)',
     outlineHover: 'rgba(255,255,255,0.11)',
-    devBanner:    'rgba(51,65,85,0.07)',
+    devBanner:    'rgba(92,31,34,0.07)',
     heroBg:       'radial-gradient(ellipse at bottom,#1b2735 0%,#090a0f 100%)',
     sectionAlt:   'rgba(255,255,255,0.015)',
     cardShadow:   'none',
@@ -267,30 +267,30 @@ export default function LandingPage({ onLoginClick }) {
     priceLbl:     'rgba(255,255,255,0.42)',
     priceSub:     'rgba(255,255,255,0.38)',
   } : {
-    bg:           '#f1f5f9',
+    bg:           '#f6efe9',
     bgAlt:        '#ffffff',
     card:         '#ffffff',
-    border:       '#e2e8f0',
-    text:         '#0f172a',
-    soft:         '#334155',
-    muted:        '#64748b',
-    dim:          '#94a3b8',
-    faint:        '#cbd5e1',
+    border:       '#e8ddd6',
+    text:         '#3f1417',
+    soft:         '#5c1f22',
+    muted:        '#6b5550',
+    dim:          '#9c8a84',
+    faint:        '#ddd0c9',
     navBg:        'rgba(255,255,255,0.92)',
-    navBorder:    '#e2e8f0',
-    priceSep:     '#e2e8f0',
-    stepNum:      'rgba(15,23,42,0.05)',
-    gridLine:     'rgba(51,65,85,0.05)',
-    scroll:       '#cbd5e1',
-    outlineBtn:   'rgba(51,65,85,0.06)',
-    outlineBdr:   'rgba(51,65,85,0.25)',
-    outlineHover: 'rgba(51,65,85,0.1)',
-    devBanner:    'rgba(51,65,85,0.06)',
-    heroBg:       'linear-gradient(135deg,#eef2ff 0%,#f5f0ff 60%,#f0f9ff 100%)',
+    navBorder:    '#e8ddd6',
+    priceSep:     '#e8ddd6',
+    stepNum:      'rgba(63,20,23,0.05)',
+    gridLine:     'rgba(92,31,34,0.05)',
+    scroll:       '#ddd0c9',
+    outlineBtn:   'rgba(92,31,34,0.06)',
+    outlineBdr:   'rgba(92,31,34,0.25)',
+    outlineHover: 'rgba(92,31,34,0.1)',
+    devBanner:    'rgba(92,31,34,0.06)',
+    heroBg:       'linear-gradient(135deg,#faf7f4 0%,#f6efe9 55%,#f3ece4 100%)',
     sectionAlt:   '#ffffff',
-    cardShadow:   '0 2px 12px rgba(15,23,42,0.07)',
-    footerText:   '#94a3b8',
-    footerBrand:  '#64748b',
+    cardShadow:   '0 2px 12px rgba(63,20,23,0.07)',
+    footerText:   '#9c8a84',
+    footerBrand:  '#6b5550',
     mockBg:       '#1e2130',
     mockField:    'rgba(255,255,255,0.07)',
     mockFieldBdr: 'rgba(255,255,255,0.12)',
@@ -307,11 +307,11 @@ export default function LandingPage({ onLoginClick }) {
     mockRecHead:  'rgba(255,255,255,0.25)',
     mockTabInact: 'rgba(255,255,255,0.32)',
     mockSubtitle: 'rgba(255,255,255,0.38)',
-    pillInact:    'rgba(15,23,42,0.05)',
-    pillInactBdr: '#e2e8f0',
-    pillInactTxt: '#64748b',
-    priceLbl:     '#64748b',
-    priceSub:     '#94a3b8',
+    pillInact:    'rgba(63,20,23,0.05)',
+    pillInactBdr: '#e8ddd6',
+    pillInactTxt: '#6b5550',
+    priceLbl:     '#6b5550',
+    priceSub:     '#9c8a84',
   };
 
   return (
@@ -340,7 +340,7 @@ export default function LandingPage({ onLoginClick }) {
         @keyframes twinkle    { 0%,100%{opacity:.15;transform:scale(.7)} 50%{opacity:.6;transform:scale(1.1)} }
         @keyframes marquee    { from{transform:translateX(0)} to{transform:translateX(-50%)} }
         @keyframes drawLine   { from{width:0} to{width:100%} }
-        @keyframes glowPulse  { 0%,100%{box-shadow:0 0 0 0 rgba(51,65,85,.4)} 50%{box-shadow:0 0 0 12px rgba(51,65,85,0)} }
+        @keyframes glowPulse  { 0%,100%{box-shadow:0 0 0 0 rgba(92,31,34,.4)} 50%{box-shadow:0 0 0 12px rgba(92,31,34,0)} }
 
         .fade-up   { animation: fadeUp .7s ease both; }
         .fade-up-2 { animation: fadeUp .7s .15s ease both; }
@@ -364,17 +364,17 @@ export default function LandingPage({ onLoginClick }) {
 
         /* interactive states */
         .login-btn { transition: transform .25s, box-shadow .25s; }
-        .login-btn:hover { transform:translateY(-2px); box-shadow:0 10px 30px rgba(51,65,85,.55)!important; }
+        .login-btn:hover { transform:translateY(-2px); box-shadow:0 10px 30px rgba(92,31,34,.55)!important; }
 
         .feat-card { transition: transform .3s, box-shadow .3s, border-color .3s; }
-        .feat-card:hover { transform:translateY(-5px); border-color:rgba(51,65,85,.45)!important; box-shadow:0 8px 28px rgba(51,65,85,.14)!important; }
+        .feat-card:hover { transform:translateY(-5px); border-color:rgba(92,31,34,.45)!important; box-shadow:0 8px 28px rgba(92,31,34,.14)!important; }
         .feat-header  { display:flex; align-items:center; gap:14px; }
         .feat-chevron { display:none; margin-left:auto; flex-shrink:0; transition:transform .22s; }
         .feat-desc    { margin-top:12px; }
 
         /* shimmer headline */
         .grad-text {
-          background: linear-gradient(90deg,#c8a04e,#e6d3a8,#94a3b8,#c8a04e);
+          background: linear-gradient(90deg,#c8a04e,#e6d3a8,#9c8a84,#c8a04e);
           background-size: 300% auto;
           -webkit-background-clip: text;
           -webkit-text-fill-color: transparent;
@@ -431,7 +431,7 @@ export default function LandingPage({ onLoginClick }) {
         .mock-eye-grid   { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
         .mock-eye-col    { background:${C.mockCol}; border:1px solid ${C.mockColBdr}; border-radius:10px; padding:10px 12px; }
         .mock-record-row { display:flex; align-items:center; justify-content:space-between; padding:7px 10px; border-radius:8px; }
-        .mock-record-row:hover { background:rgba(51,65,85,.1); }
+        .mock-record-row:hover { background:rgba(92,31,34,.1); }
 
         /* carousel */
         .carousel-nav-btn { background:${C.card}; border:1px solid ${C.border}; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background .2s,border-color .2s; flex-shrink:0; box-shadow:${C.cardShadow}; }
@@ -526,7 +526,7 @@ export default function LandingPage({ onLoginClick }) {
           background:GRAD, border:'none', borderRadius:10,
           color:'#fff', fontWeight:700, fontSize:'.88rem',
           padding:'8px 20px', cursor:'pointer',
-          boxShadow:'0 4px 14px rgba(51,65,85,.35)', flexShrink:0,
+          boxShadow:'0 4px 14px rgba(92,31,34,.35)', flexShrink:0,
         }}>Login →</button>
       </nav>
 
@@ -534,21 +534,21 @@ export default function LandingPage({ onLoginClick }) {
       <section className="hero-section" style={{ position:'relative', minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', overflow:'hidden', background:C.heroBg }}>
 
         {/* Animated orbs */}
-        <div style={{ position:'absolute', top:'15%', left:'8%', width:'42vw', height:'42vw', maxWidth:500, maxHeight:500, background:'radial-gradient(circle,rgba(51,65,85,.18) 0%,transparent 70%)', borderRadius:'50%', filter:'blur(70px)', animation:'floatA 18s ease-in-out infinite', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', bottom:'8%', right:'6%', width:'46vw', height:'46vw', maxWidth:560, maxHeight:560, background:'radial-gradient(circle,rgba(30,41,59,.15) 0%,transparent 70%)', borderRadius:'50%', filter:'blur(88px)', animation:'floatB 22s ease-in-out infinite', pointerEvents:'none' }} />
+        <div style={{ position:'absolute', top:'15%', left:'8%', width:'42vw', height:'42vw', maxWidth:500, maxHeight:500, background:'radial-gradient(circle,rgba(92,31,34,.18) 0%,transparent 70%)', borderRadius:'50%', filter:'blur(70px)', animation:'floatA 18s ease-in-out infinite', pointerEvents:'none' }} />
+        <div style={{ position:'absolute', bottom:'8%', right:'6%', width:'46vw', height:'46vw', maxWidth:560, maxHeight:560, background:'radial-gradient(circle,rgba(92,31,34,.15) 0%,transparent 70%)', borderRadius:'50%', filter:'blur(88px)', animation:'floatB 22s ease-in-out infinite', pointerEvents:'none' }} />
         <div style={{ position:'absolute', top:'52%', left:'45%', width:'30vw', height:'30vw', maxWidth:360, maxHeight:360, background:'radial-gradient(circle,rgba(200,160,78,.1) 0%,transparent 70%)', borderRadius:'50%', filter:'blur(60px)', animation:'floatC 16s ease-in-out infinite', pointerEvents:'none' }} />
         <div style={{ position:'absolute', inset:0, backgroundImage:`linear-gradient(${C.gridLine} 1px,transparent 1px),linear-gradient(90deg,${C.gridLine} 1px,transparent 1px)`, backgroundSize:'48px 48px', opacity:.7, pointerEvents:'none' }} />
 
         {/* floating particle dots */}
-        {[[12,22,6,'#334155',7],[88,14,4,'#1e293b',11],[6,68,5,'#c8a04e',9],[92,72,4,'#c8a04e',8],[50,88,3,'#334155',13],[78,42,5,'#1e293b',6],[20,48,3,'#c8a04e',10]].map(([x,y,r,c,d],i)=>(
+        {[[12,22,6,'#5c1f22',7],[88,14,4,'#5c1f22',11],[6,68,5,'#c8a04e',9],[92,72,4,'#c8a04e',8],[50,88,3,'#5c1f22',13],[78,42,5,'#5c1f22',6],[20,48,3,'#c8a04e',10]].map(([x,y,r,c,d],i)=>(
           <div key={i} style={{ position:'absolute', left:`${x}%`, top:`${y}%`, width:r*2, height:r*2, borderRadius:'50%', background:c, opacity:.25, animation:`twinkle ${d}s ease-in-out ${i*.7}s infinite`, pointerEvents:'none' }} />
         ))}
 
         {/* floating data chips — hidden below 900px where they clash with hero text */}
-        <div className="hero-chip" style={{ position:'absolute', top:'18%', right:'7%', background:isDark?'rgba(15,17,26,.85)':'rgba(255,255,255,.88)', backdropFilter:'blur(12px)', border:'1px solid rgba(51,65,85,.3)', borderRadius:14, padding:'10px 16px', boxShadow:'0 8px 28px rgba(51,65,85,.18)', animation:'floatChip 7s ease-in-out infinite', pointerEvents:'none', zIndex:1 }}>
+        <div className="hero-chip" style={{ position:'absolute', top:'18%', right:'7%', background:isDark?'rgba(15,17,26,.85)':'rgba(255,255,255,.88)', backdropFilter:'blur(12px)', border:'1px solid rgba(92,31,34,.3)', borderRadius:14, padding:'10px 16px', boxShadow:'0 8px 28px rgba(92,31,34,.18)', animation:'floatChip 7s ease-in-out infinite', pointerEvents:'none', zIndex:1 }}>
           <div style={{ fontSize:'.62rem', color:P, fontWeight:700, letterSpacing:'.07em', marginBottom:3 }}>INVOICE CREATED</div>
-          <div style={{ fontSize:'.88rem', fontWeight:800, color:isDark?'#fff':'#0f172a' }}>₹1,24,500</div>
-          <div style={{ fontSize:'.65rem', color:isDark?'rgba(255,255,255,.4)':'#94a3b8', marginTop:2 }}>INV-2025-0042 · GST 18%</div>
+          <div style={{ fontSize:'.88rem', fontWeight:800, color:isDark?'#fff':'#3f1417' }}>₹1,24,500</div>
+          <div style={{ fontSize:'.65rem', color:isDark?'rgba(255,255,255,.4)':'#9c8a84', marginTop:2 }}>INV-2025-0042 · GST 18%</div>
         </div>
 
         <div className="hero-chip" style={{ position:'absolute', bottom:'24%', left:'5%', background:isDark?'rgba(15,17,26,.85)':'rgba(255,255,255,.88)', backdropFilter:'blur(12px)', border:'1px solid rgba(37,211,102,.35)', borderRadius:14, padding:'10px 16px', boxShadow:'0 8px 28px rgba(37,211,102,.15)', animation:'floatChip2 9s ease-in-out 1.2s infinite', pointerEvents:'none', zIndex:1 }}>
@@ -556,19 +556,19 @@ export default function LandingPage({ onLoginClick }) {
             <div style={{ width:8, height:8, borderRadius:'50%', background:'#25D366', animation:'pulse 2s infinite' }} />
             <span style={{ fontSize:'.65rem', fontWeight:700, color:'#16a34a' }}>SENT VIA WHATSAPP</span>
           </div>
-          <div style={{ fontSize:'.82rem', fontWeight:700, color:isDark?'#fff':'#0f172a', marginTop:4 }}>Ravi Kumar Enterprises</div>
+          <div style={{ fontSize:'.82rem', fontWeight:700, color:isDark?'#fff':'#3f1417', marginTop:4 }}>Ravi Kumar Enterprises</div>
         </div>
 
-        <div className="hero-chip" style={{ position:'absolute', top:'60%', right:'4%', background:isDark?'rgba(15,17,26,.85)':'rgba(255,255,255,.88)', backdropFilter:'blur(12px)', border:'1px solid rgba(30,41,59,.3)', borderRadius:14, padding:'10px 16px', boxShadow:'0 8px 28px rgba(30,41,59,.15)', animation:'floatChip3 8s ease-in-out 2s infinite', pointerEvents:'none', zIndex:1 }}>
+        <div className="hero-chip" style={{ position:'absolute', top:'60%', right:'4%', background:isDark?'rgba(15,17,26,.85)':'rgba(255,255,255,.88)', backdropFilter:'blur(12px)', border:'1px solid rgba(92,31,34,.3)', borderRadius:14, padding:'10px 16px', boxShadow:'0 8px 28px rgba(92,31,34,.15)', animation:'floatChip3 8s ease-in-out 2s infinite', pointerEvents:'none', zIndex:1 }}>
           <div style={{ fontSize:'.62rem', color:P2, fontWeight:700, letterSpacing:'.07em', marginBottom:3 }}>STOCK UPDATED</div>
           <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ fontSize:'.85rem', fontWeight:800, color:isDark?'#fff':'#0f172a' }}>234 units</div>
+            <div style={{ fontSize:'.85rem', fontWeight:800, color:isDark?'#fff':'#3f1417' }}>234 units</div>
             <div style={{ fontSize:'.68rem', color:'#16a34a', fontWeight:700, background:'rgba(22,163,74,.1)', borderRadius:100, padding:'1px 7px' }}>↑ In stock</div>
           </div>
         </div>
 
         <div style={{ position:'relative', zIndex:2, maxWidth:820, width:'100%' }}>
-          <div className="fade-up" style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(51,65,85,.12)', border:'1px solid rgba(51,65,85,.25)', borderRadius:100, padding:'5px 15px', marginBottom:24 }}>
+          <div className="fade-up" style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(92,31,34,.12)', border:'1px solid rgba(92,31,34,.25)', borderRadius:100, padding:'5px 15px', marginBottom:24 }}>
             <Zap size={12} color={P} />
             <span style={{ fontSize:'.75rem', fontWeight:700, color:P, letterSpacing:'.06em' }}>PREMIUM BUSINESS ACCOUNTING</span>
           </div>
@@ -587,7 +587,7 @@ export default function LandingPage({ onLoginClick }) {
               background:GRAD, border:'none', borderRadius:13,
               color:'#fff', fontWeight:800, fontSize:'1rem',
               padding:'14px 32px', cursor:'pointer',
-              boxShadow:'0 6px 22px rgba(51,65,85,.4)',
+              boxShadow:'0 6px 22px rgba(92,31,34,.4)',
               display:'flex', alignItems:'center', gap:8,
             }}>
               Get Started Free <ArrowRight size={17} />
@@ -642,7 +642,7 @@ export default function LandingPage({ onLoginClick }) {
           <div className={`reveal d2${deviceIn?' in-view':''}`} style={{ display:'flex', gap:20, alignItems:'center', justifyContent:'center', flexWrap:'wrap' }}>
             {[{ Icon:Smartphone, label:'Mobile' }, { Icon:Tablet, label:'Tablet' }, { Icon:Monitor, label:'Desktop' }].map(({ Icon, label }) => (
               <div key={label} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
-                <div style={{ width:44, height:44, borderRadius:11, background:'rgba(51,65,85,.12)', border:'1px solid rgba(51,65,85,.22)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                <div style={{ width:44, height:44, borderRadius:11, background:'rgba(92,31,34,.12)', border:'1px solid rgba(92,31,34,.22)', display:'flex', alignItems:'center', justifyContent:'center' }}>
                   <Icon size={20} color={P} />
                 </div>
                 <span style={{ fontSize:'.72rem', color:C.dim, fontWeight:600 }}>{label}</span>
@@ -660,7 +660,7 @@ export default function LandingPage({ onLoginClick }) {
       </section>
 
       {/* ══════════════ MARQUEE TICKER ══════════════ */}
-      <div style={{ overflow:'hidden', borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, background:isDark?'rgba(51,65,85,.04)':'rgba(51,65,85,.04)', padding:'13px 0', userSelect:'none' }}>
+      <div style={{ overflow:'hidden', borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, background:isDark?'rgba(92,31,34,.04)':'rgba(92,31,34,.04)', padding:'13px 0', userSelect:'none' }}>
         <div style={{ display:'flex', animation:'marquee 28s linear infinite', width:'max-content', gap:0 }}>
           {[...Array(2)].map((_,pass) => (
             <div key={pass} style={{ display:'flex', alignItems:'center', gap:0 }}>
@@ -679,7 +679,7 @@ export default function LandingPage({ onLoginClick }) {
       <section id="features" ref={featRef} className="feat-section" style={{ background:C.bgAlt }}>
         <div style={{ maxWidth:1100, margin:'0 auto' }}>
           <div ref={featHdRef} style={{ textAlign:'center', marginBottom:52 }}>
-            <div className={`reveal${featHdIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(51,65,85,.1)', border:'1px solid rgba(51,65,85,.22)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
+            <div className={`reveal${featHdIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(92,31,34,.1)', border:'1px solid rgba(92,31,34,.22)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
               <Star size={11} color={P} />
               <span style={{ fontSize:'.72rem', fontWeight:700, color:P, letterSpacing:'.07em' }}>EVERYTHING YOU NEED</span>
             </div>
@@ -697,11 +697,11 @@ export default function LandingPage({ onLoginClick }) {
                   key={title}
                   className={`feat-card reveal d${(idx % 6) + 1}${featHdIn?' in-view':''}`}
                   onClick={() => setExpandedFeat(open ? null : idx)}
-                  style={{ background:C.card, border:`1px solid ${open ? 'rgba(51,65,85,.4)' : C.border}`, borderRadius:15, padding:'22px', boxShadow:C.cardShadow }}
+                  style={{ background:C.card, border:`1px solid ${open ? 'rgba(92,31,34,.4)' : C.border}`, borderRadius:15, padding:'22px', boxShadow:C.cardShadow }}
                 >
                   {/* Header row — icon + title (+ chevron on mobile) */}
                   <div className="feat-header">
-                    <div className="feat-icon" style={{ width:42, height:42, borderRadius:11, background:'rgba(51,65,85,.1)', border:'1px solid rgba(51,65,85,.18)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                    <div className="feat-icon" style={{ width:42, height:42, borderRadius:11, background:'rgba(92,31,34,.1)', border:'1px solid rgba(92,31,34,.18)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                       <Icon size={19} color={P} />
                     </div>
                     <div className="feat-title" style={{ fontWeight:700, fontSize:'.97rem', color:C.text, lineHeight:1.3 }}>{title}</div>
@@ -727,7 +727,7 @@ export default function LandingPage({ onLoginClick }) {
 
           {/* heading */}
           <div ref={featDemoRef} style={{ textAlign:'center', marginBottom:60 }}>
-            <div className={`reveal${featDemoIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(51,65,85,.1)', border:'1px solid rgba(51,65,85,.22)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
+            <div className={`reveal${featDemoIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(92,31,34,.1)', border:'1px solid rgba(92,31,34,.22)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
               <Zap size={11} color={P} />
               <span style={{ fontSize:'.72rem', fontWeight:700, color:P, letterSpacing:'.07em' }}>SEE IT IN ACTION</span>
             </div>
@@ -1038,16 +1038,16 @@ export default function LandingPage({ onLoginClick }) {
       {/* ══════════════ AUDITOR LOGIN CALLOUT ══════════════ */}
       <section style={{ padding:'72px 24px', borderTop:`1px solid ${C.border}`, background:C.bg }}>
         <div ref={auditorRef} style={{ maxWidth:860, margin:'0 auto', display:'flex', alignItems:'center', gap:40, flexWrap:'wrap' }}>
-          <div className={`reveal-l${auditorIn?' in-view':''}`} style={{ flex:'0 0 auto', width:72, height:72, borderRadius:20, background:'linear-gradient(135deg,rgba(51,65,85,.18),rgba(51,65,85,.07))', border:'1px solid rgba(51,65,85,.28)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <ClipboardList size={32} color='#334155' />
+          <div className={`reveal-l${auditorIn?' in-view':''}`} style={{ flex:'0 0 auto', width:72, height:72, borderRadius:20, background:'linear-gradient(135deg,rgba(92,31,34,.18),rgba(92,31,34,.07))', border:'1px solid rgba(92,31,34,.28)', display:'flex', alignItems:'center', justifyContent:'center' }}>
+            <ClipboardList size={32} color='#5c1f22' />
           </div>
           <div className={`reveal d2${auditorIn?' in-view':''}`} style={{ flex:1, minWidth:240 }}>
-            <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(51,65,85,.1)', border:'1px solid rgba(51,65,85,.22)', borderRadius:100, padding:'4px 12px', marginBottom:10 }}>
-              <span style={{ fontSize:'.7rem', fontWeight:700, color:'#334155', letterSpacing:'.07em' }}>AUDITOR ACCESS</span>
+            <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(92,31,34,.1)', border:'1px solid rgba(92,31,34,.22)', borderRadius:100, padding:'4px 12px', marginBottom:10 }}>
+              <span style={{ fontSize:'.7rem', fontWeight:700, color:'#5c1f22', letterSpacing:'.07em' }}>AUDITOR ACCESS</span>
             </div>
             <h3 style={{ fontSize:'clamp(1.2rem,3vw,1.7rem)', fontWeight:900, margin:'0 0 8px', letterSpacing:'-.02em', color:C.text }}>Your CA Can Log In — On Their Own</h3>
             <p style={{ color:C.muted, fontSize:'.9rem', lineHeight:1.7, margin:0, maxWidth:560 }}>
-              Generate a secure <strong style={{ color:'#334155' }}>Auditor PIN</strong> from Settings and share it with your chartered accountant. They sign in using a dedicated Auditor Login, view all financial reports and ledgers, and download whatever they need — completely independently.
+              Generate a secure <strong style={{ color:'#5c1f22' }}>Auditor PIN</strong> from Settings and share it with your chartered accountant. They sign in using a dedicated Auditor Login, view all financial reports and ledgers, and download whatever they need — completely independently.
             </p>
           </div>
           <div className={`reveal-r d3${auditorIn?' in-view':''}`} style={{ flex:'0 0 auto', display:'flex', flexDirection:'column', gap:10 }}>
@@ -1058,7 +1058,7 @@ export default function LandingPage({ onLoginClick }) {
               { label:'No owner account sharing needed',     Icon:CheckCircle },
             ].map(({ label, Icon }) => (
               <div key={label} style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <Icon size={14} color='#334155' />
+                <Icon size={14} color='#5c1f22' />
                 <span style={{ fontSize:'.84rem', color:C.soft }}>{label}</span>
               </div>
             ))}
@@ -1093,7 +1093,7 @@ export default function LandingPage({ onLoginClick }) {
         <div ref={pricingRef} style={{ maxWidth:860, margin:'0 auto', textAlign:'center' }}>
 
           {/* Header */}
-          <div className={`reveal${pricingIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(51,65,85,.1)', border:'1px solid rgba(51,65,85,.22)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
+          <div className={`reveal${pricingIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(92,31,34,.1)', border:'1px solid rgba(92,31,34,.22)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
             <CreditCard size={11} color={P} />
             <span style={{ fontSize:'.72rem', fontWeight:700, color:P, letterSpacing:'.07em' }}>SIMPLE PRICING · PER BUSINESS</span>
           </div>
@@ -1113,14 +1113,14 @@ export default function LandingPage({ onLoginClick }) {
 
             <div style={{
               flex:'1 1 360px', maxWidth:440,
-              background: isDark ? 'linear-gradient(145deg,rgba(51,65,85,.15) 0%,rgba(30,41,59,.12) 100%)' : '#fff',
+              background: isDark ? 'linear-gradient(145deg,rgba(92,31,34,.15) 0%,rgba(92,31,34,.12) 100%)' : '#fff',
               border:`2px solid ${P}`, borderRadius:22, padding:'32px 28px',
-              boxShadow: isDark ? 'none' : '0 10px 48px rgba(51,65,85,.18)',
+              boxShadow: isDark ? 'none' : '0 10px 48px rgba(92,31,34,.18)',
               position:'relative', overflow:'visible', textAlign:'left',
             }}>
               {/* Plan name */}
               <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                <div style={{ width:34, height:34, borderRadius:10, background:`rgba(51,65,85,.12)`, border:`1px solid rgba(51,65,85,.22)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
+                <div style={{ width:34, height:34, borderRadius:10, background:`rgba(92,31,34,.12)`, border:`1px solid rgba(92,31,34,.22)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
                   <CloudUpload size={16} color={P} />
                 </div>
                 <div>
@@ -1129,21 +1129,21 @@ export default function LandingPage({ onLoginClick }) {
                 </div>
               </div>
 
-              <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:`rgba(51,65,85,.1)`, border:`1px solid rgba(51,65,85,.22)`, borderRadius:100, padding:'3px 10px', marginBottom:20 }}>
+              <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:`rgba(92,31,34,.1)`, border:`1px solid rgba(92,31,34,.22)`, borderRadius:100, padding:'3px 10px', marginBottom:20 }}>
                 <Globe size={11} color={P} />
                 <span style={{ fontSize:'.68rem', fontWeight:700, color:P, letterSpacing:'.04em' }}>EVERYTHING INCLUDED</span>
               </div>
 
               {/* Pricing rows */}
               <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:22 }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background: isDark ? 'rgba(255,255,255,.05)' : 'rgba(51,65,85,.05)', borderRadius:12, border:`1px solid rgba(51,65,85,.15)` }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background: isDark ? 'rgba(255,255,255,.05)' : 'rgba(92,31,34,.05)', borderRadius:12, border:`1px solid rgba(92,31,34,.15)` }}>
                   <div style={{ fontSize:'.82rem', color:C.muted, fontWeight:600 }}>Monthly</div>
                   <div style={{ display:'flex', alignItems:'baseline', gap:3 }}>
                     <span style={{ fontSize:'1.5rem', fontWeight:900, color:C.text, lineHeight:1 }}>₹299</span>
                     <span style={{ fontSize:'.72rem', color:C.muted }}>/month</span>
                   </div>
                 </div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background: isDark ? 'rgba(255,255,255,.05)' : 'rgba(51,65,85,.05)', borderRadius:12, border:`1px solid rgba(51,65,85,.15)` }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background: isDark ? 'rgba(255,255,255,.05)' : 'rgba(92,31,34,.05)', borderRadius:12, border:`1px solid rgba(92,31,34,.15)` }}>
                   <div style={{ display:'flex', alignItems:'center', gap:6 }}>
                     <span style={{ fontSize:'.82rem', color:C.muted, fontWeight:600 }}>Yearly</span>
                     <span style={{ fontSize:'.65rem', fontWeight:700, color:'#16a34a', background:'rgba(22,163,74,.1)', borderRadius:100, padding:'2px 8px' }}>Save ₹589</span>
@@ -1158,7 +1158,7 @@ export default function LandingPage({ onLoginClick }) {
               <button className="login-btn" onClick={onLoginClick} style={{
                 background:GRAD, border:'none', borderRadius:11, color:'#fff',
                 fontWeight:800, fontSize:'.88rem', padding:'11px 24px', cursor:'pointer',
-                width:'100%', marginBottom:22, boxShadow:'0 5px 16px rgba(51,65,85,.35)',
+                width:'100%', marginBottom:22, boxShadow:'0 5px 16px rgba(92,31,34,.35)',
                 display:'flex', alignItems:'center', justifyContent:'center', gap:7,
               }}>
                 Start Free Trial <ArrowRight size={15} />
@@ -1196,9 +1196,9 @@ export default function LandingPage({ onLoginClick }) {
       </section>
 
       {/* ══════════════ BOTTOM CTA ══════════════ */}
-      <section className="cta-section" style={{ padding:'80px 24px', background:`linear-gradient(135deg,rgba(51,65,85,.1) 0%,rgba(30,41,59,.08) 100%)`, borderTop:`1px solid ${C.border}` }}>
+      <section className="cta-section" style={{ padding:'80px 24px', background:`linear-gradient(135deg,rgba(92,31,34,.1) 0%,rgba(92,31,34,.08) 100%)`, borderTop:`1px solid ${C.border}` }}>
         <div style={{ maxWidth:640, margin:'0 auto', textAlign:'center' }}>
-          <div style={{ width:56, height:56, borderRadius:15, background:GRAD, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', boxShadow:'0 8px 28px rgba(51,65,85,.35)' }}>
+          <div style={{ width:56, height:56, borderRadius:15, background:GRAD, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', boxShadow:'0 8px 28px rgba(92,31,34,.35)' }}>
             <TallyKraftLogo size={42} variant="wordmark-light" />
           </div>
           <h2 style={{ fontSize:'clamp(1.6rem,4vw,2.4rem)', fontWeight:900, marginBottom:14, letterSpacing:'-.02em', color:C.text }}>
@@ -1211,7 +1211,7 @@ export default function LandingPage({ onLoginClick }) {
             background:GRAD, border:'none', borderRadius:13,
             color:'#fff', fontWeight:800, fontSize:'1rem',
             padding:'15px 40px', cursor:'pointer',
-            boxShadow:'0 6px 22px rgba(51,65,85,.38)',
+            boxShadow:'0 6px 22px rgba(92,31,34,.38)',
             display:'inline-flex', alignItems:'center', gap:8,
           }}>
             Open TallyKraft <ArrowUpRight size={17} />

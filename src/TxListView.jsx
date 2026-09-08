@@ -351,22 +351,22 @@ const TxListView = ({
     <>
       <Box
         sx={{
-          background: '#ffffff', borderBottom: '1px solid #e4e8ee',
+          background: '#ffffff', borderBottom: '1px solid #ece2db',
           px: 2.5, py: 1.75,
           display: 'flex', alignItems: 'center', gap: 1.5, flexShrink: 0,
         }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="overline" sx={{ color: '#475569', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+          <Typography variant="overline" sx={{ color: '#7a2e30', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>
             {labelSingular.charAt(0).toUpperCase() + labelSingular.slice(1)} Preview
           </Typography>
-          <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, fontSize: '1rem', fontFamily: 'monospace', lineHeight: 1.2 }} noWrap>
+          <Typography variant="h6" sx={{ color: '#5c1f22', fontWeight: 800, fontSize: '1rem', fontFamily: 'monospace', lineHeight: 1.2 }} noWrap>
             {a.number(selectedRec)}
           </Typography>
         </Box>
         {onEdit && (
           <Tooltip title="Edit">
-            <IconButton size="small" onClick={() => onEdit(selectedRec)} sx={{ color: '#334155', bgcolor: 'rgba(51,65,85,0.08)', '&:hover': { bgcolor: 'rgba(51,65,85,0.14)' } }}>
+            <IconButton size="small" onClick={() => onEdit(selectedRec)} sx={{ color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)', '&:hover': { bgcolor: 'rgba(92,31,34,0.14)' } }}>
               <Edit size={16} />
             </IconButton>
           </Tooltip>
@@ -379,7 +379,7 @@ const TxListView = ({
             />
           ) : (
             <Tooltip title={convertLabel}>
-              <IconButton size="small" onClick={() => { const rec = selectedRec; closePreview(); onConvert(rec); }} sx={{ color: '#334155', bgcolor: 'rgba(51,65,85,0.08)', '&:hover': { bgcolor: 'rgba(51,65,85,0.14)' } }}>
+              <IconButton size="small" onClick={() => { const rec = selectedRec; closePreview(); onConvert(rec); }} sx={{ color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)', '&:hover': { bgcolor: 'rgba(92,31,34,0.14)' } }}>
                 {convertIcon || <ArrowRightLeft size={16} />}
               </IconButton>
             </Tooltip>
@@ -387,20 +387,20 @@ const TxListView = ({
         )}
         {onShare && (
           <Tooltip title="Share on WhatsApp">
-            <IconButton size="small" onClick={() => onShare(selectedRec)} sx={{ color: '#334155', bgcolor: 'rgba(51,65,85,0.08)', '&:hover': { bgcolor: 'rgba(51,65,85,0.14)' } }}>
+            <IconButton size="small" onClick={() => onShare(selectedRec)} sx={{ color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)', '&:hover': { bgcolor: 'rgba(92,31,34,0.14)' } }}>
               <Share2 size={16} />
             </IconButton>
           </Tooltip>
         )}
         {onPrint && (
           <Tooltip title="Print">
-            <IconButton size="small" onClick={() => onPrint(selectedRec)} sx={{ color: '#334155', bgcolor: 'rgba(51,65,85,0.08)', '&:hover': { bgcolor: 'rgba(51,65,85,0.14)' } }}>
+            <IconButton size="small" onClick={() => onPrint(selectedRec)} sx={{ color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)', '&:hover': { bgcolor: 'rgba(92,31,34,0.14)' } }}>
               <Printer size={16} />
             </IconButton>
           </Tooltip>
         )}
         <Tooltip title="Close preview">
-          <IconButton size="small" onClick={() => closePreview()} sx={{ color: '#475569', '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
+          <IconButton size="small" onClick={() => closePreview()} sx={{ color: '#7a2e30', '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
             <X size={16} />
           </IconButton>
         </Tooltip>
@@ -471,7 +471,7 @@ const TxListView = ({
                     sx={{
                       fontWeight: 700, borderRadius: '8px', height: 22, fontSize: '0.68rem',
                       ...(datePreset === opt.value
-                        ? { bgcolor: tokens.primary, color: '#1e293b' }
+                        ? { bgcolor: tokens.primary, color: '#5c1f22' }
                         : { borderColor: 'divider', color: 'text.secondary' }),
                     }}
                   />

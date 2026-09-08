@@ -121,7 +121,7 @@ const ReferenceImagesPanel = ({ recordId, table, businessId, invoiceNumber, refe
                   />
                 ) : (
                   <Box sx={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'action.hover' }}>
-                    <ImageOff size={20} color="#94a3b8" />
+                    <ImageOff size={20} color="#9c8a84" />
                   </Box>
                 )}
                 <Box sx={{

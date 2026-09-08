@@ -10,8 +10,8 @@ import React from 'react';
  * blue-violet facets remapped to a slate range for the white UI).
  */
 
-const INK = '#1e293b';   // slate-800 — wordmark on white
-const SUB = '#334155';    // slate-700
+const INK = '#2a2320';   // warm near-black — wordmark on white
+const SUB = '#5c1f22';    // oxblood — the 'Kraft' half
 
 const TallyKraftLogo = ({ size = 36, variant = 'icon', color }) => {
   const Mark = (

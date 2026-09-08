@@ -72,19 +72,19 @@ export default function ExpenseBulkAddDialog({ open, onClose, onSuccess }) {
       PaperProps={{ sx: { borderRadius: 3, maxHeight: '90vh', position: 'relative' } }}
     >
       <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.8)', flexDirection: 'column', gap: 1.5 }}>
-        <CircularProgress size={40} sx={{ color: '#334155' }} />
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155' }}>Saving {filledRows.length} expenses…</Typography>
+        <CircularProgress size={40} sx={{ color: '#5c1f22' }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#5c1f22' }}>Saving {filledRows.length} expenses…</Typography>
       </Backdrop>
 
-      <Box sx={{ background: '#ffffff', borderBottom: '1px solid #e4e8ee', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
-          <TrendingDown size={18} color="#334155" />
+      <Box sx={{ background: '#ffffff', borderBottom: '1px solid #ece2db', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex' }}>
+          <TrendingDown size={18} color="#5c1f22" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>EXPENSES</Typography>
-          <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, lineHeight: 1.2 }}>Bulk Add Expenses</Typography>
+          <Typography variant="overline" sx={{ color: '#6b5550', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>EXPENSES</Typography>
+          <Typography variant="h6" sx={{ color: '#5c1f22', fontWeight: 800, lineHeight: 1.2 }}>Bulk Add Expenses</Typography>
         </Box>
-        <IconButton onClick={onClose} disabled={saving} sx={{ color: '#64748b' }}><X size={20} /></IconButton>
+        <IconButton onClick={onClose} disabled={saving} sx={{ color: '#6b5550' }}><X size={20} /></IconButton>
       </Box>
 
       <DialogContent sx={{ p: 0, overflow: 'auto' }}>
@@ -109,7 +109,7 @@ export default function ExpenseBulkAddDialog({ open, onClose, onSuccess }) {
             </TableHead>
             <TableBody>
               {rows.map((row, idx) => (
-                <TableRow key={row._key} sx={{ '&:hover': { bgcolor: 'rgba(51,65,85,0.03)' } }}>
+                <TableRow key={row._key} sx={{ '&:hover': { bgcolor: 'rgba(92,31,34,0.03)' } }}>
                   <TableCell sx={{ pl: 2, color: 'text.secondary', fontSize: '0.75rem' }}>{idx + 1}</TableCell>
                   <TableCell>
                     <TextField
@@ -184,13 +184,13 @@ export default function ExpenseBulkAddDialog({ open, onClose, onSuccess }) {
           onClick={addRow}
           variant="outlined"
           size="small"
-          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', borderColor: 'rgba(51,65,85,0.3)', color: '#334155', mr: 'auto' }}
+          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', borderColor: 'rgba(92,31,34,0.3)', color: '#5c1f22', mr: 'auto' }}
         >
           Add Row
         </Button>
-        <Chip label={`${filledRows.length} row${filledRows.length !== 1 ? 's' : ''}`} size="small" sx={{ fontWeight: 700, bgcolor: 'rgba(51,65,85,0.08)', color: '#334155' }} />
-        <Box sx={{ px: 2, py: 0.5, bgcolor: 'rgba(51,65,85,0.08)', borderRadius: '8px', border: '1px solid rgba(51,65,85,0.2)' }}>
-          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#334155' }}>
+        <Chip label={`${filledRows.length} row${filledRows.length !== 1 ? 's' : ''}`} size="small" sx={{ fontWeight: 700, bgcolor: 'rgba(92,31,34,0.08)', color: '#5c1f22' }} />
+        <Box sx={{ px: 2, py: 0.5, bgcolor: 'rgba(92,31,34,0.08)', borderRadius: '8px', border: '1px solid rgba(92,31,34,0.2)' }}>
+          <Typography variant="subtitle2" sx={{ fontWeight: 800, color: '#5c1f22' }}>
             Total ₹{total.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           </Typography>
         </Box>
@@ -200,7 +200,7 @@ export default function ExpenseBulkAddDialog({ open, onClose, onSuccess }) {
           startIcon={saving ? null : <Save size={16} />}
           onClick={handleSave}
           disabled={saving || filledRows.length === 0}
-          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#ffffff', borderBottom: '1px solid #e4e8ee', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
+          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#ffffff', borderBottom: '1px solid #ece2db', boxShadow: '0 4px 12px rgba(0,0,0,0.2)' }}
         >
           {saving ? 'Saving…' : `Save ${filledRows.length} Expense${filledRows.length !== 1 ? 's' : ''}`}
         </Button>

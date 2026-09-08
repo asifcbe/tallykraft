@@ -17,7 +17,7 @@ import {
 // ─────────────────────────────────────────────────────────────────────────────
 const SECTIONS = [
   {
-    id: 'dashboard', icon: LayoutDashboard, color: '#334155', badge: 'Start here',
+    id: 'dashboard', icon: LayoutDashboard, color: '#5c1f22', badge: 'Start here',
     title: 'Dashboard',
     summary: 'Your business at a glance — sales, purchases, cash, bank, and recent activity.',
     steps: [
@@ -66,7 +66,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: 'sales', icon: ReceiptText, color: '#334155',
+    id: 'sales', icon: ReceiptText, color: '#5c1f22',
     title: 'Sales Invoices',
     summary: 'Create, print, and manage all your sales bills.',
     steps: [
@@ -181,7 +181,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: 'settings', icon: Settings, color: '#64748b',
+    id: 'settings', icon: Settings, color: '#6b5550',
     title: 'Settings',
     summary: 'Business profile, invoice style, features, language, theme — all configurable.',
     steps: [
@@ -197,7 +197,7 @@ const SECTIONS = [
     ],
   },
   {
-    id: 'backup', icon: Download, color: '#334155',
+    id: 'backup', icon: Download, color: '#5c1f22',
     title: 'Backup & Restore',
     summary: 'Keep your data safe — download a backup and restore it any time.',
     steps: [
@@ -672,7 +672,7 @@ const Help = () => {
           }}
           sx={{
             '& .MuiOutlinedInput-root': {
-              bgcolor: isDark ? 'rgba(15,23,42,0.6)' : 'rgba(255,255,255,0.18)',
+              bgcolor: isDark ? 'rgba(63,20,23,0.6)' : 'rgba(255,255,255,0.18)',
               backdropFilter: 'blur(16px)',
               borderRadius: '14px',
               color: 'white',
@@ -715,7 +715,7 @@ const Help = () => {
             <Box sx={{
               textAlign: 'center', py: 8,
               borderRadius: '16px', border: '1.5px dashed',
-              borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e2e8f0',
+              borderColor: isDark ? 'rgba(255,255,255,0.1)' : '#e8ddd6',
               bgcolor: isDark ? 'rgba(255,255,255,0.02)' : '#fafbfc',
             }}>
               <Box sx={{

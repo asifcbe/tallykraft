@@ -87,7 +87,7 @@ const defaultConfig = {
   sidebarOrder: [],
   useIndexedDB: true,
   theme: {
-    primaryColor: '#3f3f46',
+    primaryColor: '#5c1f22',
     secondaryColor: '#dc004e'
   },
   customSections: [],
@@ -154,7 +154,7 @@ const defaultConfig = {
     dateFormat: 'DD/MM/YYYY',
     autoRoundOff: false,
     invoiceTheme: 'classic',
-    themeColor: '#334155',
+    themeColor: '#5c1f22',
     termsText: '',
   },
 };

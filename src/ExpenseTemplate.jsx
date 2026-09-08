@@ -29,7 +29,7 @@ const ExpenseTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
       margin: 'auto', 
       fontFamily: 'Arial, sans-serif',
       lineHeight: '1.5',
-      border: '1px solid #e2e8f0'
+      border: '1px solid #e8ddd6'
     }}>
       {/* Header */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '30px', borderBottom: '2px solid #ef4444', paddingBottom: '15px' }}>
@@ -46,7 +46,7 @@ const ExpenseTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 5px 0', color: '#64748b' }}>
+          <h2 style={{ fontSize: '18px', fontWeight: 'bold', margin: '0 0 5px 0', color: '#6b5550' }}>
             EXPENSE VOUCHER
           </h2>
           <p style={{ margin: '0' }}>Date: <strong>{date}</strong></p>
@@ -63,21 +63,21 @@ const ExpenseTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
 
       <div style={{ display: 'flex', justifyContent: 'center', margin: '30px 0' }}>
         <div style={{ padding: '15px 40px', border: '2px dashed #ef4444', borderRadius: '12px', textAlign: 'center' }}>
-          <p style={{ margin: '0', fontSize: '12px', color: '#64748b', textTransform: 'uppercase' }}>Expense Amount</p>
+          <p style={{ margin: '0', fontSize: '12px', color: '#6b5550', textTransform: 'uppercase' }}>Expense Amount</p>
           <h2 style={{ margin: '0', fontSize: '32px', fontWeight: '900', color: '#ef4444' }}>₹{amount.toLocaleString()}</h2>
         </div>
       </div>
 
       <div style={{ marginBottom: '30px' }}>
-        <span style={{ color: '#64748b', fontSize: '11px', textTransform: 'uppercase' }}>Description / Purpose:</span>
-        <div style={{ padding: '10px', border: '1px solid #e2e8f0', borderRadius: '4px', minHeight: '60px', marginTop: '5px', fontSize: '14px' }}>
+        <span style={{ color: '#6b5550', fontSize: '11px', textTransform: 'uppercase' }}>Description / Purpose:</span>
+        <div style={{ padding: '10px', border: '1px solid #e8ddd6', borderRadius: '4px', minHeight: '60px', marginTop: '5px', fontSize: '14px' }}>
           {description}
         </div>
       </div>
 
       {/* Footer */}
       <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
-        <div style={{ fontSize: '10px', color: '#94a3b8' }}>
+        <div style={{ fontSize: '10px', color: '#9c8a84' }}>
           <p>© DIGITZEBRA Expense Management</p>
           <p>This is an automated expense voucher.</p>
         </div>

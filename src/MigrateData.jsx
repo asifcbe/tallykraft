@@ -338,7 +338,7 @@ const SOURCES = [
   {
     id: 'generic',
     label: 'Generic Excel / CSV',
-    color: '#334155',
+    color: '#5c1f22',
     logo: '📋',
     description: 'Import from any Excel or CSV. We will auto-detect columns for Items, Parties, Sales, and Purchases.',
     howTo: [
@@ -351,7 +351,7 @@ const SOURCES = [
 ];
 
 // ─── UI helpers ──────────────────────────────────────────────────────────────
-const TYPE_COLORS = { items: '#334155', customers: '#334155', vendors: '#7c3aed', parties: '#7c3aed', sales: '#2563eb', purchases: '#dc2626', skip: '#94a3b8', unknown: '#94a3b8' };
+const TYPE_COLORS = { items: '#5c1f22', customers: '#5c1f22', vendors: '#7c3aed', parties: '#7c3aed', sales: '#2563eb', purchases: '#dc2626', skip: '#9c8a84', unknown: '#9c8a84' };
 const TYPE_ICONS  = { items: Package, customers: Users, vendors: Users, parties: Users, sales: TrendingUp, purchases: ShoppingCart, skip: X, unknown: Info };
 const TYPE_LABELS = { items: 'Items', customers: 'Customers', vendors: 'Vendors', parties: 'Parties', sales: 'Sales', purchases: 'Purchases', skip: 'Skip', unknown: 'Unknown' };
 const ALL_TYPES   = ['items', 'customers', 'vendors', 'parties', 'sales', 'purchases', 'skip'];
@@ -607,16 +607,16 @@ export default function MigrateData() {
       {/* Header */}
       <Box sx={{
         borderRadius: 3,
-        background: '#ffffff', border: '1px solid #e4e8ee',
+        background: '#ffffff', border: '1px solid #ece2db',
         px: { xs: 2, md: 3 }, py: { xs: 1.5, md: 2 }, mb: 3,
         display: 'flex', alignItems: 'center', gap: 1.5,
       }}>
-        <Box sx={{ p: 0.875, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex', flexShrink: 0 }}>
-          <RefreshCw size={18} color="#334155" />
+        <Box sx={{ p: 0.875, borderRadius: 1.5, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex', flexShrink: 0 }}>
+          <RefreshCw size={18} color="#5c1f22" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography sx={{ fontWeight: 800, color: '#1e293b', fontSize: '1.05rem', lineHeight: 1.2 }}>Migrate from Another App</Typography>
-          <Typography sx={{ color: '#64748b', fontSize: '0.78rem' }}>
+          <Typography sx={{ fontWeight: 800, color: '#5c1f22', fontSize: '1.05rem', lineHeight: 1.2 }}>Migrate from Another App</Typography>
+          <Typography sx={{ color: '#6b5550', fontSize: '0.78rem' }}>
             Import your data from Vyapar, My Bill Book, or any Excel/CSV file
           </Typography>
         </Box>
@@ -711,17 +711,17 @@ export default function MigrateData() {
             sx={{
               border: '2px dashed', borderColor: 'divider', borderRadius: 3,
               py: 6, textAlign: 'center', cursor: 'pointer', transition: 'all 0.15s',
-              '&:hover': { borderColor: '#334155', bgcolor: alpha('#334155', 0.03) },
+              '&:hover': { borderColor: '#5c1f22', bgcolor: alpha('#5c1f22', 0.03) },
             }}
           >
-            <Upload size={40} color="#94a3b8" style={{ marginBottom: 12 }} />
+            <Upload size={40} color="#9c8a84" style={{ marginBottom: 12 }} />
             <Typography sx={{ fontWeight: 700, fontSize: '1rem', mb: 0.5 }}>
               Drop your Excel / CSV files here
             </Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
               or click to browse — you can upload multiple files at once
             </Typography>
-            <Chip label="Accepts .xlsx, .xls, .csv" size="small" sx={{ bgcolor: alpha('#334155', 0.08), color: '#334155', fontWeight: 700 }} />
+            <Chip label="Accepts .xlsx, .xls, .csv" size="small" sx={{ bgcolor: alpha('#5c1f22', 0.08), color: '#5c1f22', fontWeight: 700 }} />
           </Box>
           <input ref={fileInputRef} type="file" accept=".xlsx,.xls,.csv" multiple style={{ display: 'none' }} onChange={onFileChange} />
 
@@ -758,7 +758,7 @@ export default function MigrateData() {
           {files.map(f => (
             <Card key={f.name} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2.5, mb: 2 }}>
               <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
-                <FileText size={16} color="#334155" />
+                <FileText size={16} color="#5c1f22" />
                 <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', flex: 1 }}>{f.name}</Typography>
                 <Typography variant="caption" color="text.secondary">{f.sheetNames.length} sheet{f.sheetNames.length !== 1 ? 's' : ''}</Typography>
               </Box>
@@ -770,8 +770,8 @@ export default function MigrateData() {
                   const Icon = TYPE_ICONS[type] || Info;
                   return (
                     <Box key={sname} sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.875, borderBottom: '1px solid', borderColor: 'divider', '&:last-child': { borderBottom: 'none' } }}>
-                      <Box sx={{ p: 0.625, borderRadius: 1, bgcolor: alpha(TYPE_COLORS[type] || '#94a3b8', 0.1), display: 'flex' }}>
-                        <Icon size={14} color={TYPE_COLORS[type] || '#94a3b8'} />
+                      <Box sx={{ p: 0.625, borderRadius: 1, bgcolor: alpha(TYPE_COLORS[type] || '#9c8a84', 0.1), display: 'flex' }}>
+                        <Icon size={14} color={TYPE_COLORS[type] || '#9c8a84'} />
                       </Box>
                       <Typography sx={{ flex: 1, fontSize: '0.82rem', fontWeight: 600 }}>{sname}</Typography>
                       <Typography variant="caption" color="text.secondary" sx={{ mr: 1 }}>{rowCount} rows</Typography>
@@ -840,11 +840,11 @@ export default function MigrateData() {
 
           {/* What we'll import summary */}
           {hasData && (
-            <Card elevation={0} sx={{ border: `1px solid ${alpha('#334155', 0.3)}`, borderRadius: 2.5, mt: 2, bgcolor: alpha('#334155', 0.03) }}>
+            <Card elevation={0} sx={{ border: `1px solid ${alpha('#5c1f22', 0.3)}`, borderRadius: 2.5, mt: 2, bgcolor: alpha('#5c1f22', 0.03) }}>
               <CardContent sx={{ p: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1 }}>
-                  <Zap size={16} color="#334155" />
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#334155' }}>What will be imported</Typography>
+                  <Zap size={16} color="#5c1f22" />
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#5c1f22' }}>What will be imported</Typography>
                 </Box>
                 <Box component="ul" sx={{ m: 0, pl: 2 }}>
                   {previewCounts.items > 0 && <Typography component="li" variant="body2">{previewCounts.items} items — existing items with the same name/code will be updated, others added new</Typography>}
@@ -863,7 +863,7 @@ export default function MigrateData() {
               disabled={!hasData || importing}
               onClick={handleImport}
               startIcon={<ArrowRight size={16} />}
-              sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, background: '#334155', ml: 'auto' }}
+              sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 2, background: '#5c1f22', ml: 'auto' }}
             >
               Import {totalPreviewRows} records
             </Button>
@@ -883,8 +883,8 @@ export default function MigrateData() {
       {/* ── Step 4: Done ─────────────────────────────────────────────────── */}
       {step === 4 && results && (
         <Box sx={{ textAlign: 'center', py: 4 }}>
-          <Box sx={{ display: 'inline-flex', p: 2.5, borderRadius: '50%', bgcolor: alpha('#334155', 0.1), mb: 2 }}>
-            <CheckCircle size={52} color="#334155" />
+          <Box sx={{ display: 'inline-flex', p: 2.5, borderRadius: '50%', bgcolor: alpha('#5c1f22', 0.1), mb: 2 }}>
+            <CheckCircle size={52} color="#5c1f22" />
           </Box>
           <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5 }}>Migration Complete!</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -893,7 +893,7 @@ export default function MigrateData() {
 
           <Grid container spacing={2} justifyContent="center" sx={{ mb: 3, maxWidth: 600, mx: 'auto' }}>
             {[
-              { label: 'Items', value: results.items,     color: '#334155', icon: Package },
+              { label: 'Items', value: results.items,     color: '#5c1f22', icon: Package },
               { label: 'Parties', value: results.parties, color: '#7c3aed', icon: Users },
               { label: 'Sales', value: results.sales,     color: '#2563eb', icon: TrendingUp },
               { label: 'Purchases', value: results.purchases, color: '#dc2626', icon: ShoppingCart },

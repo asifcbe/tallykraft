@@ -80,10 +80,10 @@ const fmtAmt = (n) => {
 const TYPE_META = {
   sale:        { label: 'Sale Invoice',    icon: FileText,       color: '#16a34a', bg: '#dcfce7', drCr: 'DR' },
   purchase:    { label: 'Purchase Bill',   icon: FileText,       color: '#dc2626', bg: '#fee2e2', drCr: 'CR' },
-  paymentIn:   { label: 'Payment Received',icon: ArrowDownCircle,color: '#27272a', bg: '#dbeafe', drCr: 'CR' },
-  paymentOut:  { label: 'Payment Made',    icon: ArrowUpCircle,  color: '#3f3f46', bg: '#ede9fe', drCr: 'DR' },
+  paymentIn:   { label: 'Payment Received',icon: ArrowDownCircle,color: '#5c1f22', bg: '#dbeafe', drCr: 'CR' },
+  paymentOut:  { label: 'Payment Made',    icon: ArrowUpCircle,  color: '#5c1f22', bg: '#ede9fe', drCr: 'DR' },
   creditNote:  { label: 'Credit Note',     icon: CreditCard,     color: '#b45309', bg: '#fef3c7', drCr: 'CR' },
-  debitNote:   { label: 'Debit Note',      icon: CreditCard,     color: '#3f3f46', bg: '#fce7f3', drCr: 'DR' },
+  debitNote:   { label: 'Debit Note',      icon: CreditCard,     color: '#5c1f22', bg: '#fce7f3', drCr: 'DR' },
 };
 
 const LedgerPage = () => {
@@ -363,15 +363,15 @@ const LedgerPage = () => {
     <Box sx={{ p: { xs: 2, md: 3 }, mx: 0 }}>
       {/* Hero */}
       <Box sx={{
-        borderRadius: 3, background: '#ffffff', border: '1px solid #e4e8ee',
+        borderRadius: 3, background: '#ffffff', border: '1px solid #ece2db',
         p: { xs: 2.5, md: 3.5 }, mb: 3, position: 'relative', overflow: 'hidden',
       }}>
         <Box sx={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', bgcolor: 'transparent', pointerEvents: 'none' }} />
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5 }}>
-          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}><BookOpen size={20} color="#334155" /></Box>
+          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex' }}><BookOpen size={20} color="#5c1f22" /></Box>
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: '#1e293b', lineHeight: 1.1 }}>Ledger</Typography>
-            <Typography variant="body2" sx={{ color: '#64748b' }}>Party-wise account statement</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 800, color: '#5c1f22', lineHeight: 1.1 }}>Ledger</Typography>
+            <Typography variant="body2" sx={{ color: '#6b5550' }}>Party-wise account statement</Typography>
           </Box>
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1.5 }}>
@@ -381,8 +381,8 @@ const LedgerPage = () => {
             { label: 'Entries', value: filteredEntries.length, color: '#bfdbfe' },
             { label: 'Closing Balance', value: fmtAmt(Math.abs(closingBalance)), color: closingBalance >= 0 ? '#fde68a' : '#f9a8d4' },
           ].map(({ label, value, color }) => (
-            <Box key={label} sx={{ bgcolor: 'rgba(51,65,85,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #e4e8ee' }}>
-              <Typography variant="caption" sx={{ color: '#64748b', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block' }}>{label}</Typography>
+            <Box key={label} sx={{ bgcolor: 'rgba(92,31,34,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #ece2db' }}>
+              <Typography variant="caption" sx={{ color: '#6b5550', fontWeight: 600, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block' }}>{label}</Typography>
               <Typography sx={{ color, fontWeight: 800, fontSize: { xs: '0.9rem', sm: '1rem' }, mt: 0.5 }}>{value}</Typography>
             </Box>
           ))}

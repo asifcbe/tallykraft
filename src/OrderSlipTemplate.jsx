@@ -21,8 +21,8 @@ const PAPER_DIM = {
 const STATUS_COLORS = {
   Pending: { color: '#b45309', bg: '#fffbeb', border: '#fde68a' },
   Confirmed: { color: '#1d4ed8', bg: '#eff6ff', border: '#bfdbfe' },
-  Processing: { color: '#7c3aed', bg: '#f5f3ff', border: '#e2e8f0' },
-  Ready: { color: '#334155', bg: '#f1f5f9', border: '#e2e8f0' },
+  Processing: { color: '#7c3aed', bg: '#f5f3ff', border: '#e8ddd6' },
+  Ready: { color: '#5c1f22', bg: '#f6efe9', border: '#e8ddd6' },
   Delivered: { color: '#15803d', bg: '#f0fdf4', border: '#bbf7d0' },
   Cancelled: { color: '#b91c1c', bg: '#fef2f2', border: '#fecaca' },
 };
@@ -95,17 +95,17 @@ const OrderSlipTemplate = forwardRef(({ order, business, paperSize = 'A4' }, ref
       fontFamily: 'Arial, sans-serif', lineHeight: 1.5, boxSizing: 'border-box',
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '2px solid #334155', paddingBottom: '16px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px', borderBottom: '2px solid #5c1f22', paddingBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
           {business.logo && <img src={business.logo} alt="Logo" style={{ maxHeight: '56px', maxWidth: '130px', objectFit: 'contain' }} />}
           <div>
-            <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#0f172a' }}>{business.name}</div>
-            {business.address && <div style={{ fontSize: '12px', color: '#475569' }}>{business.address}</div>}
-            {business.phone && <div style={{ fontSize: '12px', color: '#475569' }}>Phone: {business.phone}</div>}
+            <div style={{ fontSize: '22px', fontWeight: 'bold', color: '#3f1417' }}>{business.name}</div>
+            {business.address && <div style={{ fontSize: '12px', color: '#7a2e30' }}>{business.address}</div>}
+            {business.phone && <div style={{ fontSize: '12px', color: '#7a2e30' }}>Phone: {business.phone}</div>}
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <div style={{ fontSize: '20px', fontWeight: 'bold', letterSpacing: '0.05em', color: '#0f172a' }}>ORDER SLIP</div>
+          <div style={{ fontSize: '20px', fontWeight: 'bold', letterSpacing: '0.05em', color: '#3f1417' }}>ORDER SLIP</div>
           <div style={{ fontSize: '13px', fontFamily: 'monospace', fontWeight: 'bold', marginTop: '4px' }}>{order.orderNumber}</div>
         </div>
       </div>
@@ -118,27 +118,27 @@ const OrderSlipTemplate = forwardRef(({ order, business, paperSize = 'A4' }, ref
         }}>
           {order.status}
         </div>
-        <div style={{ fontSize: '12px', color: '#475569' }}>Order Date: <strong>{order.orderDate}</strong></div>
-        {order.deliveryDate && <div style={{ fontSize: '12px', color: '#475569' }}>Delivery Date: <strong>{order.deliveryDate}</strong></div>}
+        <div style={{ fontSize: '12px', color: '#7a2e30' }}>Order Date: <strong>{order.orderDate}</strong></div>
+        {order.deliveryDate && <div style={{ fontSize: '12px', color: '#7a2e30' }}>Delivery Date: <strong>{order.deliveryDate}</strong></div>}
       </div>
 
       {/* Customer + Delivery details */}
       <div style={{ display: 'flex', gap: '16px', marginBottom: '24px', flexWrap: 'wrap' }}>
-        <div style={{ flex: 1, minWidth: '200px', padding: '14px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Customer</div>
+        <div style={{ flex: 1, minWidth: '200px', padding: '14px', backgroundColor: '#f6efe9', borderRadius: '8px' }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Customer</div>
           <div style={{ fontSize: '15px', fontWeight: 'bold' }}>{order.partyName || '—'}</div>
-          {order.partyPhone && <div style={{ fontSize: '12px', color: '#475569', marginTop: '2px' }}>{order.partyPhone}</div>}
+          {order.partyPhone && <div style={{ fontSize: '12px', color: '#7a2e30', marginTop: '2px' }}>{order.partyPhone}</div>}
         </div>
-        <div style={{ flex: 1, minWidth: '200px', padding: '14px', backgroundColor: '#f1f5f9', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Delivery Details</div>
+        <div style={{ flex: 1, minWidth: '200px', padding: '14px', backgroundColor: '#f6efe9', borderRadius: '8px', border: '1px solid #e8ddd6' }}>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#5c1f22', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Delivery Details</div>
           {order.deliveryAddress ? (
             <div style={{ fontSize: '13px', fontWeight: 600, whiteSpace: 'pre-wrap' }}>{order.deliveryAddress}</div>
           ) : (
-            <div style={{ fontSize: '12px', color: '#94a3b8' }}>Same as customer address</div>
+            <div style={{ fontSize: '12px', color: '#9c8a84' }}>Same as customer address</div>
           )}
-          {order.deliveryPhone && <div style={{ fontSize: '12px', color: '#475569', marginTop: '4px' }}>Contact: {order.deliveryPhone}</div>}
+          {order.deliveryPhone && <div style={{ fontSize: '12px', color: '#7a2e30', marginTop: '4px' }}>Contact: {order.deliveryPhone}</div>}
           {order.deliveryInstructions && (
-            <div style={{ fontSize: '11.5px', color: '#334155', marginTop: '6px', fontStyle: 'italic' }}>{order.deliveryInstructions}</div>
+            <div style={{ fontSize: '11.5px', color: '#5c1f22', marginTop: '6px', fontStyle: 'italic' }}>{order.deliveryInstructions}</div>
           )}
         </div>
       </div>
@@ -147,21 +147,21 @@ const OrderSlipTemplate = forwardRef(({ order, business, paperSize = 'A4' }, ref
       <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
         <thead>
           <tr>
-            <th style={{ textAlign: 'left', padding: '8px 10px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: '11px', textTransform: 'uppercase' }}>Item</th>
-            <th style={{ textAlign: 'center', padding: '8px 10px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: '11px', textTransform: 'uppercase', width: '70px' }}>Qty</th>
-            <th style={{ textAlign: 'center', padding: '8px 10px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: '11px', textTransform: 'uppercase', width: '70px' }}>Unit</th>
-            <th style={{ textAlign: 'right', padding: '8px 10px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: '11px', textTransform: 'uppercase', width: '90px' }}>Price</th>
-            <th style={{ textAlign: 'right', padding: '8px 10px', backgroundColor: '#f1f5f9', border: '1px solid #e2e8f0', fontSize: '11px', textTransform: 'uppercase', width: '100px' }}>Total</th>
+            <th style={{ textAlign: 'left', padding: '8px 10px', backgroundColor: '#f6efe9', border: '1px solid #e8ddd6', fontSize: '11px', textTransform: 'uppercase' }}>Item</th>
+            <th style={{ textAlign: 'center', padding: '8px 10px', backgroundColor: '#f6efe9', border: '1px solid #e8ddd6', fontSize: '11px', textTransform: 'uppercase', width: '70px' }}>Qty</th>
+            <th style={{ textAlign: 'center', padding: '8px 10px', backgroundColor: '#f6efe9', border: '1px solid #e8ddd6', fontSize: '11px', textTransform: 'uppercase', width: '70px' }}>Unit</th>
+            <th style={{ textAlign: 'right', padding: '8px 10px', backgroundColor: '#f6efe9', border: '1px solid #e8ddd6', fontSize: '11px', textTransform: 'uppercase', width: '90px' }}>Price</th>
+            <th style={{ textAlign: 'right', padding: '8px 10px', backgroundColor: '#f6efe9', border: '1px solid #e8ddd6', fontSize: '11px', textTransform: 'uppercase', width: '100px' }}>Total</th>
           </tr>
         </thead>
         <tbody>
           {items.map((it, idx) => (
             <tr key={idx}>
-              <td style={{ padding: '8px 10px', border: '1px solid #e2e8f0', fontSize: '13px', fontWeight: 500 }}>{it.name}</td>
-              <td style={{ padding: '8px 10px', border: '1px solid #e2e8f0', fontSize: '13px', textAlign: 'center' }}>{it.qty}</td>
-              <td style={{ padding: '8px 10px', border: '1px solid #e2e8f0', fontSize: '13px', textAlign: 'center' }}>{it.unit || '—'}</td>
-              <td style={{ padding: '8px 10px', border: '1px solid #e2e8f0', fontSize: '13px', textAlign: 'right' }}>₹{(Number(it.price) || 0).toFixed(2)}</td>
-              <td style={{ padding: '8px 10px', border: '1px solid #e2e8f0', fontSize: '13px', textAlign: 'right', fontWeight: 600 }}>₹{((Number(it.qty) || 0) * (Number(it.price) || 0)).toFixed(2)}</td>
+              <td style={{ padding: '8px 10px', border: '1px solid #e8ddd6', fontSize: '13px', fontWeight: 500 }}>{it.name}</td>
+              <td style={{ padding: '8px 10px', border: '1px solid #e8ddd6', fontSize: '13px', textAlign: 'center' }}>{it.qty}</td>
+              <td style={{ padding: '8px 10px', border: '1px solid #e8ddd6', fontSize: '13px', textAlign: 'center' }}>{it.unit || '—'}</td>
+              <td style={{ padding: '8px 10px', border: '1px solid #e8ddd6', fontSize: '13px', textAlign: 'right' }}>₹{(Number(it.price) || 0).toFixed(2)}</td>
+              <td style={{ padding: '8px 10px', border: '1px solid #e8ddd6', fontSize: '13px', textAlign: 'right', fontWeight: 600 }}>₹{((Number(it.qty) || 0) * (Number(it.price) || 0)).toFixed(2)}</td>
             </tr>
           ))}
         </tbody>
@@ -169,23 +169,23 @@ const OrderSlipTemplate = forwardRef(({ order, business, paperSize = 'A4' }, ref
 
       {/* Total */}
       <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '24px' }}>
-        <div style={{ minWidth: '220px', padding: '10px 16px', backgroundColor: '#f8fafc', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#475569' }}>TOTAL</span>
-          <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#334155' }}>₹{total.toFixed(2)}</span>
+        <div style={{ minWidth: '220px', padding: '10px 16px', backgroundColor: '#f6efe9', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#7a2e30' }}>TOTAL</span>
+          <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#5c1f22' }}>₹{total.toFixed(2)}</span>
         </div>
       </div>
 
       {/* Notes */}
       {order.notes?.trim() && (
         <div style={{ marginBottom: '30px' }}>
-          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Notes</div>
-          <div style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '6px', fontSize: '13px', color: '#334155', minHeight: '40px' }}>{order.notes}</div>
+          <div style={{ fontSize: '11px', fontWeight: 'bold', color: '#6b5550', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>Notes</div>
+          <div style={{ padding: '12px', border: '1px solid #e8ddd6', borderRadius: '6px', fontSize: '13px', color: '#5c1f22', minHeight: '40px' }}>{order.notes}</div>
         </div>
       )}
 
       {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '20px', marginTop: 'auto' }}>
-        <div style={{ fontSize: '10px', color: '#94a3b8' }}>Powered by TallyKraft · www.tallykraft.com</div>
+        <div style={{ fontSize: '10px', color: '#9c8a84' }}>Powered by TallyKraft · www.tallykraft.com</div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: '140px', borderBottom: '1px solid #000', marginBottom: '4px' }} />
           <div style={{ fontSize: '11px', fontWeight: 'bold' }}>Received By</div>

@@ -129,18 +129,18 @@ export default function SalesImportDialog({ open, onClose, isSale, onSuccess }) 
   return (
     <Dialog open={open} onClose={saving ? undefined : handleClose} maxWidth="lg" fullWidth PaperProps={{ sx: { borderRadius: 3, maxHeight: '90vh', position: 'relative' } }}>
       <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.8)', flexDirection: 'column', gap: 1.5 }}>
-        <CircularProgress size={40} sx={{ color: '#334155' }} />
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155' }}>Importing {rows.length} rows…</Typography>
+        <CircularProgress size={40} sx={{ color: '#5c1f22' }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#5c1f22' }}>Importing {rows.length} rows…</Typography>
       </Backdrop>
-      <Box sx={{ background: '#ffffff', border: '1px solid #e4e8ee', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
-        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
-          <Upload size={18} color="#334155" />
+      <Box sx={{ background: '#ffffff', border: '1px solid #ece2db', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0 }}>
+        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex' }}>
+          <Upload size={18} color="#5c1f22" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>IMPORT</Typography>
-          <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, lineHeight: 1.2 }}>Import {isSale ? 'Sales' : 'Purchases'}</Typography>
+          <Typography variant="overline" sx={{ color: '#6b5550', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>IMPORT</Typography>
+          <Typography variant="h6" sx={{ color: '#5c1f22', fontWeight: 800, lineHeight: 1.2 }}>Import {isSale ? 'Sales' : 'Purchases'}</Typography>
         </Box>
-        <IconButton onClick={handleClose} disabled={saving} sx={{ color: '#1e293b' }}><X size={20} /></IconButton>
+        <IconButton onClick={handleClose} disabled={saving} sx={{ color: '#5c1f22' }}><X size={20} /></IconButton>
       </Box>
 
       <DialogContent sx={{ p: 3 }}>
@@ -163,7 +163,7 @@ export default function SalesImportDialog({ open, onClose, isSale, onSuccess }) 
                 variant="contained"
                 startIcon={<Upload size={16} />}
                 onClick={() => fileRef.current?.click()}
-                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#334155' }}
+                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#5c1f22' }}
               >
                 Upload File
               </Button>
@@ -175,7 +175,7 @@ export default function SalesImportDialog({ open, onClose, isSale, onSuccess }) 
         {step === 1 && (
           <Box>
             <Box sx={{ display: 'flex', gap: 1, mb: 2, alignItems: 'center', flexWrap: 'wrap' }}>
-              <Chip label={`${rows.length} row${rows.length !== 1 ? 's' : ''} found`} size="small" sx={{ fontWeight: 700, bgcolor: 'rgba(51,65,85,0.08)', color: '#334155' }} />
+              <Chip label={`${rows.length} row${rows.length !== 1 ? 's' : ''} found`} size="small" sx={{ fontWeight: 700, bgcolor: 'rgba(92,31,34,0.08)', color: '#5c1f22' }} />
               {errors.length > 0 && <Chip icon={<AlertTriangle size={12} />} label={`${errors.length} issue${errors.length !== 1 ? 's' : ''}`} size="small" color="warning" sx={{ fontWeight: 700 }} />}
               <Button size="small" onClick={handleReset} sx={{ ml: 'auto', textTransform: 'none', fontWeight: 700 }}>Upload different file</Button>
             </Box>
@@ -195,7 +195,7 @@ export default function SalesImportDialog({ open, onClose, isSale, onSuccess }) 
                 </TableHead>
                 <TableBody>
                   {rows.slice(0, 50).map((row, i) => (
-                    <TableRow key={i} sx={{ '&:hover': { bgcolor: 'rgba(51,65,85,0.03)' } }}>
+                    <TableRow key={i} sx={{ '&:hover': { bgcolor: 'rgba(92,31,34,0.03)' } }}>
                       <TableCell>{row.customerName}</TableCell>
                       <TableCell>{row.date}</TableCell>
                       <TableCell sx={{ fontFamily: 'monospace', fontWeight: 600 }}>{row.invoiceNum}</TableCell>
@@ -216,8 +216,8 @@ export default function SalesImportDialog({ open, onClose, isSale, onSuccess }) 
 
         {step === 2 && (
           <Box sx={{ textAlign: 'center', py: 6 }}>
-            <CheckCircle size={56} color="#334155" />
-            <Typography variant="h5" sx={{ fontWeight: 800, mt: 2, color: '#334155' }}>Import Complete!</Typography>
+            <CheckCircle size={56} color="#5c1f22" />
+            <Typography variant="h5" sx={{ fontWeight: 800, mt: 2, color: '#5c1f22' }}>Import Complete!</Typography>
             <Typography variant="body1" color="text.secondary" sx={{ mt: 1 }}>
               {savedCount} invoice{savedCount !== 1 ? 's' : ''} imported successfully.
             </Typography>
@@ -228,7 +228,7 @@ export default function SalesImportDialog({ open, onClose, isSale, onSuccess }) 
 
       <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid rgba(0,0,0,0.08)', gap: 1 }}>
         {step === 2 ? (
-          <Button variant="contained" onClick={handleClose} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#334155' }}>
+          <Button variant="contained" onClick={handleClose} sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#5c1f22' }}>
             Done
           </Button>
         ) : (
@@ -239,7 +239,7 @@ export default function SalesImportDialog({ open, onClose, isSale, onSuccess }) 
                 variant="contained"
                 onClick={handleSave}
                 disabled={saving || rows.length === 0}
-                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#334155' }}
+                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: '8px', background: '#5c1f22' }}
               >
                 {saving ? 'Importing…' : `Import ${Object.keys(rows.reduce((g, r) => { if (r.invoiceNum) g[r.invoiceNum] = true; return g; }, {})).length} Invoice${rows.length !== 1 ? 's' : ''}`}
               </Button>

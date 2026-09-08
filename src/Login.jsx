@@ -93,7 +93,7 @@ const Login = ({ onBack }) => {
     cardBg:           'rgba(255,255,255,0.038)',
     cardBorder:       'rgba(255,255,255,0.08)',
     cardShadow:       '0 0 0 1px rgba(255,255,255,0.05), 0 24px 64px rgba(0,0,0,0.6)',
-    title:            '#f8fafc',
+    title:            '#f6efe9',
     sub:              'rgba(255,255,255,0.42)',
     tabWrap:          'rgba(255,255,255,0.05)',
     tabText:          'rgba(255,255,255,0.38)',
@@ -104,8 +104,8 @@ const Login = ({ onBack }) => {
     inputBg:          'rgba(255,255,255,0.055)',
     inputBorder:      'rgba(255,255,255,0.09)',
     inputBorderHov:   'rgba(255,255,255,0.2)',
-    inputFocus:       '#94a3b8',
-    inputText:        '#f1f5f9',
+    inputFocus:       '#9c8a84',
+    inputText:        '#f6efe9',
     eyeColor:         'rgba(255,255,255,0.35)',
     googleBg:         'rgba(255,255,255,0.07)',
     googleBorder:     'rgba(255,255,255,0.1)',
@@ -123,30 +123,30 @@ const Login = ({ onBack }) => {
     cardBg:           '#ffffff',
     cardBorder:       'rgba(100,116,139,0.13)',
     cardShadow:       '0 0 0 1px rgba(100,116,139,0.07), 0 24px 64px rgba(100,116,139,0.11)',
-    title:            '#0f172a',
-    sub:              '#64748b',
+    title:            '#3f1417',
+    sub:              '#6b5550',
     tabWrap:          '#e8edff',
-    tabText:          '#94a3b8',
+    tabText:          '#9c8a84',
     tabActiveBg:      '#ffffff',
-    tabActiveText:    '#64748b',
+    tabActiveText:    '#6b5550',
     tabActiveShadow:  '0 2px 10px rgba(100,116,139,0.14)',
-    lbl:              '#64748b',
+    lbl:              '#6b5550',
     inputBg:          '#f8faff',
     inputBorder:      'rgba(100,116,139,0.16)',
     inputBorderHov:   'rgba(100,116,139,0.38)',
-    inputFocus:       '#64748b',
-    inputText:        '#0f172a',
-    eyeColor:         '#94a3b8',
+    inputFocus:       '#6b5550',
+    inputText:        '#3f1417',
+    eyeColor:         '#9c8a84',
     googleBg:         '#ffffff',
     googleBorder:     'rgba(0,0,0,0.1)',
-    googleText:       '#1e293b',
+    googleText:       '#5c1f22',
     googleHov:        '#f8faff',
     divider:          'rgba(100,116,139,0.1)',
-    caption:          '#94a3b8',
-    footerText:       '#cbd5e1',
-    backColor:        '#94a3b8',
+    caption:          '#9c8a84',
+    footerText:       '#ddd0c9',
+    backColor:        '#9c8a84',
     backHovBg:        'rgba(100,116,139,0.07)',
-    backHovColor:     '#64748b',
+    backHovColor:     '#6b5550',
   };
 
   const inputSx = {
@@ -198,13 +198,13 @@ const Login = ({ onBack }) => {
         flexShrink:    0,
         position:      'relative',
         overflow:      'hidden',
-        background:    'linear-gradient(155deg, #f8fafc 0%, #eef2f7 55%, #e7ecf3 100%)',
+        background:    'linear-gradient(155deg, #f6efe9 0%, #eef2f7 55%, #e7ecf3 100%)',
         p:             5,
       }}>
         {/* Grid overlay */}
         <Box sx={{
           position: 'absolute', inset: 0, zIndex: 0,
-          backgroundImage: 'linear-gradient(rgba(51,65,85,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(51,65,85,0.05) 1px,transparent 1px)',
+          backgroundImage: 'linear-gradient(rgba(92,31,34,0.05) 1px,transparent 1px),linear-gradient(90deg,rgba(92,31,34,0.05) 1px,transparent 1px)',
           backgroundSize: '44px 44px',
         }} />
 
@@ -214,7 +214,7 @@ const Login = ({ onBack }) => {
             position: 'absolute',
             width: o.size, height: o.size,
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(51,65,85,0.10) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, rgba(92,31,34,0.10) 0%, transparent 70%)',
             top: o.top, left: o.left, right: o.right, bottom: o.bottom,
             filter: 'blur(44px)',
             animation: `lg-float ${o.dur} ease-in-out infinite`,
@@ -239,9 +239,9 @@ const Login = ({ onBack }) => {
             ))}
             <Box sx={{
               width: 84, height: 84, borderRadius: '50%',
-              background: 'rgba(51,65,85,0.06)',
+              background: 'rgba(92,31,34,0.06)',
               backdropFilter: 'blur(12px)',
-              border: '1px solid #e4e8ee',
+              border: '1px solid #ece2db',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 8px 40px rgba(100,116,139,0.45)',
             }}>
@@ -250,14 +250,14 @@ const Login = ({ onBack }) => {
           </Box>
 
           <Typography sx={{
-            fontSize: '2.1rem', fontWeight: 800, color: '#0f172a',
+            fontSize: '2.1rem', fontWeight: 800, color: '#3f1417',
             letterSpacing: '0.08em', lineHeight: 1, mb: 0.6,
             animation: 'lg-fadein 0.55s ease both',
           }}>
             TALLYKRAFT
           </Typography>
           <Typography sx={{
-            color: '#64748b', fontSize: '0.88rem', mb: 4.5,
+            color: '#6b5550', fontSize: '0.88rem', mb: 4.5,
             animation: 'lg-fadein 0.65s ease both', animationDelay: '0.08s',
           }}>
             Premium Business Accounting
@@ -273,15 +273,15 @@ const Login = ({ onBack }) => {
               }}>
                 <Box sx={{
                   width: 24, height: 24, borderRadius: '50%', flexShrink: 0,
-                  background: 'rgba(51,65,85,0.08)',
+                  background: 'rgba(92,31,34,0.08)',
                   border: '1px solid rgba(100,116,139,0.45)',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   <svg width="11" height="9" viewBox="0 0 12 10" fill="none">
-                    <path d="M1 5l3.5 3.5L11 1" stroke="#cbd5e1" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+                    <path d="M1 5l3.5 3.5L11 1" stroke="#ddd0c9" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
                   </svg>
                 </Box>
-                <Typography sx={{ color: '#475569', fontSize: '0.84rem', fontWeight: 500, lineHeight: 1.45 }}>
+                <Typography sx={{ color: '#7a2e30', fontSize: '0.84rem', fontWeight: 500, lineHeight: 1.45 }}>
                   {f.text}
                 </Typography>
               </Box>
@@ -291,13 +291,13 @@ const Login = ({ onBack }) => {
           {/* Offline badge */}
           <Box sx={{
             mt: 5, display: 'inline-flex', alignItems: 'center', gap: 1.2,
-            bgcolor: 'rgba(51,65,85,0.05)',
-            border: '1px solid #e4e8ee',
+            bgcolor: 'rgba(92,31,34,0.05)',
+            border: '1px solid #ece2db',
             borderRadius: 100, px: 2.2, py: 0.9,
             animation: 'lg-fadein 0.6s ease both', animationDelay: '0.5s',
           }}>
             <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: '#4ade80', animation: 'lg-blink 2.2s ease-in-out infinite' }} />
-            <Typography sx={{ color: '#64748b', fontSize: '0.73rem', fontWeight: 600, letterSpacing: '0.04em' }}>
+            <Typography sx={{ color: '#6b5550', fontSize: '0.73rem', fontWeight: 600, letterSpacing: '0.04em' }}>
               All data processed locally
             </Typography>
           </Box>
@@ -343,7 +343,7 @@ const Login = ({ onBack }) => {
         }}>
           <Box sx={{
             width: 56, height: 56, borderRadius: '18px',
-            background: '#f1f5f9', border: '1px solid #e4e8ee',
+            background: '#f6efe9', border: '1px solid #ece2db',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 24px rgba(100,116,139,0.4)', mb: 1.5,
           }}>
@@ -502,7 +502,7 @@ const Login = ({ onBack }) => {
                 type="submit" disabled={loading} fullWidth disableElevation
                 sx={{
                   mt: 0.5, py: 1.6, borderRadius: '12px',
-                  background: '#f1f5f9', border: '1px solid #e4e8ee',
+                  background: '#f6efe9', border: '1px solid #ece2db',
                   color: 'white', textTransform: 'none',
                   fontSize: '0.95rem', fontWeight: 700,
                   boxShadow: '0 4px 20px rgba(100,116,139,0.38)',
@@ -576,7 +576,7 @@ const Login = ({ onBack }) => {
                 type="submit" disabled={loading} fullWidth disableElevation
                 sx={{
                   mt: 0.5, py: 1.6, borderRadius: '12px',
-                  background: '#f1f5f9', border: '1px solid #e4e8ee',
+                  background: '#f6efe9', border: '1px solid #ece2db',
                   color: 'white', textTransform: 'none',
                   fontSize: '0.95rem', fontWeight: 700,
                   boxShadow: '0 4px 20px rgba(100,116,139,0.38)',

@@ -144,7 +144,7 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
   const statRows = heroStats ? [
     { label: 'Sales',        value: heroStats.totalSales,     color: accentColorHex, trend: heroStats.salesTrend,    actions: onQuickNew ? [{ label: 'Invoice',  fn: () => onQuickNew('/sales', 'New Invoice', 'createNew') }] : [] },
     { label: 'Purchases',    value: heroStats.totalPurchases, color: '#a78bfa',      trend: heroStats.purchaseTrend, actions: onQuickNew ? [{ label: 'Purchase', fn: () => onQuickNew('/purchases', 'New Purchase', 'createNew') }] : [] },
-    { label: 'Receivable',   value: heroStats.toGet,          color: '#94a3b8',      trend: null,                   actions: onQuickNew ? [{ label: 'Receive',  fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-in', 'Payment In', 'viewOutstanding') }] : [] },
+    { label: 'Receivable',   value: heroStats.toGet,          color: '#9c8a84',      trend: null,                   actions: onQuickNew ? [{ label: 'Receive',  fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-in', 'Payment In', 'viewOutstanding') }] : [] },
     { label: 'Payable',      value: heroStats.toGive,         color: '#fbbf24',      trend: null,                   actions: onQuickNew ? [{ label: 'Pay',      fn: () => onQuickNew('/payment-out', 'Payment Out', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-out', 'Payment Out', 'viewOutstanding') }] : [] },
     { label: 'Expenses',     value: heroStats.totalExpenses,  color: '#fb7185',      trend: null,                   actions: onQuickNew ? [{ label: 'Expense',  fn: () => onQuickNew('/expenses', 'Expenses', 'openAdd') }] : [] },
     { label: 'Cash in Hand', value: cash?.balance ?? 0,       color: '#22d3ee',      cashIn: lastCashAmounts?.lastIn ?? 0, cashOut: lastCashAmounts?.lastOut ?? 0,
@@ -638,7 +638,7 @@ const Dashboard = () => {
       const cat = e.category || e.type || 'Other';
       expenseByCat[cat] = (expenseByCat[cat] || 0) + e.amount;
     });
-    const DONUT_COLORS = ['#334155', '#334155', '#334155', '#d97706', '#e11d48', '#0891b2', '#7c3aed', '#be123c'];
+    const DONUT_COLORS = ['#5c1f22', '#5c1f22', '#5c1f22', '#d97706', '#e11d48', '#0891b2', '#7c3aed', '#be123c'];
     const expenseDonut = Object.entries(expenseByCat)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 7)
@@ -877,9 +877,9 @@ const Dashboard = () => {
         <ClockCalendarWidget
           now={now}
           accentColor={BRAND.teal}
-          accentColorHex="#64748b"
+          accentColorHex="#6b5550"
           bgColor="#ffffff"
-          textOnBg="#1e293b"
+          textOnBg="#5c1f22"
           stats={stats}
           cash={cash}
           bank={bank}
@@ -894,9 +894,9 @@ const Dashboard = () => {
         anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
         PaperProps={{ sx: { borderRadius: 2, mt: 1, minWidth: 220 } }}>
         <MenuItem dense onClick={() => quickNew('/sales', 'New Invoice', 'createNew')}><ReceiptText size={15} style={{ marginRight: 10, color: BRAND.teal }} />New Sales Invoice</MenuItem>
-        <MenuItem dense onClick={() => quickNew('/purchases', 'New Purchase', 'createNew')}><ShoppingBag size={15} style={{ marginRight: 10, color: '#334155' }} />New Purchase Bill</MenuItem>
+        <MenuItem dense onClick={() => quickNew('/purchases', 'New Purchase', 'createNew')}><ShoppingBag size={15} style={{ marginRight: 10, color: '#5c1f22' }} />New Purchase Bill</MenuItem>
         <MenuItem dense onClick={() => quickNew('/expenses', 'Expenses', 'openAdd')}><DollarSign size={15} style={{ marginRight: 10, color: '#e11d48' }} />Add Expense</MenuItem>
-        <MenuItem dense onClick={() => quickNew('/payment-in', 'Payment In', 'openAdd')}><Download size={15} style={{ marginRight: 10, color: '#334155' }} />Payment Received</MenuItem>
+        <MenuItem dense onClick={() => quickNew('/payment-in', 'Payment In', 'openAdd')}><Download size={15} style={{ marginRight: 10, color: '#5c1f22' }} />Payment Received</MenuItem>
         <MenuItem dense onClick={() => quickNew('/payment-out', 'Payment Out', 'openAdd')}><Upload size={15} style={{ marginRight: 10, color: '#d97706' }} />Payment Made</MenuItem>
       </Menu>
 
@@ -917,7 +917,7 @@ const Dashboard = () => {
                 </Box>
               </Stack>
               <Stack direction="row" spacing={2}>
-                {[{ color: BRAND.teal, label: 'Sales' }, { color: '#334155', label: 'Purchase' }].map(({ color, label }) => (
+                {[{ color: BRAND.teal, label: 'Sales' }, { color: '#5c1f22', label: 'Purchase' }].map(({ color, label }) => (
                   <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
                     <Box sx={{ width: 10, height: 3, borderRadius: 1.5, bgcolor: color }} />
                     <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.7rem' }}>{label}</Typography>
@@ -935,8 +935,8 @@ const Dashboard = () => {
                         <stop offset="100%" stopColor={BRAND.teal} stopOpacity={0} />
                       </linearGradient>
                       <linearGradient id="gPurch" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#334155" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#334155" stopOpacity={0} />
+                        <stop offset="0%" stopColor="#5c1f22" stopOpacity={0.22} />
+                        <stop offset="100%" stopColor="#5c1f22" stopOpacity={0} />
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.text.primary, 0.06)} />
@@ -944,7 +944,7 @@ const Dashboard = () => {
                     <YAxis axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.disabled, fontSize: 11 }} tickFormatter={v => v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`} />
                     <ReTooltip content={<AreaTooltip />} />
                     <Area type="monotone" dataKey="sales" stroke={BRAND.teal} strokeWidth={2.5} fill="url(#gSales)" name="Sales" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
-                    <Area type="monotone" dataKey="purchases" stroke="#334155" strokeWidth={2} fill="url(#gPurch)" name="Purchase" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                    <Area type="monotone" dataKey="purchases" stroke="#5c1f22" strokeWidth={2} fill="url(#gPurch)" name="Purchase" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
                   </AreaChart>
                 </ResponsiveContainer>
               </ChartMountGuard>
@@ -1057,7 +1057,7 @@ const Dashboard = () => {
               ) : (
                 recentTx.map((tx, idx) => {
                   const isSale = tx.type === 'Sales';
-                  const clr = isSale ? BRAND.teal : '#334155';
+                  const clr = isSale ? BRAND.teal : '#5c1f22';
                   const IcoComp = isSale ? ReceiptText : ShoppingBag;
                   return (
                     <Box key={tx.id}
@@ -1077,7 +1077,7 @@ const Dashboard = () => {
                           <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.79rem', lineHeight: 1.3 }} noWrap>
                             {tx.partyName || (isSale ? 'Cash & Carry' : 'Cash Purchase')}
                           </Typography>
-                          <Typography sx={{ fontSize: '0.8rem', fontWeight: 800, color: isSale ? BRAND.teal : '#334155', ml: 1, flexShrink: 0, whiteSpace: 'nowrap' }}>
+                          <Typography sx={{ fontSize: '0.8rem', fontWeight: 800, color: isSale ? BRAND.teal : '#5c1f22', ml: 1, flexShrink: 0, whiteSpace: 'nowrap' }}>
                             {isSale ? '+' : '−'}₹{tx.totalAmount?.toLocaleString('en-IN') ?? '0'}
                           </Typography>
                         </Stack>
@@ -1220,19 +1220,19 @@ const Dashboard = () => {
 
       {/* ── QR Code Dialog ── */}
       <Dialog open={qrOpen} onClose={() => setQrOpen(false)} maxWidth="xs" fullWidth
-        PaperProps={{ sx: { borderRadius: 4, overflow: 'hidden', background: '#ffffff', border: '1px solid #e4e8ee' } }}>
+        PaperProps={{ sx: { borderRadius: 4, overflow: 'hidden', background: '#ffffff', border: '1px solid #ece2db' } }}>
         <DialogContent sx={{ p: 0 }}>
           <Box sx={{ px: 3, pt: 3, pb: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
-                <QrCode size={17} color="#334155" />
+              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex' }}>
+                <QrCode size={17} color="#5c1f22" />
               </Box>
               <Box>
-                <Typography sx={{ fontWeight: 800, color: '#1e293b', fontSize: '0.95rem', lineHeight: 1.2 }}>Scan to Pay</Typography>
-                {currentBusiness?.name && <Typography sx={{ color: '#64748b', fontSize: '0.7rem', mt: 0.25 }}>{currentBusiness.name}</Typography>}
+                <Typography sx={{ fontWeight: 800, color: '#5c1f22', fontSize: '0.95rem', lineHeight: 1.2 }}>Scan to Pay</Typography>
+                {currentBusiness?.name && <Typography sx={{ color: '#6b5550', fontSize: '0.7rem', mt: 0.25 }}>{currentBusiness.name}</Typography>}
               </Box>
             </Box>
-            <IconButton onClick={() => setQrOpen(false)} size="small" sx={{ color: '#64748b', '&:hover': { color: '#1e293b', bgcolor: 'rgba(51,65,85,0.08)' } }}>
+            <IconButton onClick={() => setQrOpen(false)} size="small" sx={{ color: '#6b5550', '&:hover': { color: '#5c1f22', bgcolor: 'rgba(92,31,34,0.08)' } }}>
               <X size={18} />
             </IconButton>
           </Box>
@@ -1242,7 +1242,7 @@ const Dashboard = () => {
             </Box>
           </Box>
           <Box sx={{ px: 3, pt: 1, pb: 3, textAlign: 'center' }}>
-            <Typography sx={{ color: '#94a3b8', fontSize: '0.7rem', letterSpacing: '0.03em' }}>Point your camera at the QR code to pay</Typography>
+            <Typography sx={{ color: '#9c8a84', fontSize: '0.7rem', letterSpacing: '0.03em' }}>Point your camera at the QR code to pay</Typography>
           </Box>
         </DialogContent>
       </Dialog>

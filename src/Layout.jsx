@@ -900,9 +900,9 @@ const Layout = () => {
           <>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <TallyKraftLogo size={26} variant="icon" />
-              <Box component="span" sx={{ fontSize: '1.05rem', lineHeight: 1, letterSpacing: '-0.02em', color: '#1e293b', whiteSpace: 'nowrap', userSelect: 'none' }}>
+              <Box component="span" sx={{ fontSize: '1.05rem', lineHeight: 1, letterSpacing: '-0.02em', color: '#5c1f22', whiteSpace: 'nowrap', userSelect: 'none' }}>
                 <Box component="span" sx={{ fontWeight: 700 }}>Tally</Box>
-                <Box component="span" sx={{ fontWeight: 800, color: '#334155' }}>Kraft</Box>
+                <Box component="span" sx={{ fontWeight: 800, color: '#5c1f22' }}>Kraft</Box>
               </Box>
             </Box>
             <Tooltip title="Collapse sidebar" placement="right">
@@ -954,15 +954,15 @@ const Layout = () => {
                           color: 'text.secondary',
                           transition: 'background-color 0.15s ease, color 0.15s ease',
                           '&.Mui-selected': {
-                            bgcolor: alpha('#334155', 0.08), color: '#1e293b',
-                            '&::before': collapsed ? {} : { content: '""', position: 'absolute', left: -4, top: '22%', bottom: '22%', width: 3, borderRadius: '0 3px 3px 0', backgroundColor: '#334155' },
-                            '&:hover': { bgcolor: alpha('#334155', 0.12) },
-                            '& .MuiListItemIcon-root': { color: '#334155' },
+                            bgcolor: alpha('#5c1f22', 0.08), color: '#5c1f22',
+                            '&::before': collapsed ? {} : { content: '""', position: 'absolute', left: -4, top: '22%', bottom: '22%', width: 3, borderRadius: '0 3px 3px 0', backgroundColor: '#5c1f22' },
+                            '&:hover': { bgcolor: alpha('#5c1f22', 0.12) },
+                            '& .MuiListItemIcon-root': { color: '#5c1f22' },
                           },
                           '&:not(.Mui-selected)': { '&:hover': { bgcolor: 'action.hover', color: 'text.primary', '& .MuiListItemIcon-root': { color: 'text.primary' } } },
                         }}
                       >
-                        <ListItemIcon sx={{ minWidth: collapsed ? 0 : 34, justifyContent: 'center', color: selected ? '#334155' : 'text.disabled' }}>
+                        <ListItemIcon sx={{ minWidth: collapsed ? 0 : 34, justifyContent: 'center', color: selected ? '#5c1f22' : 'text.disabled' }}>
                           {item.icon}
                         </ListItemIcon>
                         {!collapsed && (
@@ -1000,12 +1000,12 @@ const Layout = () => {
                   py: 0.875,
                   px: collapsed ? 0 : 1.25,
                   justifyContent: collapsed ? 'center' : 'flex-start',
-                  '&:hover': { bgcolor: alpha('#334155', 0.08) },
+                  '&:hover': { bgcolor: alpha('#5c1f22', 0.08) },
                 }}
               >
                 <ListItemIcon sx={{ minWidth: collapsed ? 0 : 32, justifyContent: 'center' }}>
-                  <Box sx={{ width: 26, height: 26, borderRadius: 1.25, bgcolor: alpha('#334155', 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <Store size={14} color="#334155" />
+                  <Box sx={{ width: 26, height: 26, borderRadius: 1.25, bgcolor: alpha('#5c1f22', 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Store size={14} color="#5c1f22" />
                   </Box>
                 </ListItemIcon>
                 {!collapsed && (
@@ -1594,7 +1594,7 @@ const Layout = () => {
             },
             {
               title: 'Sales & Invoicing',
-              color: '#334155',
+              color: '#5c1f22',
               items: [
                 { keys: ['G', 'N'], label: 'New sales invoice (in list view)', seq: true },
                 { keys: ['G', 'B'], label: 'New purchase bill (in list view)', seq: true },

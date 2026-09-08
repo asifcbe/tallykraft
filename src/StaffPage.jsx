@@ -37,7 +37,7 @@ const ROLES = ['Manager', 'Cashier', 'Sales Staff', 'Delivery', 'Accountant', 'H
 const fmt = (n) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n || 0);
 
 const roleColor = (role) => {
-  const map = { Manager: '#111111', Cashier: '#3f3f46', 'Sales Staff': '#22c55e', Delivery: '#f59e0b', Accountant: '#8b5cf6', Helper: '#64748b', Security: '#ef4444', Other: '#64748b' };
+  const map = { Manager: '#111111', Cashier: '#5c1f22', 'Sales Staff': '#22c55e', Delivery: '#f59e0b', Accountant: '#8b5cf6', Helper: '#6b5550', Security: '#ef4444', Other: '#6b5550' };
   return map[role] || '#111111';
 };
 
@@ -355,7 +355,7 @@ export default function StaffPage() {
         <Icon size={18} color={color} />
       </Box>
       <Box>
-        <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.1, color: '#1e293b' }}>{value}</Typography>
+        <Typography variant="h6" sx={{ fontWeight: 800, lineHeight: 1.1, color: '#5c1f22' }}>{value}</Typography>
         <Typography variant="caption" sx={{ color: alpha('#fff', 0.7), lineHeight: 1.2 }}>{label}</Typography>
       </Box>
     </Box>
@@ -366,7 +366,7 @@ export default function StaffPage() {
       {/* ── Hero ── */}
       <Box sx={{
         borderRadius: 4,
-        background: '#ffffff', border: '1px solid #e4e8ee',
+        background: '#ffffff', border: '1px solid #ece2db',
         p: { xs: 2.5, sm: 3.5 },
         mb: 3,
         position: 'relative',
@@ -376,7 +376,7 @@ export default function StaffPage() {
         <Box sx={{ position: 'absolute', bottom: -30, right: 80, width: 120, height: 120, borderRadius: '50%', bgcolor: alpha('#fff', 0.03), pointerEvents: 'none' }} />
         <Box sx={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
           <Box>
-            <Typography variant="h5" sx={{ fontWeight: 800, color: '#1e293b', mb: 0.5 }}>Staff Management</Typography>
+            <Typography variant="h5" sx={{ fontWeight: 800, color: '#5c1f22', mb: 0.5 }}>Staff Management</Typography>
             <Typography variant="body2" sx={{ color: alpha('#fff', 0.7) }}>Manage your team, track attendance and process payroll</Typography>
           </Box>
           <Tooltip title={atStaffCap ? `Staff limit reached (${maxStaff} of ${maxStaff}). Contact your administrator to raise it.` : ''}>
@@ -386,7 +386,7 @@ export default function StaffPage() {
                 startIcon={<Plus size={16} />}
                 onClick={openAddMember}
                 disabled={atStaffCap}
-                sx={{ bgcolor: alpha('#fff', 0.15), color: '#1e293b', backdropFilter: 'blur(4px)', borderRadius: 2, fontWeight: 600, border: `1px solid ${alpha('#fff', 0.2)}`, '&:hover': { bgcolor: alpha('#fff', 0.25) }, '&.Mui-disabled': { color: alpha('#fff', 0.4), bgcolor: alpha('#fff', 0.06) } }}
+                sx={{ bgcolor: alpha('#fff', 0.15), color: '#5c1f22', backdropFilter: 'blur(4px)', borderRadius: 2, fontWeight: 600, border: `1px solid ${alpha('#fff', 0.2)}`, '&:hover': { bgcolor: alpha('#fff', 0.25) }, '&.Mui-disabled': { color: alpha('#fff', 0.4), bgcolor: alpha('#fff', 0.06) } }}
               >
                 {atStaffCap ? `Staff ${staffCount}/${maxStaff}` : 'Add Staff'}
               </Button>
@@ -394,8 +394,8 @@ export default function StaffPage() {
           </Tooltip>
         </Box>
         <Box sx={{ display: 'flex', gap: { xs: 3, sm: 5 }, mt: 3, flexWrap: 'wrap' }}>
-          <StatCard icon={Users} value={activeMembers.length} label="Total Active Staff" color="#cbd5e1" />
-          <StatCard icon={UserCheck} value={presentToday} label="Present Today" color="#cbd5e1" />
+          <StatCard icon={Users} value={activeMembers.length} label="Total Active Staff" color="#ddd0c9" />
+          <StatCard icon={UserCheck} value={presentToday} label="Present Today" color="#ddd0c9" />
           <StatCard icon={DollarSign} value={`₹${fmt(monthlyPayroll)}`} label="Monthly Payroll" color="#fde68a" />
         </Box>
       </Box>
@@ -537,7 +537,7 @@ export default function StaffPage() {
             <Box sx={{ overflowX: 'auto', borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
               <Box sx={{ minWidth: 700 }}>
                 {/* Header row */}
-                <Box sx={{ display: 'grid', gridTemplateColumns: '160px repeat(' + daysInMonth + ', 1fr)', bgcolor: isDark ? alpha('#fff', 0.04) : '#f8fafc', borderBottom: `1px solid ${theme.palette.divider}` }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: '160px repeat(' + daysInMonth + ', 1fr)', bgcolor: isDark ? alpha('#fff', 0.04) : '#f6efe9', borderBottom: `1px solid ${theme.palette.divider}` }}>
                   <Box sx={{ p: 1, pl: 2 }}>
                     <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>Staff</Typography>
                   </Box>
@@ -815,23 +815,23 @@ export default function StaffPage() {
             PaperProps={{ sx: { borderRadius: '16px', overflow: 'hidden' } }}
           >
             {/* Gradient header */}
-            <Box sx={{ background: '#ffffff', border: '1px solid #e4e8ee', px: 3, pt: 2.5, pb: 0 }}>
+            <Box sx={{ background: '#ffffff', border: '1px solid #ece2db', px: 3, pt: 2.5, pb: 0 }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
-                <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(51,65,85,0.08)', fontSize: '1.1rem', fontWeight: 800, color: '#1e293b', border: '2px solid #e4e8ee' }}>
+                <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(92,31,34,0.08)', fontSize: '1.1rem', fontWeight: 800, color: '#5c1f22', border: '2px solid #ece2db' }}>
                   {(memberForm.name?.[0] || (memberDialog.editing ? '?' : '+')).toUpperCase()}
                 </Avatar>
                 <Box>
-                  <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: '#1e293b', lineHeight: 1.2 }}>
+                  <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: '#5c1f22', lineHeight: 1.2 }}>
                     {memberDialog.editing ? memberDialog.editing.name : 'New Staff Member'}
                   </Typography>
-                  <Typography sx={{ fontSize: '0.72rem', color: '#64748b', lineHeight: 1.3 }}>
+                  <Typography sx={{ fontSize: '0.72rem', color: '#6b5550', lineHeight: 1.3 }}>
                     {memberDialog.editing ? `Editing • ${memberDialog.editing.role || 'Staff'}` : 'Fill in the details below'}
                   </Typography>
                 </Box>
                 <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.5, borderRadius: '20px', bgcolor: memberForm.status !== 'inactive' ? 'rgba(34,197,94,0.2)' : 'rgba(148,163,184,0.2)', border: `1px solid ${memberForm.status !== 'inactive' ? 'rgba(34,197,94,0.4)' : 'rgba(148,163,184,0.3)'}`, cursor: 'pointer' }}
                   onClick={() => setMemberForm(f => ({ ...f, status: f.status === 'inactive' ? 'active' : 'inactive' }))}>
-                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: memberForm.status !== 'inactive' ? '#22c55e' : '#94a3b8' }} />
-                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: memberForm.status !== 'inactive' ? '#16a34a' : '#94a3b8', whiteSpace: 'nowrap' }}>
+                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: memberForm.status !== 'inactive' ? '#22c55e' : '#9c8a84' }} />
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: memberForm.status !== 'inactive' ? '#16a34a' : '#9c8a84', whiteSpace: 'nowrap' }}>
                     {memberForm.status !== 'inactive' ? 'Active' : 'Inactive'}
                   </Typography>
                 </Box>
@@ -841,16 +841,16 @@ export default function StaffPage() {
                 {dialogTabs.map((label, i) => (
                   <Box key={label} onClick={() => setDlgTab(i)} sx={{
                     px: 2, py: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600,
-                    color: dlgTab === i ? '#1e293b' : '#94a3b8',
+                    color: dlgTab === i ? '#5c1f22' : '#9c8a84',
                     borderBottom: dlgTab === i ? '2px solid #fff' : '2px solid transparent',
                     transition: 'all 0.15s',
-                    '&:hover': { color: dlgTab === i ? '#1e293b' : '#64748b' },
+                    '&:hover': { color: dlgTab === i ? '#5c1f22' : '#6b5550' },
                   }}>{label}</Box>
                 ))}
               </Box>
             </Box>
 
-            <DialogContent sx={{ p: 0, '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: '#e2e8f0', borderRadius: 3 } }}>
+            <DialogContent sx={{ p: 0, '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: '#e8ddd6', borderRadius: 3 } }}>
               {memberError && (
                 <Box sx={{ mx: 3, mt: 2, px: 1.5, py: 1, borderRadius: '8px', bgcolor: '#fef2f2', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 1 }}>
                   <AlertCircle size={14} color="#dc2626" />
@@ -876,8 +876,8 @@ export default function StaffPage() {
                   <TextField size="small" label="Notes" value={sf('notes')}
                     onChange={upd('notes')} sx={{ flex: '1 1 200px' }} />
                 </Box>
-                <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <Typography sx={{ fontSize: '0.82rem', color: '#475569' }}>Show in Sales / POS staff selector</Typography>
+                <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px solid #f6efe9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '0.82rem', color: '#7a2e30' }}>Show in Sales / POS staff selector</Typography>
                   <Switch size="small" checked={!!memberForm.showInSalesSelector}
                     onChange={e => setMemberForm(f => ({ ...f, showInSalesSelector: e.target.checked }))} />
                 </Box>
@@ -885,7 +885,7 @@ export default function StaffPage() {
 
               {/* ── Tab 1: Salary & Login ── */}
               <Box sx={{ display: dlgTab === 1 ? 'block' : 'none', px: 3, py: 2.5 }}>
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Salary</Typography>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Salary</Typography>
                 <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2.5 }}>
                   <TextField size="small" label="Amount (₹)" type="number" value={sf('salary')}
                     onChange={upd('salary')} sx={{ flex: '1 1 140px' }} />
@@ -894,7 +894,7 @@ export default function StaffPage() {
                     {SALARY_TYPES.map(t => <MenuItem key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</MenuItem>)}
                   </TextField>
                 </Box>
-                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Login Credentials</Typography>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Login Credentials</Typography>
                 <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                   <TextField size="small" label="Username" placeholder="e.g. rahul" value={sf('username')}
                     helperText="Used to log in — lowercase, no spaces"
@@ -908,12 +908,12 @@ export default function StaffPage() {
               {/* ── Tab 2: Access ── */}
               <Box sx={{ display: dlgTab === 2 ? 'block' : 'none', px: 3, py: 2.5 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
-                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Section Access</Typography>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#9c8a84', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Section Access</Typography>
                   <Box sx={{ display: 'flex', gap: 0.5 }}>
                     <Button size="small" onClick={() => setMemberForm(f => ({ ...f, features: ACCESS_ITEMS.reduce((a, { key }) => ({ ...a, [key]: true }), {}) }))}
                       sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: primary, '&:hover': { bgcolor: alpha(primary, 0.06) } }}>All On</Button>
                     <Button size="small" onClick={() => setMemberForm(f => ({ ...f, features: ACCESS_ITEMS.reduce((a, { key }) => ({ ...a, [key]: false }), {}) }))}
-                      sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#94a3b8', '&:hover': { bgcolor: '#f1f5f9' } }}>All Off</Button>
+                      sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#9c8a84', '&:hover': { bgcolor: '#f6efe9' } }}>All Off</Button>
                   </Box>
                 </Box>
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 0.75 }}>
@@ -923,13 +923,13 @@ export default function StaffPage() {
                       <Box key={key} onClick={() => toggleFeat(key)} sx={{
                         display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.875,
                         borderRadius: '8px', cursor: 'pointer', border: '1.5px solid', transition: 'all 0.12s',
-                        borderColor: on ? alpha(primary, 0.35) : '#f1f5f9',
+                        borderColor: on ? alpha(primary, 0.35) : '#f6efe9',
                         bgcolor: on ? alpha(primary, 0.06) : '#fafafa',
-                        '&:hover': { borderColor: on ? alpha(primary, 0.5) : '#e2e8f0', bgcolor: on ? alpha(primary, 0.1) : '#f8fafc' },
+                        '&:hover': { borderColor: on ? alpha(primary, 0.5) : '#e8ddd6', bgcolor: on ? alpha(primary, 0.1) : '#f6efe9' },
                       }}>
                         <Box sx={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, transition: 'background 0.12s',
-                          bgcolor: on ? primary : '#e2e8f0' }} />
-                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: on ? primary : '#64748b', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          bgcolor: on ? primary : '#e8ddd6' }} />
+                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: on ? primary : '#6b5550', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                           {label}
                         </Typography>
                       </Box>
@@ -945,21 +945,21 @@ export default function StaffPage() {
               </Box>
             </DialogContent>
 
-            <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f1f5f9', bgcolor: '#fafafa', gap: 1 }}>
+            <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f6efe9', bgcolor: '#fafafa', gap: 1 }}>
               <Button onClick={() => { setMemberDialog({ open: false, editing: null }); setMemberError(''); }}
-                sx={{ borderRadius: '8px', textTransform: 'none', color: '#64748b', '&:hover': { bgcolor: '#f1f5f9' } }}>
+                sx={{ borderRadius: '8px', textTransform: 'none', color: '#6b5550', '&:hover': { bgcolor: '#f6efe9' } }}>
                 Cancel
               </Button>
               <Box sx={{ flex: 1, display: 'flex', gap: 0.75 }}>
                 {dialogTabs.map((label, i) => (
                   <Box key={i} onClick={() => setDlgTab(i)}
                     sx={{ flex: 1, height: 3, borderRadius: '2px', cursor: 'pointer', transition: 'background 0.15s',
-                      bgcolor: dlgTab === i ? primary : '#e2e8f0' }} />
+                      bgcolor: dlgTab === i ? primary : '#e8ddd6' }} />
                 ))}
               </Box>
               <Button variant="contained" onClick={saveMember} disabled={!memberForm.name?.trim()}
                 sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, px: 2.5,
-                  bgcolor: primary, '&:hover': { bgcolor: '#334155' }, '&.Mui-disabled': { bgcolor: alpha(primary, 0.2), color: alpha(primary, 0.45) } }}>
+                  bgcolor: primary, '&:hover': { bgcolor: '#5c1f22' }, '&.Mui-disabled': { bgcolor: alpha(primary, 0.2), color: alpha(primary, 0.45) } }}>
                 {memberDialog.editing ? 'Save Changes' : 'Add Member'}
               </Button>
             </DialogActions>
@@ -1001,7 +1001,7 @@ export default function StaffPage() {
                   border: '1.5px solid', transition: 'all 0.12s',
                   borderColor: salPayForm.paymentMode === mode ? primary : '#e5e7eb',
                   bgcolor: salPayForm.paymentMode === mode ? alpha(primary, 0.08) : '#fafafa',
-                  color: salPayForm.paymentMode === mode ? primary : '#64748b',
+                  color: salPayForm.paymentMode === mode ? primary : '#6b5550',
                 }}>
                 {mode}
               </Box>
@@ -1034,7 +1034,7 @@ export default function StaffPage() {
         </DialogContent>
         <DialogActions sx={{ pb: 2.5, px: 2.5, gap: 1 }}>
           <Button onClick={() => { setSalPayDialog(null); setSalPayError(''); }} sx={{ borderRadius: 2 }}>Cancel</Button>
-          <Button variant="contained" sx={{ borderRadius: 2, fontWeight: 700, bgcolor: primary, '&:hover': { bgcolor: '#334155' } }}
+          <Button variant="contained" sx={{ borderRadius: 2, fontWeight: 700, bgcolor: primary, '&:hover': { bgcolor: '#5c1f22' } }}
             onClick={confirmSalaryPayment}>
             Confirm Payment
           </Button>

@@ -65,33 +65,33 @@ export default function SalesBulkEditDialog({ open, onClose, isSale }) {
       PaperProps={{ sx: { borderRadius: 3, maxHeight: '90vh', position: 'relative' } }}
     >
       <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.8)', flexDirection: 'column', gap: 1.5 }}>
-        <CircularProgress size={40} sx={{ color: '#334155' }} />
-        <Typography variant="body2" sx={{ fontWeight: 700, color: '#334155' }}>Saving changes…</Typography>
+        <CircularProgress size={40} sx={{ color: '#5c1f22' }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: '#5c1f22' }}>Saving changes…</Typography>
       </Backdrop>
       <Box
         sx={{
-          background: '#ffffff', border: '1px solid #e4e8ee',
+          background: '#ffffff', border: '1px solid #ece2db',
           px: 3, py: 2,
           display: 'flex', alignItems: 'center', gap: 2, flexShrink: 0,
         }}
       >
-        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(51,65,85,0.08)', display: 'flex' }}>
-          <Edit2 size={18} color="#334155" />
+        <Box sx={{ p: 1, borderRadius: 2, bgcolor: 'rgba(92,31,34,0.08)', display: 'flex' }}>
+          <Edit2 size={18} color="#5c1f22" />
         </Box>
         <Box sx={{ flex: 1 }}>
-          <Typography variant="overline" sx={{ color: '#64748b', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>
+          <Typography variant="overline" sx={{ color: '#6b5550', fontWeight: 700, fontSize: '0.62rem', letterSpacing: '0.1em', lineHeight: 1 }}>
             {isSale ? 'SALES' : 'PURCHASES'}
           </Typography>
-          <Typography variant="h6" sx={{ color: '#1e293b', fontWeight: 800, lineHeight: 1.2 }}>
+          <Typography variant="h6" sx={{ color: '#5c1f22', fontWeight: 800, lineHeight: 1.2 }}>
             Bulk Edit {isSale ? 'Sales' : 'Purchases'}
           </Typography>
         </Box>
         <Chip
           label={`${rows.length} record${rows.length !== 1 ? 's' : ''}`}
           size="small"
-          sx={{ bgcolor: '#94a3b8', color: '#1e293b', fontWeight: 700 }}
+          sx={{ bgcolor: '#9c8a84', color: '#5c1f22', fontWeight: 700 }}
         />
-        <IconButton onClick={onClose} disabled={saving} sx={{ color: '#1e293b' }}>
+        <IconButton onClick={onClose} disabled={saving} sx={{ color: '#5c1f22' }}>
           <X size={20} />
         </IconButton>
       </Box>
@@ -118,8 +118,8 @@ export default function SalesBulkEditDialog({ open, onClose, isSale }) {
                   <TableRow
                     key={row.id}
                     sx={{
-                      '&:hover': { bgcolor: 'rgba(51,65,85,0.03)' },
-                      bgcolor: changedKeys.has(row.id) ? 'rgba(51,65,85,0.04)' : undefined,
+                      '&:hover': { bgcolor: 'rgba(92,31,34,0.03)' },
+                      bgcolor: changedKeys.has(row.id) ? 'rgba(92,31,34,0.04)' : undefined,
                     }}
                   >
                     <TableCell>
@@ -201,7 +201,7 @@ export default function SalesBulkEditDialog({ open, onClose, isSale }) {
           <Chip
             label={`${changedKeys.size} row${changedKeys.size !== 1 ? 's' : ''} changed`}
             size="small"
-            sx={{ fontWeight: 700, bgcolor: 'rgba(51,65,85,0.08)', color: '#334155', mr: 'auto' }}
+            sx={{ fontWeight: 700, bgcolor: 'rgba(92,31,34,0.08)', color: '#5c1f22', mr: 'auto' }}
           />
         )}
         <Button onClick={onClose} disabled={saving} sx={{ fontWeight: 700, textTransform: 'none' }}>
@@ -214,7 +214,7 @@ export default function SalesBulkEditDialog({ open, onClose, isSale }) {
           disabled={saving}
           sx={{
             fontWeight: 700, textTransform: 'none', borderRadius: '8px',
-            background: '#334155',
+            background: '#5c1f22',
           }}
         >
           {saving ? 'Saving…' : `Save Changes${changedKeys.size > 0 ? ` (${changedKeys.size})` : ''}`}
