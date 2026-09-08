@@ -4,24 +4,30 @@ import {
   Card, CardContent, Stack, Avatar, alpha, useTheme,
   InputAdornment, IconButton, InputBase, Paper, Table, TableBody, TableCell,
   TableContainer, TableHead, TableRow, TablePagination, Chip, Tooltip,
-  Autocomplete, ToggleButton, ToggleButtonGroup,
+  Autocomplete, ToggleButton, ToggleButtonGroup, Menu, ListItemIcon, ListItemText, Snackbar, Alert,
 } from '@mui/material';
 import {
   CheckCircle2, ArrowLeft, Landmark, Banknote,
-  CreditCard, User, Search,
-  FileClock, ArrowDownRight, ArrowUpRight, Printer, Share2, Edit2, Trash2, Eye, X
+  User, Search,
+  ArrowDownRight, ArrowUpRight, Printer, Share2, Edit2, Trash2, Eye, X, MoreHorizontal, LayoutList,
+  Users, ChevronDown, Phone,
 } from 'lucide-react';
+import PaymentBulkAddDialog from './PaymentBulkAddDialog';
 import { useBusiness } from './BusinessContext';
-import { useSubscription } from './SubscriptionContext';
+
 import PartySelect from './PartySelect';
 import { useConfig } from './ConfigContext';
+import { useSubscription } from './SubscriptionContext';
 import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
 import { FitPreview } from './TxListView';
 import { useDialog } from './DialogContext';
-import { useNavigate } from 'react-router-dom';
+import { useTabs } from './TabsContext';
 import { useReactToPrint } from 'react-to-print';
 import PaymentTemplate from './PaymentTemplate';
+import SplitPaymentInput from './SplitPaymentInput';
+import { acknowledgeQuickNew } from './quickNewBridge';
+import { txSortKey, formatCreatedTime } from './txTimeUtils';
 
 const formatDate = (dateStr) => {
   if (!dateStr) return '';
@@ -29,25 +35,24 @@ const formatDate = (dateStr) => {
   return `${day}/${month}/${year}`;
 };
 
-const SPLIT_BANK_MODES = ['Bank', 'UPI', 'Cheque'];
-
 const MODE_COLORS = {
   Cash:   { bg: alpha('#16a34a', 0.1), color: '#16a34a' },
-  Bank:   { bg: alpha('#1d4ed8', 0.1), color: '#1d4ed8' },
-  UPI:    { bg: alpha('#7c3aed', 0.1), color: '#7c3aed' },
-  Cheque: { bg: alpha('#b45309', 0.1), color: '#b45309' },
-  Split:  { bg: alpha('#db2777', 0.1), color: '#db2777' },
+  Bank:   { bg: alpha('#27272a', 0.1), color: '#27272a' },
+  Split:  { bg: alpha('#7c3aed', 0.1), color: '#7c3aed' },
 };
+
 
 const PaymentEntry = ({ mode = 'payment-in' }) => {
   const theme = useTheme();
-  const navigate = useNavigate();
+  const { openTab } = useTabs();
   const { currentBusiness } = useBusiness();
   const { confirm, showAlert } = useDialog();
   const { t } = useI18n();
-  const { addItem, updateItem, deleteItem, getItems } = useData();
+  // TallyKraft billing: data layer blocks the write; this greys the CTA.
   const { isBusinessActive } = useSubscription();
   const canWrite = isBusinessActive(currentBusiness?.id);
+
+  const { addItem, updateItem, deleteItem, getItems } = useData();
 
   const [tabValue, setTabValue] = useState(mode === 'payment-out' ? 1 : 0);
   const [formData, setFormData] = useState({
@@ -56,7 +61,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
   });
   const [splitCash, setSplitCash] = useState('');
   const [splitBank, setSplitBank] = useState('');
-  const [splitBankMode, setSplitBankMode] = useState('Bank');
+  const [lessAmount, setLessAmount] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
@@ -67,12 +72,12 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
   const { config } = useConfig();
   const [paperSize, setPaperSize] = useState(() => {
     const d = config.defaultPaperSize;
-    return ['A4', 'A5', 'Letter', 'Legal'].includes(d) ? d : 'A4';
+    return ['A3', 'A4', 'A5', 'A6', 'Letter', 'Legal', 'Executive', 'Statement'].includes(d) ? d : 'A4';
   });
   useEffect(() => {
     if (config.defaultPaperSize) {
       const d = config.defaultPaperSize;
-      if (['A4', 'A5', 'Letter', 'Legal'].includes(d)) setPaperSize(d);
+      if (['A3', 'A4', 'A5', 'A6', 'Letter', 'Legal', 'Executive', 'Statement'].includes(d)) setPaperSize(d);
     }
   }, [config.defaultPaperSize]);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -83,6 +88,9 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
+  const [snack, setSnack] = useState({ open: false, msg: '' });
 
   const handlePrint = useReactToPrint({ contentRef: printRef });
 
@@ -91,16 +99,60 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
     handlePrint();
   }, [printTrigger]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isPaymentIn = tabValue === 0;
-  const accentColor = isPaymentIn ? theme.palette.success.main : theme.palette.warning.main;
-  const accentGradient = isPaymentIn
-    ? 'linear-gradient(135deg, #16a34a 0%, #4ade80 100%)'
-    : 'linear-gradient(135deg, #d97706 0%, #fbbf24 100%)';
+  // Dashboard's "Receive Payment"/"Make Payment" and "See Receivables"/"See
+  // Payables" shortcuts dispatch this event — previously PaymentEntry had no
+  // listener at all, so it silently did nothing beyond opening the tab
+  // itself (openTab already handles that part). 'openAdd' just lands here
+  // (nothing further to do — the form is already the page); 'viewOutstanding'
+  // additionally switches to the matching tab and scrolls the Receivables/
+  // Payables list into view. Since Sales/Purchases/PaymentEntry etc. can be
+  // lazy-mounted, the event may need to retry a few times before this
+  // listener exists — dispatchQuickNew already handles that, this side only
+  // needs to acknowledge once it actually acts on a matching event.
+  useEffect(() => {
+    const onQuickNew = (e) => {
+      const d = e.detail;
+      if (!d) return;
+      if (d.path !== '/payment-in' && d.path !== '/payment-out') return;
+      if (d.intent === 'openAdd') {
+        setTabValue(d.path === '/payment-out' ? 1 : 0);
+        acknowledgeQuickNew(d);
+      } else if (d.intent === 'viewOutstanding') {
+        setTabValue(d.path === '/payment-out' ? 1 : 0);
+        setTimeout(() => outstandingListRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+        acknowledgeQuickNew(d);
+      }
+    };
+    window.addEventListener('dashboard-quick-new', onQuickNew);
+    return () => window.removeEventListener('dashboard-quick-new', onQuickNew);
+  }, []);
 
-  const parties = getItems('parties').filter(p => {
-    if (p.businessId !== currentBusiness?.id) return false;
-    return isPaymentIn ? p.type === 'Customer' : p.type === 'Vendor';
-  });
+  const isPaymentIn = tabValue === 0;
+  // Payment-In reads as money coming in (emerald); Payment-Out as money leaving (amber).
+  const accentColor = isPaymentIn ? '#059669' : '#d97706';
+  const accentGradient = isPaymentIn
+    ? 'linear-gradient(135deg, #047857 0%, #10b981 100%)'
+    : 'linear-gradient(135deg, #b45309 0%, #f59e0b 100%)';
+
+  const parties = getItems('parties').filter(p => p.businessId === currentBusiness?.id);
+
+  // Receivables/Payables list — same basis as Parties.jsx/Dashboard's own
+  // Receivable/Payable KPIs: party.balance, positive = they owe us, negative
+  // = we owe them (sign convention is identical for both Customer and
+  // Vendor party types). Sorted by amount outstanding, largest first.
+  const receivables = useMemo(() =>
+    parties
+      .filter(p => p.type === 'Customer' && (p.balance || 0) > 0)
+      .sort((a, b) => (b.balance || 0) - (a.balance || 0)),
+    [parties]);
+  const payables = useMemo(() =>
+    parties
+      .filter(p => p.type === 'Vendor' && (p.balance || 0) < 0)
+      .sort((a, b) => (a.balance || 0) - (b.balance || 0)),
+    [parties]);
+  const [outstandingSearch, setOutstandingSearch] = useState('');
+  const outstandingListRef = useRef(null);
+  const entryFormRef = useRef(null);
 
   const allPayments = getItems('payments').filter(t => t.businessId === currentBusiness?.id);
   const totalIn  = allPayments.filter(t => t.type === 'PaymentIn').reduce((s, t) => s + (t.totalAmount || 0), 0);
@@ -123,7 +175,10 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
       switch (filters.sortBy) {
         case 'amount': aValue = a.totalAmount; bValue = b.totalAmount; break;
         case 'party': aValue = a.partyName.toLowerCase(); bValue = b.partyName.toLowerCase(); break;
-        default: aValue = new Date(a.date); bValue = new Date(b.date);
+        // Date sort uses the real creation timestamp (falls back to date+time
+        // for older records) so same-day payments order by when they were
+        // actually recorded instead of colliding at midnight.
+        default: aValue = txSortKey(a); bValue = txSortKey(b);
       }
       return filters.sortOrder === 'desc' ? (aValue < bValue ? 1 : -1) : (aValue > bValue ? 1 : -1);
     });
@@ -145,12 +200,15 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
       const bankNum = parseFloat(splitBank) || 0;
       if (cashNum <= 0 && bankNum <= 0) { await showAlert({ title: 'Missing amounts', message: 'Enter at least one split amount.', variant: 'warning' }); return; }
       amountNum = cashNum + bankNum;
-      paymentSplit = { cash: cashNum, bank: bankNum, bankMode: splitBankMode };
+      paymentSplit = { cash: cashNum, bank: bankNum, bankMode: 'Bank' };
     } else {
       if (!formData.amount) { await showAlert({ title: 'Missing fields', message: 'Please select a party and enter an amount.', variant: 'warning' }); return; }
       amountNum = parseFloat(formData.amount);
       if (isNaN(amountNum) || amountNum <= 0) { await showAlert({ title: 'Invalid amount', message: 'Please enter a valid amount greater than zero.', variant: 'warning' }); return; }
     }
+
+    const lessNum = parseFloat(lessAmount) || 0;
+    const totalSettled = amountNum + lessNum; // actual balance cleared = paid + written off
 
     try {
       const paymentData = {
@@ -159,6 +217,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         partyName: selectedParty.name || 'Unknown',
         type: isPaymentIn ? 'PaymentIn' : 'PaymentOut',
         totalAmount: amountNum,
+        ...(lessNum > 0 ? { lessAmount: lessNum } : {}),
         date: formData.date || new Date().toISOString().split('T')[0],
         paymentMode: formData.paymentMode || 'Cash',
         ...(paymentSplit ? { paymentSplit } : {}),
@@ -170,9 +229,9 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         const oldPayment = getItems('payments').find(p => p.id === editingId);
         if (!oldPayment) { await showAlert({ title: 'Not found', message: 'Payment not found.', variant: 'warning' }); return; }
         const oldParty = parties.find(p => p.id === oldPayment.partyId);
-        const oldAmount = oldPayment.totalAmount || 0;
-        const rollbackOld = isPaymentIn ? oldAmount : -oldAmount;
-        const applyNew = isPaymentIn ? -amountNum : amountNum;
+        const oldSettled = (oldPayment.totalAmount || 0) + (oldPayment.lessAmount || 0);
+        const rollbackOld = isPaymentIn ? oldSettled : -oldSettled;
+        const applyNew = isPaymentIn ? -totalSettled : totalSettled;
         if (oldParty) await updateItem('parties', oldPayment.partyId, { balance: (oldParty.balance || 0) + rollbackOld });
         if (selectedParty.id !== oldPayment.partyId) {
           await updateItem('parties', formData.partyId, { balance: (selectedParty.balance || 0) + applyNew });
@@ -182,7 +241,8 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         await updateItem('payments', editingId, paymentData);
         setEditingId(null);
         setFormData({ ...formData, amount: '', referenceNo: '', notes: '' });
-        setSplitCash(''); setSplitBank(''); setSplitBankMode('Bank');
+        setSplitCash(''); setSplitBank(''); setLessAmount('');
+        setSnack({ open: true, msg: isPaymentIn ? 'Payment In updated' : 'Payment Out updated' });
         return;
       }
 
@@ -194,9 +254,10 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         );
         if (!check) { await showAlert({ title: 'Save failed', message: 'Failed to save payment. Please try again.', variant: 'danger' }); return; }
       }
-      await updateItem('parties', formData.partyId, { balance: (selectedParty.balance || 0) + (isPaymentIn ? -amountNum : amountNum) });
+      await updateItem('parties', formData.partyId, { balance: (selectedParty.balance || 0) + (isPaymentIn ? -totalSettled : totalSettled) });
       setFormData({ ...formData, amount: '', referenceNo: '', notes: '' });
-      setSplitCash(''); setSplitBank(''); setSplitBankMode('Bank');
+      setSplitCash(''); setSplitBank(''); setLessAmount('');
+      setSnack({ open: true, msg: isPaymentIn ? 'Payment received — recorded' : 'Payment made — recorded' });
     } catch (error) {
       console.error('Error saving payment:', error);
       await showAlert({ title: 'Save error', message: 'An error occurred while saving. Please try again.', variant: 'danger' });
@@ -213,20 +274,19 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
       referenceNo: row.referenceNo || '',
       notes: row.notes || ''
     });
+    setLessAmount(row.lessAmount ? String(row.lessAmount) : '');
     if (row.paymentMode === 'Split' && row.paymentSplit) {
       setSplitCash(String(row.paymentSplit.cash || ''));
       setSplitBank(String(row.paymentSplit.bank || ''));
-      setSplitBankMode(row.paymentSplit.bankMode || 'Bank');
     } else {
-      setSplitCash(''); setSplitBank(''); setSplitBankMode('Bank');
+      setSplitCash(''); setSplitBank('');
     }
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setFormData({ partyId: formData.partyId, amount: '', date: new Date().toISOString().split('T')[0], paymentMode: 'Cash', referenceNo: '', notes: '' });
-    setSplitCash(''); setSplitBank(''); setSplitBankMode('Bank');
-  };
+    setSplitCash(''); setSplitBank('');   };
 
   const handleDelete = async (row) => {
     const ok = await confirm({ title: 'Delete Payment', message: `Delete payment of ₹${row.totalAmount?.toLocaleString()} for ${row.partyName}? The balance will be reversed.`, confirmLabel: 'Delete', variant: 'danger' });
@@ -251,15 +311,15 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
   const handleShare = (row) => {
     const isSplit = row.paymentMode === 'Split' && row.paymentSplit;
     const modeText = isSplit
-      ? `Mode: ⚡ Split Payment\n  💵 Cash: ₹${Number(row.paymentSplit.cash).toLocaleString()}\n  ${row.paymentSplit.bankMode === 'UPI' ? '📲' : '🏦'} ${row.paymentSplit.bankMode}: ₹${Number(row.paymentSplit.bank).toLocaleString()}`
+      ? `Mode: ⚡ Split Payment\n  💵 Cash: ₹${Number(row.paymentSplit.cash).toLocaleString()}\n  🏦 Bank: ₹${Number(row.paymentSplit.bank).toLocaleString()}`
       : `Mode: ${row.paymentMode}`;
-    const text = `*Payment Receipt from ${currentBusiness?.name || 'TallyKraft'}*\n\n` +
+    const text = `*Payment Receipt from ${currentBusiness?.name || 'DigitZebra'}*\n\n` +
       `Amount: ₹${row.totalAmount.toLocaleString()}\n` +
       `Date: ${row.date}\n` +
       `Party: ${row.partyName}\n` +
       `${modeText}\n` +
       `Ref: ${row.referenceNo}\n\n` +
-      `Shared via TallyKraft`;
+      `Shared via DigitZebra`;
     if (navigator.share) {
       navigator.share({ title: `Payment Receipt ${row.referenceNo}`, text }).catch(e => console.error(e));
     } else {
@@ -277,307 +337,213 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
       </div>
 
       {/* Page header */}
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 3, flexWrap: 'wrap' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2.5, flexWrap: 'wrap' }}>
         <Tooltip title="Go back">
-          <IconButton onClick={() => navigate(-1)} size="small" sx={{ border: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
+          <IconButton onClick={() => openTab('/', 'Dashboard')} size="small" sx={{ border: '1px solid', borderColor: 'divider', flexShrink: 0 }}>
             <ArrowLeft size={18} />
           </IconButton>
         </Tooltip>
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="h5" sx={{ fontWeight: 700, letterSpacing: '-0.02em' }}>{t('pay.title')}</Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.25 }}>
-            Record and manage payment receipts and disbursements
-          </Typography>
+          <Typography variant="h6" sx={{ fontWeight: 700, letterSpacing: '-0.02em', lineHeight: 1.2 }}>{t('pay.title')}</Typography>
+          <Typography variant="caption" color="text.secondary">Record and manage receipts & disbursements</Typography>
         </Box>
         {/* Summary chips */}
-        <Stack direction="row" spacing={1.5}>
-          <Box sx={{ px: 2, py: 1, borderRadius: 2, bgcolor: alpha(theme.palette.success.main, 0.07), border: '1px solid', borderColor: alpha(theme.palette.success.main, 0.18) }}>
-            <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600, display: 'block', lineHeight: 1.3, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Received</Typography>
-            <Typography variant="subtitle2" sx={{ color: 'success.main', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              ₹{totalIn.toLocaleString('en-IN')}
-            </Typography>
-          </Box>
-          <Box sx={{ px: 2, py: 1, borderRadius: 2, bgcolor: alpha(theme.palette.warning.main, 0.07), border: '1px solid', borderColor: alpha(theme.palette.warning.main, 0.18) }}>
-            <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600, display: 'block', lineHeight: 1.3, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Paid Out</Typography>
-            <Typography variant="subtitle2" sx={{ color: 'warning.main', fontWeight: 800, letterSpacing: '-0.02em' }}>
-              ₹{totalOut.toLocaleString('en-IN')}
-            </Typography>
-          </Box>
-        </Stack>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
+          {[
+            { label: 'Received', value: totalIn, color: '#16a34a' },
+            { label: 'Paid Out', value: totalOut, color: '#d97706' },
+          ].map(({ label, value, color }) => (
+            <Box key={label} sx={{ px: 1.5, py: 0.75, borderRadius: '10px', bgcolor: alpha(color, 0.06), border: `1px solid ${alpha(color, 0.18)}` }}>
+              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1.2 }}>{label}</Typography>
+              <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color, lineHeight: 1.2 }}>₹{value.toLocaleString('en-IN')}</Typography>
+            </Box>
+          ))}
+          <Tooltip title="More options">
+            <IconButton size="small" onClick={e => setMoreMenuAnchor(e.currentTarget)}
+              sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '8px' }}>
+              <MoreHorizontal size={16} />
+            </IconButton>
+          </Tooltip>
+        </Box>
+        <Menu anchorEl={moreMenuAnchor} open={Boolean(moreMenuAnchor)} onClose={() => setMoreMenuAnchor(null)}
+          transformOrigin={{ horizontal: 'right', vertical: 'top' }}
+          anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
+          PaperProps={{ elevation: 6, sx: { borderRadius: 2, mt: 0.5, minWidth: 180 } }}>
+          <MenuItem onClick={() => { setBulkAddOpen(true); setMoreMenuAnchor(null); }} sx={{ gap: 1.5, py: 1.25 }}>
+            <ListItemIcon sx={{ minWidth: 'unset' }}><LayoutList size={16} /></ListItemIcon>
+            <ListItemText primary="Bulk Add Payments" primaryTypographyProps={{ fontSize: '0.875rem', fontWeight: 600 }} />
+          </MenuItem>
+        </Menu>
       </Box>
 
-      {/* Custom pill tabs */}
-      <Box sx={{ display: 'flex', gap: 0, mb: 3, bgcolor: alpha(theme.palette.text.primary, 0.04), borderRadius: 2.5, p: 0.5, width: 'fit-content', border: '1px solid', borderColor: 'divider' }}>
-        {[
-          { label: t('pay.paymentIn'), sub: 'Money Received', icon: <ArrowDownRight size={15} />, color: theme.palette.success.main },
-          { label: t('pay.paymentOut'), sub: 'Money Paid', icon: <ArrowUpRight size={15} />, color: theme.palette.warning.main },
-        ].map((tab, i) => (
-          <Box
-            key={i}
-            onClick={() => { setTabValue(i); setFormData(f => ({ ...f, partyId: '' })); }}
-            sx={{
-              px: 2.5, py: 1.25, borderRadius: 2, cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              bgcolor: tabValue === i ? 'background.paper' : 'transparent',
-              boxShadow: tabValue === i ? '0 1px 6px rgba(0,0,0,0.1)' : 'none',
-              display: 'flex', alignItems: 'center', gap: 1.25, minWidth: 160,
-            }}
-          >
-            <Box sx={{
-              p: 0.625, borderRadius: 1, display: 'flex',
-              bgcolor: tabValue === i ? alpha(tab.color, 0.12) : 'transparent',
-              color: tabValue === i ? tab.color : 'text.disabled',
-              transition: 'all 0.15s',
-            }}>
-              {tab.icon}
-            </Box>
-            <Box>
-              <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.25, color: tabValue === i ? 'text.primary' : 'text.secondary' }}>
-                {tab.label}
-              </Typography>
-              <Typography variant="caption" sx={{ color: 'text.disabled', lineHeight: 1 }}>{tab.sub}</Typography>
-            </Box>
-          </Box>
-        ))}
-      </Box>
-
-      {/* Entry form card */}
-      <Card elevation={0} sx={{ mb: 3, borderRadius: 2.5, border: '1px solid', borderColor: alpha(accentColor, 0.25), overflow: 'visible' }}>
-        <Box sx={{ height: 4, background: accentGradient, borderRadius: '10px 10px 0 0' }} />
-
-        <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
-          {/* Header row */}
-          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5 }}>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box sx={{ p: 0.875, borderRadius: 1.5, bgcolor: alpha(accentColor, 0.1), color: accentColor, display: 'flex' }}>
-                {isPaymentIn ? <ArrowDownRight size={17} /> : <ArrowUpRight size={17} />}
+      {/* Row 1 — entry form (left) + live Party Balance preview (right).
+          Paired together since Party Balance is directly driven by what's
+          being typed into the form (selected party + amount), not related
+          to History/Outstanding below — grouping it here also frees up
+          History to sit alongside Outstanding as its own full-width row,
+          both visible together without scrolling on desktop/laptop. */}
+      <Grid container spacing={2.5} sx={{ mb: 2.5 }}>
+        <Grid size={{ xs: 12, lg: 8 }}>
+      {/* Pill tabs + form in one card */}
+      <Card ref={entryFormRef} elevation={0} sx={{ borderRadius: '14px', border: `1px solid ${alpha(accentColor, 0.2)}`, overflow: 'hidden', scrollMarginTop: 16 }}>
+        {/* Tab strip */}
+        <Box sx={{ display: 'flex', borderBottom: `1px solid ${alpha(accentColor, 0.12)}`, bgcolor: alpha(accentColor, 0.02) }}>
+          {[
+            { label: t('pay.paymentIn'), sub: 'Money Received', icon: <ArrowDownRight size={14} />, color: '#059669' },
+            { label: t('pay.paymentOut'), sub: 'Money Paid Out', icon: <ArrowUpRight size={14} />, color: '#d97706' },
+          ].map((tab, i) => (
+            <Box key={i} onClick={() => { setTabValue(i); setFormData(f => ({ ...f, partyId: '' })); }}
+              sx={{ flex: 1, px: 2.5, py: 1.25, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 1,
+                borderBottom: tabValue === i ? `2.5px solid ${tab.color}` : '2.5px solid transparent',
+                bgcolor: tabValue === i ? alpha(tab.color, 0.05) : 'transparent',
+                transition: 'all 0.15s',
+                '&:hover': { bgcolor: alpha(tab.color, 0.04) },
+              }}>
+              <Box sx={{ p: 0.5, borderRadius: '6px', bgcolor: tabValue === i ? alpha(tab.color, 0.12) : 'transparent', color: tabValue === i ? tab.color : '#94a3b8', display: 'flex', transition: 'all 0.15s' }}>
+                {tab.icon}
               </Box>
-              <Typography variant="subtitle2" sx={{ fontWeight: 700, color: 'text.primary' }}>
-                {editingId ? 'Edit Payment' : isPaymentIn ? 'Record Payment Received' : 'Record Payment Made'}
-              </Typography>
+              <Box>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', lineHeight: 1.2, color: tabValue === i ? '#0f172a' : '#64748b' }}>{tab.label}</Typography>
+                <Typography sx={{ fontSize: '0.68rem', color: '#94a3b8', lineHeight: 1 }}>{tab.sub}</Typography>
+              </Box>
+              {editingId && tabValue === i && <Chip label="Editing" size="small" sx={{ ml: 'auto', height: 18, fontSize: '0.65rem', bgcolor: alpha(accentColor, 0.1), color: accentColor, fontWeight: 700 }} />}
             </Box>
-            {editingId && (
-              <Chip label="Editing" size="small" color={isPaymentIn ? 'success' : 'warning'} variant="outlined" sx={{ fontWeight: 700 }} />
-            )}
-          </Box>
+          ))}
+        </Box>
 
+        <CardContent sx={{ p: { xs: 2, sm: 2.5 } }}>
           <Grid container spacing={2}>
-            {/* ── Row 1: Party + Amount (hero) ── */}
-            <Grid size={{ xs: 12, sm: 6 }}>
+            {/* Row 1: Party + Amount side by side */}
+            <Grid size={{ xs: 12, sm: 7 }}>
               <PartySelect
                 options={parties}
                 value={parties.find(p => p.id === formData.partyId) || null}
                 onChange={(v) => setFormData({ ...formData, partyId: v?.id || '' })}
-                label={isPaymentIn ? 'Customer' : 'Vendor'}
-                placeholder={`Search ${isPaymentIn ? 'customer' : 'vendor'}…`}
+                label="Party (Customer / Vendor)"
+                placeholder="Search customer or vendor…"
               />
             </Grid>
 
-            {/* BIG amount field */}
-            <Grid size={{ xs: 12, sm: 6 }}>
+            <Grid size={{ xs: 12, sm: 5 }}>
               {formData.paymentMode === 'Split' ? (
-                <Box sx={{
-                  border: '2px solid',
-                  borderColor: alpha('#db2777', 0.5),
-                  borderRadius: 2,
-                  px: 2, py: 1.25,
-                  bgcolor: alpha('#db2777', 0.04),
-                }}>
-                  <Typography variant="caption" sx={{ color: '#db2777', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', fontSize: '0.68rem' }}>
-                    Total (Split)
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography sx={{ fontSize: '1.6rem', fontWeight: 700, color: '#db2777', lineHeight: 1.2, mt: 0.25 }}>₹</Typography>
-                    <Typography sx={{ fontSize: '1.75rem', fontWeight: 800, color: '#db2777', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
+                <Box sx={{ border: `2px solid ${alpha('#7c3aed', 0.4)}`, borderRadius: '10px', px: 2, py: 1, bgcolor: alpha('#7c3aed', 0.03) }}>
+                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#7c3aed', textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.25 }}>Total (Split)</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                    <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, color: '#7c3aed' }}>₹</Typography>
+                    <Typography sx={{ fontSize: '1.75rem', fontWeight: 800, color: '#7c3aed', letterSpacing: '-0.02em' }}>
                       {((parseFloat(splitCash) || 0) + (parseFloat(splitBank) || 0)) || 0}
                     </Typography>
                   </Box>
                 </Box>
               ) : (
-                <Box sx={{
-                  border: '2px solid',
-                  borderColor: formData.amount ? accentColor : alpha(accentColor, 0.3),
-                  borderRadius: 2,
-                  px: 2, py: 1.25,
-                  bgcolor: formData.amount ? alpha(accentColor, 0.04) : 'transparent',
-                  transition: 'all 0.2s',
-                  '&:focus-within': { borderColor: accentColor, bgcolor: alpha(accentColor, 0.05) },
-                }}>
-                  <Typography variant="caption" sx={{ color: accentColor, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', fontSize: '0.68rem' }}>
-                    Amount
-                  </Typography>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                    <Typography sx={{ fontSize: '1.6rem', fontWeight: 700, color: accentColor, lineHeight: 1.2, mt: 0.25 }}>₹</Typography>
-                    <InputBase
-                      fullWidth
-                      type="number"
-                      placeholder="0"
-                      value={formData.amount}
+                <Box sx={{ border: `2px solid`, borderColor: formData.amount ? accentColor : alpha(accentColor, 0.25), borderRadius: '10px', px: 2, py: 1, bgcolor: formData.amount ? alpha(accentColor, 0.03) : 'transparent', transition: 'all 0.2s', '&:focus-within': { borderColor: accentColor } }}>
+                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: accentColor, textTransform: 'uppercase', letterSpacing: '0.05em', mb: 0.25 }}>Amount</Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5 }}>
+                    <Typography sx={{ fontSize: '1.25rem', fontWeight: 700, color: accentColor }}>₹</Typography>
+                    <InputBase fullWidth type="number" placeholder="0" value={formData.amount}
                       onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                       onFocus={(e) => e.target.select()}
                       inputProps={{ min: 0, step: 0.01, style: { padding: 0 } }}
-                      sx={{
-                        '& input': {
-                          fontSize: '1.75rem',
-                          fontWeight: 800,
-                          color: accentColor,
-                          lineHeight: 1.2,
-                          letterSpacing: '-0.02em',
-                          '&::placeholder': { color: alpha(accentColor, 0.35), fontWeight: 700 },
-                        },
-                      }}
+                      sx={{ '& input': { fontSize: '1.75rem', fontWeight: 800, color: accentColor, letterSpacing: '-0.02em', '&::placeholder': { color: alpha(accentColor, 0.3) } } }}
                     />
                   </Box>
                 </Box>
               )}
             </Grid>
 
-            {/* ── Row 2: Payment method tiles ── */}
-            <Grid size={{ xs: 12 }}>
-              <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 700, display: 'block', mb: 1, textTransform: 'uppercase', letterSpacing: '0.05em', fontSize: '0.68rem' }}>
-                Payment Via
-              </Typography>
-              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+            {/* Row 2: Payment mode + Less side by side */}
+            <Grid size={{ xs: 12, sm: 7 }}>
+              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Payment Via</Typography>
+              <Box sx={{ display: 'flex', gap: 0.75 }}>
                 {[
-                  { value: 'Cash',   icon: <Banknote size={16} />,   color: '#16a34a' },
-                  { value: 'Bank',   icon: <Landmark size={16} />,   color: '#1d4ed8' },
-                  { value: 'UPI',    icon: <CreditCard size={16} />, color: '#7c3aed' },
-                  { value: 'Cheque', icon: <FileClock size={16} />,  color: '#b45309' },
-                  { value: 'Split',  icon: <ArrowLeft size={16} style={{ transform: 'rotate(135deg)' }} />, color: '#db2777' },
+                  { value: 'Cash',  icon: <Banknote size={14} />,   color: '#16a34a' },
+                  { value: 'Bank',  icon: <Landmark size={14} />,   color: '#27272a' },
+                  { value: 'Split', icon: <ArrowLeft size={14} style={{ transform: 'rotate(135deg)' }} />, color: '#7c3aed' },
                 ].map(opt => {
-                  const selected = formData.paymentMode === opt.value;
+                  const sel = formData.paymentMode === opt.value;
                   return (
-                    <Box
-                      key={opt.value}
-                      onClick={() => setFormData({ ...formData, paymentMode: opt.value })}
-                      sx={{
-                        display: 'flex', alignItems: 'center', gap: 0.875,
-                        px: 1.75, py: 0.875,
-                        borderRadius: 2,
-                        border: '1.5px solid',
-                        borderColor: selected ? opt.color : 'divider',
-                        bgcolor: selected ? alpha(opt.color, 0.08) : 'transparent',
-                        color: selected ? opt.color : 'text.secondary',
-                        cursor: 'pointer',
-                        fontWeight: 700,
-                        fontSize: '0.8rem',
-                        transition: 'all 0.15s',
-                        userSelect: 'none',
-                        '&:hover': { borderColor: opt.color, color: opt.color, bgcolor: alpha(opt.color, 0.05) },
-                      }}
-                    >
-                      {opt.icon}
-                      {opt.value}
+                    <Box key={opt.value} onClick={() => setFormData({ ...formData, paymentMode: opt.value })}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, borderRadius: '8px', border: '1.5px solid', cursor: 'pointer', userSelect: 'none', transition: 'all 0.12s', fontWeight: 700, fontSize: '0.8rem',
+                        borderColor: sel ? opt.color : '#e5e7eb', bgcolor: sel ? alpha(opt.color, 0.07) : '#fafafa', color: sel ? opt.color : '#64748b',
+                        '&:hover': { borderColor: opt.color, color: opt.color, bgcolor: alpha(opt.color, 0.05) } }}>
+                      {opt.icon}{opt.value}
                     </Box>
                   );
                 })}
               </Box>
             </Grid>
 
-            {/* ── Split amount fields ── */}
+            <Grid size={{ xs: 12, sm: 5 }}>
+              <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>Less — Discount / Write-off</Typography>
+              <Box sx={{ border: `1.5px solid`, borderColor: lessAmount ? '#d97706' : '#e5e7eb', borderRadius: '10px', px: 1.5, py: 0.75, bgcolor: lessAmount ? alpha('#d97706', 0.03) : '#fafafa', transition: 'all 0.2s', '&:focus-within': { borderColor: '#d97706' } }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography sx={{ fontSize: '1rem', fontWeight: 700, color: lessAmount ? '#d97706' : '#cbd5e1' }}>₹</Typography>
+                  <InputBase fullWidth type="number" placeholder="0 (optional)" value={lessAmount}
+                    onChange={(e) => setLessAmount(e.target.value)} onFocus={(e) => e.target.select()}
+                    inputProps={{ min: 0, step: 0.01, style: { padding: 0 } }}
+                    sx={{ '& input': { fontSize: '1rem', fontWeight: 700, color: '#d97706', '&::placeholder': { color: '#cbd5e1', fontWeight: 500 } } }}
+                  />
+                  {(parseFloat(formData.amount) > 0 || parseFloat(lessAmount) > 0) && (
+                    <Box sx={{ textAlign: 'right', flexShrink: 0, pl: 1, borderLeft: '1px solid #f1f5f9' }}>
+                      <Typography sx={{ fontSize: '0.6rem', color: '#94a3b8', lineHeight: 1.2 }}>Settled</Typography>
+                      <Typography sx={{ fontWeight: 800, fontSize: '0.85rem', color: accentColor, lineHeight: 1.2 }}>
+                        ₹{((parseFloat(formData.amount) || 0) + (parseFloat(lessAmount) || 0)).toLocaleString('en-IN')}
+                      </Typography>
+                    </Box>
+                  )}
+                </Box>
+              </Box>
+            </Grid>
+
+            {/* Split amount fields */}
             {formData.paymentMode === 'Split' && (
               <Grid size={{ xs: 12 }}>
-                <Box sx={{
-                  p: 2, borderRadius: 2,
-                  border: `1.5px dashed ${alpha('#db2777', 0.4)}`,
-                  bgcolor: alpha('#db2777', 0.03),
-                }}>
-                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#db2777', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.68rem', display: 'block', mb: 1.5 }}>
-                    Split Amounts
-                    {(parseFloat(splitCash) || 0) + (parseFloat(splitBank) || 0) > 0 && (
-                      <Box component="span" sx={{ ml: 1.5, color: accentColor }}>
-                        Total: ₹{((parseFloat(splitCash) || 0) + (parseFloat(splitBank) || 0)).toLocaleString('en-IN')}
-                      </Box>
-                    )}
-                  </Typography>
-                  <Grid container spacing={1.5}>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField
-                        fullWidth size="small" label="Cash" type="number"
-                        value={splitCash}
-                        onChange={e => setSplitCash(e.target.value)}
-                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><Banknote size={14} color="#16a34a" /></InputAdornment> } }}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField
-                        fullWidth size="small" label={splitBankMode} type="number"
-                        value={splitBank}
-                        onChange={e => setSplitBank(e.target.value)}
-                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><Landmark size={14} color="#1d4ed8" /></InputAdornment> } }}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-                      />
-                    </Grid>
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <TextField select fullWidth size="small" label="Via"
-                        value={splitBankMode}
-                        onChange={e => setSplitBankMode(e.target.value)}
-                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
-                      >
-                        {SPLIT_BANK_MODES.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
-                      </TextField>
-                    </Grid>
-                  </Grid>
-                </Box>
+                <SplitPaymentInput
+                  cash={splitCash} onCashChange={setSplitCash}
+                  bank={splitBank} onBankChange={setSplitBank}
+                  total={parseFloat(formData.amount) || undefined}
+                  accentColor={accentColor}
+                />
               </Grid>
             )}
 
-            {/* ── Row 3: Date + Reference + Notes ── */}
+            {/* Row 3: Date + Reference + Notes */}
             <Grid size={{ xs: 6, sm: 3 }}>
-              <TextField
-                fullWidth size="small" label="Date" type="date"
-                value={formData.date || ''}
+              <TextField fullWidth size="small" label="Date" type="date" value={formData.date || ''}
                 onChange={(e) => setFormData({ ...formData, date: e.target.value })}
-                slotProps={{ inputLabel: { shrink: true } }}
-              />
+                slotProps={{ inputLabel: { shrink: true } }} />
             </Grid>
             <Grid size={{ xs: 6, sm: 3 }}>
               <TextField fullWidth size="small" label="Reference No." placeholder="TXN12345"
-                value={formData.referenceNo}
-                onChange={(e) => setFormData({ ...formData, referenceNo: e.target.value })}
-              />
+                value={formData.referenceNo} onChange={(e) => setFormData({ ...formData, referenceNo: e.target.value })} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <TextField fullWidth size="small" label="Notes (optional)"
-                placeholder="Add a note about this payment"
-                value={formData.notes || ''}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              />
+              <TextField fullWidth size="small" label="Notes (optional)" placeholder="Add a note…"
+                value={formData.notes || ''} onChange={(e) => setFormData({ ...formData, notes: e.target.value })} />
             </Grid>
 
-            {/* ── Row 4: Action button ── */}
+            {/* Action */}
             <Grid size={{ xs: 12 }}>
               {(() => {
                 const isSplit = formData.paymentMode === 'Split';
                 const splitTotal = (parseFloat(splitCash) || 0) + (parseFloat(splitBank) || 0);
-                const isDisabled = !formData.partyId || !canWrite || (isSplit ? splitTotal <= 0 : !formData.amount);
+                const isDisabled = !canWrite || !formData.partyId || (isSplit ? splitTotal <= 0 : !formData.amount);
                 return editingId ? (
                   <Stack direction="row" spacing={1.5}>
-                    <Button
-                      variant="contained" size="large" onClick={handleSave}
-                      disabled={isDisabled}
+                    <Button variant="contained" size="large" onClick={handleSave} disabled={isDisabled}
                       startIcon={<CheckCircle2 size={18} />}
-                      sx={{ fontWeight: 700, flex: 1, borderRadius: 2, py: 1.25, bgcolor: accentColor, '&:hover': { bgcolor: accentColor, filter: 'brightness(0.9)' } }}
-                    >
+                      sx={{ fontWeight: 700, flex: 1, borderRadius: '10px', py: 1.125, bgcolor: accentColor, '&:hover': { bgcolor: accentColor, filter: 'brightness(0.9)' } }}>
                       Update Payment
                     </Button>
                     <Button variant="outlined" size="large" onClick={cancelEdit}
-                      sx={{ fontWeight: 600, borderRadius: 2, px: 2.5 }}>
-                      Cancel
-                    </Button>
+                      sx={{ fontWeight: 600, borderRadius: '10px', px: 2.5 }}>Cancel</Button>
                   </Stack>
                 ) : (
-                  <Button
-                    fullWidth variant="contained" size="large" onClick={handleSave}
-                    disabled={isDisabled}
+                  <Button fullWidth variant="contained" size="large" onClick={handleSave} disabled={isDisabled}
                     startIcon={<CheckCircle2 size={18} />}
-                    sx={{
-                      fontWeight: 700, borderRadius: 2, py: 1.375, fontSize: '0.95rem',
+                    sx={{ fontWeight: 700, borderRadius: '10px', py: 1.125, fontSize: '0.95rem',
                       bgcolor: accentColor, '&:hover': { bgcolor: accentColor, filter: 'brightness(0.9)' },
-                      '&.Mui-disabled': { bgcolor: alpha(accentColor, 0.25), color: alpha(accentColor, 0.5) },
-                    }}
-                  >
+                      '&.Mui-disabled': { bgcolor: alpha(accentColor, 0.2), color: alpha(accentColor, 0.45) } }}>
                     {isPaymentIn ? 'Record Payment Received' : 'Record Payment Made'}
                   </Button>
                 );
@@ -586,172 +552,16 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
           </Grid>
         </CardContent>
       </Card>
-
-      {/* History + Ledger */}
-      <Grid container spacing={2.5}>
-        {/* Payment history table */}
-        <Grid size={{ xs: 12, lg: 8 }}>
-          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2.5, overflow: 'hidden' }}>
-            {/* History header */}
-            <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
-              <Box>
-                <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                  {isPaymentIn ? t('pay.paymentIn') : t('pay.paymentOut')} History
-                </Typography>
-                <Typography variant="caption" color="text.secondary">
-                  {filteredHistory.length} record{filteredHistory.length !== 1 ? 's' : ''} · Total&nbsp;
-                  <Box component="span" sx={{ fontWeight: 700, color: accentColor }}>₹{filteredTotal.toLocaleString('en-IN')}</Box>
-                </Typography>
-              </Box>
-            </Box>
-
-            {/* Toolbar */}
-            <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
-              <Paper variant="outlined" sx={{ px: 1.5, py: 0.5, display: 'flex', alignItems: 'center', flex: 1, minWidth: 140, borderRadius: 2 }}>
-                <Search size={14} color={theme.palette.text.disabled} />
-                <InputBase sx={{ ml: 1, flex: 1, fontSize: '0.8125rem' }} placeholder="Search vouchers…"
-                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
-              </Paper>
-              <TextField type="date" size="small" value={dateRange.start}
-                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                sx={{ width: 142 }} slotProps={{ inputLabel: { shrink: true } }} />
-              <TextField type="date" size="small" value={dateRange.end}
-                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                sx={{ width: 142 }} slotProps={{ inputLabel: { shrink: true } }} />
-              <Button onClick={() => setShowFilters(!showFilters)} variant="outlined" size="small" sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
-                {showFilters ? 'Hide' : 'Filters'}
-              </Button>
-            </Box>
-
-            {/* Extra filters */}
-            {showFilters && (
-              <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.default' }}>
-                <Grid container spacing={1.5}>
-                  <Grid size={{ xs: 6, sm: 3 }}>
-                    <TextField select fullWidth label="Mode" size="small" value={filters.paymentMode}
-                      onChange={(e) => setFilters({ ...filters, paymentMode: e.target.value })}>
-                      <MenuItem value="all">All</MenuItem>
-                      <MenuItem value="Cash">Cash</MenuItem>
-                      <MenuItem value="Bank">Bank</MenuItem>
-                      <MenuItem value="Cheque">Cheque</MenuItem>
-                      <MenuItem value="UPI">UPI</MenuItem>
-                      <MenuItem value="Split">Split</MenuItem>
-                    </TextField>
-                  </Grid>
-                  <Grid size={{ xs: 6, sm: 3 }}>
-                    <TextField fullWidth label="Min ₹" type="number" size="small" value={filters.minAmount}
-                      onChange={(e) => setFilters({ ...filters, minAmount: e.target.value })}
-                      slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }} />
-                  </Grid>
-                  <Grid size={{ xs: 6, sm: 3 }}>
-                    <TextField fullWidth label="Max ₹" type="number" size="small" value={filters.maxAmount}
-                      onChange={(e) => setFilters({ ...filters, maxAmount: e.target.value })}
-                      slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }} />
-                  </Grid>
-                  <Grid size={{ xs: 6, sm: 3 }}>
-                    <TextField select fullWidth label="Sort By" size="small" value={filters.sortBy}
-                      onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}>
-                      <MenuItem value="date">Date</MenuItem>
-                      <MenuItem value="amount">Amount</MenuItem>
-                      <MenuItem value="party">Party</MenuItem>
-                    </TextField>
-                  </Grid>
-                </Grid>
-              </Box>
-            )}
-
-            {/* Table */}
-            <TableContainer sx={{ overflowX: 'auto' }}>
-              <Table stickyHeader size="small" sx={{ minWidth: 560 }}>
-                <TableHead>
-                  <TableRow sx={{ '& th': { bgcolor: alpha(theme.palette.text.primary, 0.03), fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'text.secondary', py: 1.5 } }}>
-                    <TableCell>Date</TableCell>
-                    <TableCell>Party</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Reference</TableCell>
-                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Mode</TableCell>
-                    <TableCell align="right">Amount</TableCell>
-                    <TableCell align="right">Actions</TableCell>
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {paginatedHistory.map((row) => (
-                    <TableRow key={row.id} hover sx={{ '&:hover': { bgcolor: alpha(accentColor, 0.025) } }}>
-                      <TableCell sx={{ whiteSpace: 'nowrap', color: 'text.secondary', fontSize: '0.8rem' }}>{formatDate(row.date)}</TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>{row.partyName}</TableCell>
-                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem', display: { xs: 'none', md: 'table-cell' } }}>
-                        {row.referenceNo || '—'}
-                      </TableCell>
-                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                        <Tooltip title={
-                          row.paymentMode === 'Split' && row.paymentSplit
-                            ? `Cash ₹${(row.paymentSplit.cash || 0).toLocaleString('en-IN')} + ${row.paymentSplit.bankMode || 'Bank'} ₹${(row.paymentSplit.bank || 0).toLocaleString('en-IN')}`
-                            : row.paymentMode
-                        }>
-                          <Chip
-                            label={row.paymentMode}
-                            size="small"
-                            sx={{
-                              fontWeight: 700, fontSize: '0.7rem', border: 'none',
-                              bgcolor: MODE_COLORS[row.paymentMode]?.bg || alpha('#666', 0.1),
-                              color: MODE_COLORS[row.paymentMode]?.color || 'text.secondary',
-                            }}
-                          />
-                        </Tooltip>
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontWeight: 800, color: accentColor, whiteSpace: 'nowrap', fontSize: '0.9rem' }}>
-                        ₹{row.totalAmount?.toLocaleString('en-IN')}
-                      </TableCell>
-                      <TableCell align="right">
-                        <Box sx={{ display: 'flex', gap: 0.25, justifyContent: 'flex-end' }}>
-                          <Tooltip title="Edit">
-                            <IconButton size="small" onClick={() => startEdit(row)}><Edit2 size={15} /></IconButton>
-                          </Tooltip>
-                          <Tooltip title="Preview receipt">
-                            <IconButton size="small" onClick={() => { setPreviewRecord(row); setPreviewOpen(true); }}><Eye size={15} /></IconButton>
-                          </Tooltip>
-                          <Tooltip title="Share">
-                            <IconButton size="small" sx={{ color: '#25D366' }} onClick={() => handleShare(row)}><Share2 size={15} /></IconButton>
-                          </Tooltip>
-                          <Tooltip title="Delete">
-                            <IconButton size="small" color="error" onClick={() => handleDelete(row)}><Trash2 size={15} /></IconButton>
-                          </Tooltip>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredHistory.length === 0 && (
-                    <TableRow>
-                      <TableCell colSpan={6} sx={{ py: 7, textAlign: 'center' }}>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, opacity: 0.45 }}>
-                          <FileClock size={34} strokeWidth={1.5} />
-                          <Typography variant="body2" sx={{ fontWeight: 600 }}>No payment records found</Typography>
-                          <Typography variant="caption">Try adjusting the date range or search term</Typography>
-                        </Box>
-                      </TableCell>
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-            <TablePagination component="div" count={filteredHistory.length} page={page}
-              onPageChange={(_, newPage) => setPage(newPage)} rowsPerPage={rowsPerPage}
-              onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
-              rowsPerPageOptions={[5, 10, 25, 50]}
-              sx={{ borderTop: '1px solid', borderColor: 'divider' }} />
-          </Card>
         </Grid>
 
         {/* Party ledger balance */}
         <Grid size={{ xs: 12, lg: 4 }}>
           <Card elevation={0} sx={{
-            border: '1px solid',
-            borderColor: selectedParty ? alpha(accentColor, 0.3) : 'divider',
-            borderRadius: 2.5, overflow: 'hidden', transition: 'border-color 0.2s ease',
+            border: `1px solid ${selectedParty ? alpha(accentColor, 0.3) : '#e5e7eb'}`,
+            borderRadius: '14px', overflow: 'hidden', transition: 'border-color 0.2s ease',
           }}>
-            <Box sx={{ px: 2.5, py: 1.75, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.default' }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-                {isPaymentIn ? 'Customer' : 'Vendor'} Balance
-              </Typography>
+            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', bgcolor: '#fafafa' }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Party Balance</Typography>
             </Box>
             <CardContent sx={{ p: 3, textAlign: 'center' }}>
               {selectedParty ? (
@@ -809,7 +619,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                     <User size={28} color={theme.palette.text.disabled} />
                   </Avatar>
                   <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 500 }}>
-                    Select a {isPaymentIn ? 'customer' : 'vendor'} to view balance
+                    Select a party to view balance
                   </Typography>
                 </Box>
               )}
@@ -818,10 +628,270 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         </Grid>
       </Grid>
 
+      {/* Row 2 — Outstanding (left) + Payment History (right), side by side
+          on desktop/laptop so both are visible at a glance with no scrolling
+          needed to see recent history after checking who owes what. */}
+      <Grid container spacing={2.5}>
+        {/* Outstanding — Receivables (Payment In tab) / Payables (Payment Out tab).
+            Clicking a row pre-fills that party into the form above and scrolls
+            up to it, so recording the payment is a single next step. */}
+        <Grid size={{ xs: 12, lg: 5 }}>
+      <Card ref={outstandingListRef} elevation={0} sx={{ borderRadius: '14px', border: `1px solid ${alpha(accentColor, 0.2)}`, overflow: 'hidden', scrollMarginTop: 16 }}>
+        <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', bgcolor: alpha(accentColor, 0.03), display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Box sx={{ p: 0.625, borderRadius: '8px', bgcolor: alpha(accentColor, 0.1), color: accentColor, display: 'flex' }}>
+              <Users size={15} />
+            </Box>
+            <Box>
+              <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
+                {isPaymentIn ? 'Customers — Amount to Collect' : 'Vendors — Amount to Pay'}
+              </Typography>
+              <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>
+                {(isPaymentIn ? receivables : payables).length} {isPaymentIn ? 'customer' : 'vendor'}{(isPaymentIn ? receivables : payables).length === 1 ? '' : 's'} with an open balance
+              </Typography>
+            </Box>
+          </Box>
+          <Box sx={{ px: 1.5, py: 0.75, borderRadius: '10px', bgcolor: alpha(accentColor, 0.08) }}>
+            <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: accentColor, textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.1 }}>
+              Total {isPaymentIn ? 'Receivable' : 'Payable'}
+            </Typography>
+            <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: accentColor, lineHeight: 1.2 }}>
+              ₹{(isPaymentIn ? receivables : payables).reduce((s, p) => s + Math.abs(p.balance || 0), 0).toLocaleString('en-IN')}
+            </Typography>
+          </Box>
+        </Box>
+
+        <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Paper variant="outlined" sx={{ px: 1.5, py: 0.5, display: 'flex', alignItems: 'center', borderRadius: 2 }}>
+            <Search size={14} color={theme.palette.text.disabled} />
+            <InputBase sx={{ ml: 1, flex: 1, fontSize: '0.8125rem' }}
+              placeholder={`Search ${isPaymentIn ? 'customers' : 'vendors'}…`}
+              value={outstandingSearch} onChange={(e) => setOutstandingSearch(e.target.value)} />
+          </Paper>
+        </Box>
+
+        <Box sx={{ maxHeight: 340, overflowY: 'auto' }}>
+          {(() => {
+            const list = (isPaymentIn ? receivables : payables).filter(p =>
+              !outstandingSearch || p.name?.toLowerCase().includes(outstandingSearch.toLowerCase()) || p.phone?.includes(outstandingSearch)
+            );
+            if (list.length === 0) {
+              return (
+                <Box sx={{ py: 5, textAlign: 'center', opacity: 0.5 }}>
+                  <CheckCircle2 size={30} strokeWidth={1.5} />
+                  <Typography variant="body2" sx={{ fontWeight: 600, mt: 1 }}>
+                    {outstandingSearch ? 'No matches' : `No outstanding ${isPaymentIn ? 'receivables' : 'payables'}`}
+                  </Typography>
+                </Box>
+              );
+            }
+            return list.map((p, idx) => (
+              <Box key={p.id}
+                onClick={() => {
+                  setFormData(f => ({ ...f, partyId: p.id }));
+                  entryFormRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }}
+                sx={{
+                  display: 'flex', alignItems: 'center', gap: 1.25, px: 2, py: 1.125, cursor: 'pointer',
+                  borderTop: idx > 0 ? '1px solid #f1f5f9' : 'none',
+                  bgcolor: formData.partyId === p.id ? alpha(accentColor, 0.06) : 'transparent',
+                  '&:hover': { bgcolor: alpha(accentColor, 0.05) },
+                }}>
+                <Avatar sx={{ width: 32, height: 32, fontSize: '0.8rem', fontWeight: 700, bgcolor: alpha(accentColor, 0.14), color: accentColor }}>
+                  {p.name?.[0]?.toUpperCase() || 'P'}
+                </Avatar>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography sx={{ fontWeight: 600, fontSize: '0.85rem', lineHeight: 1.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</Typography>
+                  {p.phone && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.375, mt: 0.125 }}>
+                      <Phone size={10} color={theme.palette.text.disabled} />
+                      <Typography sx={{ fontSize: '0.68rem', color: 'text.disabled' }}>{p.phone}</Typography>
+                    </Box>
+                  )}
+                </Box>
+                <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color: accentColor, whiteSpace: 'nowrap' }}>
+                  ₹{Math.abs(p.balance || 0).toLocaleString('en-IN')}
+                </Typography>
+                <ChevronDown size={14} style={{ transform: 'rotate(-90deg)', color: theme.palette.text.disabled, flexShrink: 0 }} />
+              </Box>
+            ));
+          })()}
+        </Box>
+      </Card>
+        </Grid>
+
+        {/* Payment history table */}
+        <Grid size={{ xs: 12, lg: 7 }}>
+          <Card elevation={0} sx={{ border: `1px solid #e5e7eb`, borderRadius: '14px', overflow: 'hidden' }}>
+            {/* History header */}
+            <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, bgcolor: '#fafafa' }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
+                  {isPaymentIn ? t('pay.paymentIn') : t('pay.paymentOut')} History
+                </Typography>
+                <Box sx={{ px: 1, py: 0.25, borderRadius: '6px', bgcolor: alpha(accentColor, 0.08) }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: accentColor }}>{filteredHistory.length}</Typography>
+                </Box>
+              </Box>
+              <Typography sx={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Total&nbsp;<Box component="span" sx={{ fontWeight: 800, color: accentColor }}>₹{filteredTotal.toLocaleString('en-IN')}</Box>
+              </Typography>
+            </Box>
+
+            {/* Toolbar */}
+            <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'center' }}>
+              <Paper variant="outlined" sx={{ px: 1.5, py: 0.5, display: 'flex', alignItems: 'center', flex: 1, minWidth: 140, borderRadius: 2 }}>
+                <Search size={14} color={theme.palette.text.disabled} />
+                <InputBase sx={{ ml: 1, flex: 1, fontSize: '0.8125rem' }} placeholder="Search vouchers…"
+                  value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+              </Paper>
+              <TextField type="date" size="small" value={dateRange.start}
+                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                sx={{ width: 142 }} slotProps={{ inputLabel: { shrink: true } }} />
+              <TextField type="date" size="small" value={dateRange.end}
+                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                sx={{ width: 142 }} slotProps={{ inputLabel: { shrink: true } }} />
+              <Button onClick={() => setShowFilters(!showFilters)} variant="outlined" size="small" sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+                {showFilters ? 'Hide' : 'Filters'}
+              </Button>
+            </Box>
+
+            {/* Extra filters */}
+            {showFilters && (
+              <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.default' }}>
+                <Grid container spacing={1.5}>
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <TextField select fullWidth label="Mode" size="small" value={filters.paymentMode}
+                      onChange={(e) => setFilters({ ...filters, paymentMode: e.target.value })}>
+                      <MenuItem value="all">All</MenuItem>
+                      <MenuItem value="Cash">Cash</MenuItem>
+                      <MenuItem value="Bank">Bank</MenuItem>
+
+                      <MenuItem value="Split">Split</MenuItem>
+                    </TextField>
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <TextField fullWidth label="Min ₹" type="number" size="small" value={filters.minAmount}
+                      onChange={(e) => setFilters({ ...filters, minAmount: e.target.value })}
+                      slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <TextField fullWidth label="Max ₹" type="number" size="small" value={filters.maxAmount}
+                      onChange={(e) => setFilters({ ...filters, maxAmount: e.target.value })}
+                      slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }} />
+                  </Grid>
+                  <Grid size={{ xs: 6, sm: 3 }}>
+                    <TextField select fullWidth label="Sort By" size="small" value={filters.sortBy}
+                      onChange={(e) => setFilters({ ...filters, sortBy: e.target.value })}>
+                      <MenuItem value="date">Date</MenuItem>
+                      <MenuItem value="amount">Amount</MenuItem>
+                      <MenuItem value="party">Party</MenuItem>
+                    </TextField>
+                  </Grid>
+                </Grid>
+              </Box>
+            )}
+
+            {/* Table */}
+            <TableContainer sx={{ overflowX: 'auto' }}>
+              <Table stickyHeader size="small" sx={{ minWidth: 560 }}>
+                <TableHead>
+                  <TableRow sx={{ '& th': { bgcolor: alpha(theme.palette.text.primary, 0.03), fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'text.secondary', py: 1.5 } }}>
+                    <TableCell>Date</TableCell>
+                    <TableCell>Party</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Reference</TableCell>
+                    <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Mode</TableCell>
+                    <TableCell align="right">Amount</TableCell>
+                    <TableCell align="right">Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {paginatedHistory.map((row) => (
+                    <TableRow key={row.id} hover sx={{ '&:hover': { bgcolor: alpha(accentColor, 0.025) } }}>
+                      <TableCell sx={{ whiteSpace: 'nowrap', color: 'text.secondary', fontSize: '0.8rem' }}>
+                        {formatDate(row.date)}
+                        {formatCreatedTime(row) && (
+                          <Typography component="span" sx={{ display: 'block', fontSize: '0.68rem', color: 'text.disabled', fontWeight: 500 }}>
+                            {formatCreatedTime(row)}
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>{row.partyName}</TableCell>
+                      <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem', display: { xs: 'none', md: 'table-cell' } }}>
+                        {row.referenceNo || '—'}
+                      </TableCell>
+                      <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
+                        <Tooltip title={
+                          row.paymentMode === 'Split' && row.paymentSplit
+                            ? `Cash ₹${(row.paymentSplit.cash || 0).toLocaleString('en-IN')} + Bank ₹${(row.paymentSplit.bank || 0).toLocaleString('en-IN')}`
+                            : row.paymentMode
+                        }>
+                          <Chip
+                            label={row.paymentMode}
+                            size="small"
+                            sx={{
+                              fontWeight: 700, fontSize: '0.7rem', border: 'none',
+                              bgcolor: MODE_COLORS[row.paymentMode]?.bg || alpha('#666', 0.1),
+                              color: MODE_COLORS[row.paymentMode]?.color || 'text.secondary',
+                            }}
+                          />
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                        <Typography sx={{ fontWeight: 800, color: accentColor, fontSize: '0.9rem' }}>
+                          ₹{row.totalAmount?.toLocaleString('en-IN')}
+                        </Typography>
+                        {row.lessAmount > 0 && (
+                          <Typography variant="caption" sx={{ color: '#d97706', display: 'block', fontWeight: 600 }}>
+                            −₹{row.lessAmount.toLocaleString('en-IN')} less
+                          </Typography>
+                        )}
+                      </TableCell>
+                      <TableCell align="right">
+                        <Box sx={{ display: 'flex', gap: 0.25, justifyContent: 'flex-end' }}>
+                          <Tooltip title="Edit">
+                            <IconButton size="small" onClick={() => startEdit(row)}><Edit2 size={15} /></IconButton>
+                          </Tooltip>
+                          <Tooltip title="Preview receipt">
+                            <IconButton size="small" onClick={() => { setPreviewRecord(row); setPreviewOpen(true); }}><Eye size={15} /></IconButton>
+                          </Tooltip>
+                          <Tooltip title="Share">
+                            <IconButton size="small" sx={{ color: '#25D366' }} onClick={() => handleShare(row)}><Share2 size={15} /></IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete">
+                            <IconButton size="small" color="error" onClick={() => handleDelete(row)}><Trash2 size={15} /></IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredHistory.length === 0 && (
+                    <TableRow>
+                      <TableCell colSpan={6} sx={{ py: 7, textAlign: 'center' }}>
+                        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, opacity: 0.45 }}>
+                          <Banknote size={34} strokeWidth={1.5} />
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>No payment records found</Typography>
+                          <Typography variant="caption">Try adjusting the date range or search term</Typography>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </TableContainer>
+            <TablePagination component="div" count={filteredHistory.length} page={page}
+              onPageChange={(_, newPage) => setPage(newPage)} rowsPerPage={rowsPerPage}
+              onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+              rowsPerPageOptions={[5, 10, 25, 50]}
+              sx={{ borderTop: '1px solid', borderColor: 'divider' }} />
+          </Card>
+        </Grid>
+      </Grid>
+
       {/* Preview dialog */}
       <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth
         PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.22)' } }}>
-        <Box sx={{ background: isPaymentIn ? 'linear-gradient(135deg, #15803d 0%, #22c55e 100%)' : 'linear-gradient(135deg, #b45309 0%, #f59e0b 100%)', px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
+        <Box sx={{ background: accentGradient, px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
           <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', mt: 0.5, flexShrink: 0 }}>
             <Eye size={18} color="white" />
           </Box>
@@ -838,7 +908,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
               {previewRecord?.paymentMode && (
                 <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
                   {previewRecord.paymentMode === 'Split' && previewRecord.paymentSplit
-                    ? `Cash ₹${(previewRecord.paymentSplit.cash || 0).toLocaleString('en-IN')} + ${previewRecord.paymentSplit.bankMode || 'Bank'} ₹${(previewRecord.paymentSplit.bank || 0).toLocaleString('en-IN')}`
+                    ? `Cash ₹${(previewRecord.paymentSplit.cash || 0).toLocaleString('en-IN')} + Bank ₹${(previewRecord.paymentSplit.bank || 0).toLocaleString('en-IN')}`
                     : previewRecord.paymentMode}
                 </Typography>
               )}
@@ -857,7 +927,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.8rem' }}>Page Size</Typography>
             <TextField select size="small" value={paperSize} onChange={(e) => setPaperSize(e.target.value)} sx={{ minWidth: 84, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}>
-              {['A4', 'A5', 'Letter', 'Legal'].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {['A3', 'A4', 'A5', 'A6', 'Letter', 'Legal', 'Executive', 'Statement'].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
           </Box>
           <Box sx={{ flex: 1 }} />
@@ -873,6 +943,20 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
           </FitPreview>
         </Box>
       </Dialog>
+
+      <PaymentBulkAddDialog
+        open={bulkAddOpen}
+        onClose={() => setBulkAddOpen(false)}
+        defaultType={isPaymentIn ? 'PaymentIn' : 'PaymentOut'}
+        onSuccess={(count) => setSnack({ open: true, msg: `${count} payment${count !== 1 ? 's' : ''} added successfully` })}
+      />
+
+      <Snackbar open={snack.open} autoHideDuration={4000} onClose={() => setSnack(s => ({ ...s, open: false }))}
+        anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}>
+        <Alert severity="success" onClose={() => setSnack(s => ({ ...s, open: false }))} sx={{ fontWeight: 600 }}>
+          {snack.msg}
+        </Alert>
+      </Snackbar>
     </Box>
   );
 };

@@ -1,34 +1,41 @@
 import React, { useState, useEffect } from 'react';
-import { 
+import {
   Box, Button, Card, CardContent, Typography, TextField, Dialog,
   DialogTitle, DialogContent, DialogActions, Grid, Table, TableBody,
   TableCell, TableContainer, TableHead, TableRow, Paper, IconButton,
   InputAdornment, Chip, MenuItem, TablePagination, Snackbar, Alert, alpha,
-  useTheme, useMediaQuery, Stack, Tooltip, ToggleButton, ToggleButtonGroup
+  useTheme, useMediaQuery, Stack, Tooltip, ToggleButton, ToggleButtonGroup,
+  Menu,
 } from '@mui/material';
-import { Plus, Search, Edit2, Trash2, DollarSign, Printer, Share2, Filter, Calendar, FileText, Eye, X, Download, TrendingDown, Receipt, CalendarDays } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, DollarSign, Printer, Share2, Filter, Calendar, FileText, Eye, X, Download, TrendingDown, Receipt, CalendarDays, MoreHorizontal, ListPlus } from 'lucide-react';
+import ExpenseBulkAddDialog from './ExpenseBulkAddDialog';
 import { useBusiness } from './BusinessContext';
+
 import { useConfig } from './ConfigContext';
+import { useSubscription } from './SubscriptionContext';
 import { useDialog } from './DialogContext';
 import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
-import { useSubscription } from './SubscriptionContext';
 import { FitPreview } from './TxListView';
+import { acknowledgeQuickNew } from './quickNewBridge';
 import { exportToExcel, EXPENSE_COLUMNS } from './exportUtils';
 import { useReactToPrint } from 'react-to-print';
 import { useLocation } from 'react-router-dom';
 import ExpenseTemplate from './ExpenseTemplate';
 import { useRef } from 'react';
+import SplitPaymentInput from './SplitPaymentInput';
 
-const DEFAULT_EXPENSE_CATEGORIES = ['Office Supplies', 'Travel', 'Utilities', 'Rent', 'Marketing', 'Equipment', 'Miscellaneous'];
+const DEFAULT_EXPENSE_CATEGORIES = ['Office Supplies', 'Travel', 'Utilities', 'Rent', 'Marketing', 'Equipment', 'Others'];
 
 const ExpensesPage = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { currentBusiness } = useBusiness();
   const { t } = useI18n();
+
   const { data, addItem, updateItem, deleteItem, getItems } = useData();
   const { confirm } = useDialog();
+  // TallyKraft billing: data layer blocks the write; this greys the CTA.
   const { isBusinessActive } = useSubscription();
   const canWrite = isBusinessActive(currentBusiness?.id);
   const location = useLocation();
@@ -36,8 +43,10 @@ const ExpensesPage = () => {
   const [open, setOpen] = useState(false);
   const [editingExpense, setEditingExpense] = useState(null);
   const [formData, setFormData] = useState({
-    category: 'Miscellaneous', amount: 0, date: new Date().toISOString().split('T')[0], description: '', paymentMode: 'Cash'
+    category: 'Others', amount: '', date: new Date().toISOString().split('T')[0], description: '', paymentMode: 'Cash'
   });
+  const [splitCash, setSplitCash] = useState('');
+  const [splitBank, setSplitBank] = useState('');
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -51,6 +60,8 @@ const ExpensesPage = () => {
   });
   const [showFilters, setShowFilters] = useState(false);
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
+  const [moreAnchor, setMoreAnchor] = useState(null);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
    
 
 
@@ -62,12 +73,12 @@ const ExpensesPage = () => {
   const [printingData, setPrintingData] = useState(null);
   const [paperSize, setPaperSize] = useState(() => {
     const d = config.defaultPaperSize;
-    return ['A4', 'A5', 'Letter', 'Legal'].includes(d) ? d : 'A4';
+    return ['A3', 'A4', 'A5', 'A6', 'Letter', 'Legal', 'Executive', 'Statement'].includes(d) ? d : 'A4';
   });
   useEffect(() => {
     if (config.defaultPaperSize) {
       const d = config.defaultPaperSize;
-      if (['A4', 'A5', 'Letter', 'Legal'].includes(d)) setPaperSize(d);
+      if (['A3', 'A4', 'A5', 'A6', 'Letter', 'Legal', 'Executive', 'Statement'].includes(d)) setPaperSize(d);
     }
   }, [config.defaultPaperSize]);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -95,7 +106,6 @@ const ExpensesPage = () => {
 
   const expenses = getItems('expenses')
     .filter(e => e.businessId === currentBusiness?.id)
-    
     .reverse();
 
   const filteredExpenses = expenses
@@ -154,9 +164,16 @@ const ExpensesPage = () => {
     if (expense) {
       setEditingExpense(expense);
       setFormData(expense);
+      if (expense.paymentMode === 'Split' && expense.paymentSplit) {
+        setSplitCash(String(expense.paymentSplit.cash ?? ''));
+        setSplitBank(String(expense.paymentSplit.bank ?? ''));
+      } else {
+        setSplitCash(''); setSplitBank('');
+      }
     } else {
       setEditingExpense(null);
-      setFormData({ category: 'Miscellaneous', amount: 0, date: new Date().toISOString().split('T')[0], description: '', paymentMode: 'Cash' });
+      setFormData({ category: 'Others', amount: '', date: new Date().toISOString().split('T')[0], description: '', paymentMode: 'Cash' });
+      setSplitCash(''); setSplitBank('');
     }
     setOpen(true);
   };
@@ -171,7 +188,10 @@ const ExpensesPage = () => {
       window.history.replaceState({}, document.title);
     }
     const onQuickNew = (e) => {
-      if (e.detail?.path === '/expenses' && e.detail?.intent === 'openAdd') handleOpen();
+      if (e.detail?.path === '/expenses' && e.detail?.intent === 'openAdd') {
+        handleOpen();
+        acknowledgeQuickNew(e.detail);
+      }
     };
     window.addEventListener('dashboard-quick-new', onQuickNew);
     return () => window.removeEventListener('dashboard-quick-new', onQuickNew);
@@ -191,15 +211,26 @@ const ExpensesPage = () => {
     }
 
     // Validate required fields
-    if (!formData.category || !formData.description || !formData.description.trim()) {
-      showSnackbar('Please fill in all required fields', 'warning');
+    if (!formData.category) {
+      showSnackbar('Please select a category', 'warning');
       return;
     }
 
-    const amountNum = Number(formData.amount);
-    if (isNaN(amountNum) || amountNum <= 0) {
-      showSnackbar('Please enter a valid amount greater than zero', 'warning');
-      return;
+    let amountNum;
+    if (formData.paymentMode === 'Split') {
+      const sc = Number(splitCash) || 0;
+      const sb = Number(splitBank) || 0;
+      if (sc <= 0 || sb <= 0) {
+        showSnackbar('Enter both Cash and Bank portions for Split payment', 'warning');
+        return;
+      }
+      amountNum = sc + sb;
+    } else {
+      amountNum = Number(formData.amount);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        showSnackbar('Please enter a valid amount greater than zero', 'warning');
+        return;
+      }
     }
 
     if (!formData.date) {
@@ -208,12 +239,15 @@ const ExpensesPage = () => {
     }
 
     try {
-      const expenseData = { 
-        ...formData, 
+      const expenseData = {
+        ...formData,
         businessId: currentBusiness.id,
         amount: amountNum,
         description: formData.description.trim(),
-        date: formData.date
+        date: formData.date,
+        ...(formData.paymentMode === 'Split' && {
+          paymentSplit: { cash: Number(splitCash), bank: Number(splitBank), bankMode: 'Bank' },
+        }),
       };
       
       let saved;
@@ -255,14 +289,14 @@ const ExpensesPage = () => {
   };
 
   return (
-    <Box sx={{ maxWidth: 1440, mx: 'auto' }}>
+    <Box sx={{ mx: 0 }}>
       <div style={{ display: 'none' }}>
         <ExpenseTemplate ref={printRef} data={printingData} business={currentBusiness} paperSize={paperSize} />
       </div>
       {/* Header */}
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: { xs: 'flex-start', sm: 'center' }, gap: 1.5, flexWrap: 'wrap', mb: 2.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #be185d, #ec4899)', display: 'flex', boxShadow: '0 4px 12px rgba(190,24,93,0.3)' }}>
+          <Box sx={{ p: 1, borderRadius: 2, background: 'linear-gradient(135deg, #18181b, #3f3f46)', display: 'flex', boxShadow: '0 4px 12px rgba(190,24,93,0.3)' }}>
             <TrendingDown size={20} color="#fff" />
           </Box>
           <Box>
@@ -270,15 +304,22 @@ const ExpensesPage = () => {
             <Typography variant="caption" color="text.secondary">{t('exp.subtitle')}</Typography>
           </Box>
         </Box>
-        <Box sx={{ display: 'flex', gap: { xs: 0.75, sm: 1 }, alignItems: 'center', flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
-          <Button variant="outlined" startIcon={<Download size={16} />}
-            disabled={!canWrite}
-            onClick={() => exportToExcel(expenses, EXPENSE_COLUMNS, 'expenses_export.xlsx')}
-            sx={{ textTransform: 'none', fontWeight: 600, minWidth: { xs: 0, sm: 'auto' }, px: { xs: 1.25, sm: 2 }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 1 } } }}>
-            <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Export Excel</Box>
-          </Button>
-          <Button variant="contained" startIcon={<Plus size={16} />} onClick={() => handleOpen()}
-            disabled={!canWrite}
+        <Box sx={{ display: 'flex', gap: { xs: 0.75, sm: 1 }, alignItems: 'center', width: { xs: '100%', sm: 'auto' } }}>
+          <Tooltip title="More options">
+            <IconButton onClick={e => setMoreAnchor(e.currentTarget)} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: '8px' }}>
+              <MoreHorizontal size={18} />
+            </IconButton>
+          </Tooltip>
+          <Menu anchorEl={moreAnchor} open={Boolean(moreAnchor)} onClose={() => setMoreAnchor(null)}
+            PaperProps={{ sx: { borderRadius: 2, minWidth: 180, boxShadow: '0 4px 20px rgba(0,0,0,0.12)' } }}>
+            <MenuItem onClick={() => { setBulkAddOpen(true); setMoreAnchor(null); }} sx={{ gap: 1.5, py: 1 }}>
+              <ListPlus size={16} /> Bulk Add Expenses
+            </MenuItem>
+            <MenuItem onClick={() => { exportToExcel(expenses, EXPENSE_COLUMNS, 'expenses_export.xlsx'); setMoreAnchor(null); }} sx={{ gap: 1.5, py: 1 }}>
+              <Download size={16} /> Export Excel
+            </MenuItem>
+          </Menu>
+          <Button variant="contained" disabled={!canWrite} startIcon={<Plus size={16} />} onClick={() => handleOpen()}
             sx={{ flex: { xs: 1, sm: 'none' }, fontWeight: 700, textTransform: 'none' }}>
             Add Expense
           </Button>
@@ -290,7 +331,7 @@ const ExpensesPage = () => {
         {[
           { label: t('exp.totalFiltered'), value: fmt(totalExpenses), icon: <DollarSign size={18} />, color: '#dc2626' },
           { label: t('dash.thisMonth'), value: fmt(thisMonthTotal), icon: <CalendarDays size={18} />, color: '#d97706' },
-          { label: t('exp.entries'), value: String(expenseCount), icon: <Receipt size={18} />, color: '#4f46e5' },
+          { label: t('exp.entries'), value: String(expenseCount), icon: <Receipt size={18} />, color: '#111111' },
           { label: t('exp.avgEntry'), value: fmt(avgExpense), icon: <TrendingDown size={18} />, color: '#0891b2' },
         ].map((s) => (
           <Card key={s.label} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2.5, bgcolor: alpha(s.color, 0.04) }}>
@@ -457,12 +498,12 @@ const ExpensesPage = () => {
                     </Box>
                     <Box sx={{ display: 'flex', gap: 0.5, mt: 1 }}>
                       {[
-                        { icon: <Eye size={17} />, onClick: () => { setPreviewRecord(expense); setPreviewOpen(true); }, color: '#4f46e5', always: true },
-                        { icon: <Share2 size={17} />, onClick: () => handleShare(expense), color: '#25D366', always: true },
-                        { icon: <Edit2 size={17} />, onClick: () => handleOpen(expense), color: '#4f46e5' },
+                        { icon: <Eye size={17} />, onClick: () => { setPreviewRecord(expense); setPreviewOpen(true); }, color: '#111111' },
+                        { icon: <Share2 size={17} />, onClick: () => handleShare(expense), color: '#25D366' },
+                        { icon: <Edit2 size={17} />, onClick: () => handleOpen(expense), color: '#111111' },
                         { icon: <Trash2 size={17} />, onClick: () => handleDelete(expense.id), color: '#dc2626' },
                       ].map((a, i) => (
-                        <IconButton key={i} size="small" disabled={!a.always && !canWrite} onClick={a.onClick} sx={{ flex: 1, borderRadius: 1.5, color: a.color, bgcolor: alpha(a.color, 0.08), '&:hover': { bgcolor: alpha(a.color, 0.16) } }}>
+                        <IconButton key={i} size="small" onClick={a.onClick} sx={{ flex: 1, borderRadius: 1.5, color: a.color, bgcolor: alpha(a.color, 0.08), '&:hover': { bgcolor: alpha(a.color, 0.16) } }}>
                           {a.icon}
                         </IconButton>
                       ))}
@@ -510,10 +551,10 @@ const ExpensesPage = () => {
                       >
                         <Share2 size={16} />
                       </IconButton>
-                      <IconButton size="small" disabled={!canWrite} onClick={() => handleOpen(expense)} color="primary">
+                      <IconButton size="small" onClick={() => handleOpen(expense)} color="primary">
                         <Edit2 size={16} />
                       </IconButton>
-                      <IconButton size="small" disabled={!canWrite} onClick={() => handleDelete(expense.id)} color="error">
+                      <IconButton size="small" onClick={() => handleDelete(expense.id)} color="error">
                         <Trash2 size={16} />
                       </IconButton>
                     </TableCell>
@@ -552,7 +593,7 @@ const ExpensesPage = () => {
       <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth fullScreen={isMobile}
         slotProps={{ paper: { sx: { borderRadius: isMobile ? 0 : 3 } } }}>
         <form onSubmit={handleSubmit}>
-          <Box sx={{ background: 'linear-gradient(135deg, #be185d, #ec4899)', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+          <Box sx={{ background: 'linear-gradient(135deg, #18181b, #3f3f46)', px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 1.5 }}>
             <Box sx={{ p: 0.75, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.18)', display: 'flex' }}><TrendingDown size={18} color="#fff" /></Box>
             <Typography sx={{ color: '#fff', fontWeight: 800, fontSize: '1.05rem', flex: 1 }}>{editingExpense ? t('exp.editExpense') : t('exp.addNew')}</Typography>
             <IconButton size="small" onClick={handleClose} sx={{ color: 'rgba(255,255,255,0.85)' }}><X size={18} /></IconButton>
@@ -566,7 +607,8 @@ const ExpensesPage = () => {
               value={formData.amount || ''}
               onChange={(e) => setFormData({ ...formData, amount: Number(e.target.value) })}
               onFocus={(e) => e.target.select()}
-              required
+              required={formData.paymentMode !== 'Split'}
+              disabled={formData.paymentMode === 'Split'}
               slotProps={{
                 input: { startAdornment: <InputAdornment position="start"><Typography sx={{ fontWeight: 800, fontSize: '1.2rem', color: 'error.main' }}>₹</Typography></InputAdornment> },
                 htmlInput: { min: 0, step: 0.01, style: { fontSize: '1.4rem', fontWeight: 800 } },
@@ -590,18 +632,26 @@ const ExpensesPage = () => {
               ))}
             </Box>
 
-            {/* Payment mode — only Cash affects cash-in-hand */}
+            {/* Payment mode */}
             <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', mb: 1 }}>{t('pay.paymentMode')}</Typography>
             <ToggleButtonGroup
               exclusive size="small" value={formData.paymentMode || 'Cash'}
               onChange={(_e, v) => { if (v) setFormData({ ...formData, paymentMode: v }); }}
-              sx={{ mb: 2.5, '& .MuiToggleButton-root': { textTransform: 'none', fontWeight: 600, px: 2 } }}
+              sx={{ mb: formData.paymentMode === 'Split' ? 1.5 : 2.5, '& .MuiToggleButton-root': { textTransform: 'none', fontWeight: 600, px: 2 } }}
             >
               <ToggleButton value="Cash">Cash</ToggleButton>
               <ToggleButton value="Bank">Bank</ToggleButton>
-              <ToggleButton value="UPI">UPI</ToggleButton>
-              <ToggleButton value="Card">Card</ToggleButton>
+              <ToggleButton value="Split">Split</ToggleButton>
             </ToggleButtonGroup>
+            {formData.paymentMode === 'Split' && (
+              <Box sx={{ mb: 2.5 }}>
+                <SplitPaymentInput
+                  cash={splitCash} onCashChange={setSplitCash}
+                  bank={splitBank} onBankChange={setSplitBank}
+                  total={undefined}
+                />
+              </Box>
+            )}
 
             <TextField
               fullWidth
@@ -612,20 +662,19 @@ const ExpensesPage = () => {
               required
               slotProps={{
                 inputLabel: { shrink: true },
-                input: { startAdornment: <InputAdornment position="start"><Calendar size={18} color={alpha('#4f46e5', 0.6)} /></InputAdornment> },
+                input: { startAdornment: <InputAdornment position="start"><Calendar size={18} color={alpha('#111111', 0.6)} /></InputAdornment> },
               }}
               sx={{ mb: 2 }}
             />
             <TextField
               fullWidth
               label="Description"
-              placeholder="What was this expense for?"
+              placeholder="What was this expense for? (optional)"
               multiline
               rows={2}
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              required
-              slotProps={{ input: { startAdornment: <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1.5 }}><FileText size={18} color={alpha('#4f46e5', 0.6)} /></InputAdornment> } }}
+              slotProps={{ input: { startAdornment: <InputAdornment position="start" sx={{ alignSelf: 'flex-start', mt: 1.5 }}><FileText size={18} color={alpha('#111111', 0.6)} /></InputAdornment> } }}
             />
           </DialogContent>
           <DialogActions sx={{ p: 2 }}>
@@ -651,11 +700,17 @@ const ExpensesPage = () => {
         </Alert>
       </Snackbar>
 
+      <ExpenseBulkAddDialog
+        open={bulkAddOpen}
+        onClose={() => setBulkAddOpen(false)}
+        onSuccess={count => { setBulkAddOpen(false); showSnackbar(`${count} expense${count !== 1 ? 's' : ''} added successfully!`, 'success'); }}
+      />
+
       {/* Preview dialog */}
       <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} maxWidth="md" fullWidth
         PaperProps={{ sx: { borderRadius: 3, overflow: 'hidden', maxHeight: '92vh', display: 'flex', flexDirection: 'column', boxShadow: '0 32px 80px rgba(0,0,0,0.22)' } }}>
         {/* Gradient header */}
-        <Box sx={{ background: 'linear-gradient(135deg, #be185d 0%, #ec4899 100%)', px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
+        <Box sx={{ background: 'linear-gradient(135deg, #0f766e 0%, #14b8a6 100%)', px: 3, py: 2.5, display: 'flex', alignItems: 'flex-start', gap: 2, flexShrink: 0 }}>
           <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', mt: 0.5, flexShrink: 0 }}>
             <Eye size={18} color="white" />
           </Box>
@@ -689,14 +744,13 @@ const ExpensesPage = () => {
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="body2" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: '0.8rem' }}>Page Size</Typography>
             <TextField select size="small" value={paperSize} onChange={(e) => setPaperSize(e.target.value)} sx={{ minWidth: 84, '& .MuiOutlinedInput-root': { borderRadius: 1 } }}>
-              {['A4', 'A5', 'Letter', 'Legal'].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
+              {['A3', 'A4', 'A5', 'A6', 'Letter', 'Legal', 'Executive', 'Statement'].map(s => <MenuItem key={s} value={s}>{s}</MenuItem>)}
             </TextField>
           </Box>
           <Box sx={{ flex: 1 }} />
           <Button startIcon={<Printer size={15} />} variant="contained" size="small" disableElevation
-            disabled={!canWrite}
             onClick={() => { setPrintingData(previewRecord); setPreviewOpen(false); setTimeout(() => handlePrint(), 100); }}
-            sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 1.5, bgcolor: '#be185d', '&:hover': { bgcolor: '#9d174d' } }}>
+            sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 1.5, bgcolor: '#3f3f46', '&:hover': { bgcolor: '#9d174d' } }}>
             Print
           </Button>
         </Box>

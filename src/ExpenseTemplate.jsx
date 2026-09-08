@@ -7,10 +7,14 @@ const ExpenseTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
 
   // Paper size dimensions (width x height in mm)
   const paperSizes = {
+    'A3': { width: '297mm', height: '420mm' },
     'A4': { width: '210mm', height: '297mm' },
     'A5': { width: '148mm', height: '210mm' },
+    'A6': { width: '105mm', height: '148mm' },
     'Letter': { width: '216mm', height: '279mm' },
-    'Legal': { width: '216mm', height: '356mm' }
+    'Legal': { width: '216mm', height: '356mm' },
+    'Executive': { width: '184mm', height: '267mm' },
+    'Statement': { width: '140mm', height: '216mm' }
   };
   
   const selectedSize = paperSizes[paperSize] || paperSizes['A4'];
@@ -74,7 +78,7 @@ const ExpenseTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
       {/* Footer */}
       <div style={{ marginTop: '40px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div style={{ fontSize: '10px', color: '#94a3b8' }}>
-          <p>© TALLYKRAFT Expense Management</p>
+          <p>© DIGITZEBRA Expense Management</p>
           <p>This is an automated expense voucher.</p>
         </div>
         <div style={{ textAlign: 'center' }}>

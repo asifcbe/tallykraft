@@ -30,7 +30,7 @@ const emptyDraft = () => ({
   name: '',
   description: '',
   icon: 'FileText',
-  color: '#4f46e5',
+  color: '#111111',
   createdBy: 'user',
   tabs: [{ id: uid('t'), name: 'Details', fields: [] }],
 });

@@ -1,10 +1,14 @@
 import React, { forwardRef } from 'react';
 
 const PAPER = {
-  A4:     { width: '210mm', minHeight: '297mm' },
-  A5:     { width: '148mm', minHeight: '210mm' },
-  Letter: { width: '216mm', minHeight: '279mm' },
-  Legal:  { width: '216mm', minHeight: '356mm' },
+  A3:        { width: '297mm', minHeight: '420mm' },
+  A4:        { width: '210mm', minHeight: '297mm' },
+  A5:        { width: '148mm', minHeight: '210mm' },
+  A6:        { width: '105mm', minHeight: '148mm' },
+  Letter:    { width: '216mm', minHeight: '279mm' },
+  Legal:     { width: '216mm', minHeight: '356mm' },
+  Executive: { width: '184mm', minHeight: '267mm' },
+  Statement: { width: '140mm', minHeight: '216mm' },
 };
 
 const fmt = (n) =>
@@ -17,6 +21,33 @@ const fmtDate = (d) => {
   return `${day} ${months[parseInt(m, 10) - 1]} ${y}`;
 };
 
+const Row = ({ label, value, bold, borderTop, borderBottom, large, muted }) => (
+  <div style={{
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    padding: large ? '10px 0' : '7px 0',
+    borderTop: borderTop ? '1px solid #000' : 'none',
+    borderBottom: borderBottom ? '1px solid #000' : 'none',
+  }}>
+    <span style={{
+      fontSize: large ? '13px' : '12px',
+      fontWeight: bold ? '700' : '400',
+      color: muted ? '#666' : '#000',
+    }}>
+      {label}
+    </span>
+    <span style={{
+      fontSize: large ? '15px' : '12px',
+      fontWeight: bold ? '700' : '400',
+      color: muted ? '#666' : '#000',
+      textAlign: 'right',
+    }}>
+      {value}
+    </span>
+  </div>
+);
+
 const PaymentTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) => {
   if (!data || !business) return null;
 
@@ -25,7 +56,7 @@ const PaymentTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
   const isSplit = paymentMode === 'Split' && paymentSplit;
   const size = PAPER[paperSize] || PAPER.A4;
 
-  const isA5 = paperSize === 'A5';
+  const isA5 = paperSize === 'A5' || paperSize === 'A6' || paperSize === 'Statement';
   const pad = isA5 ? '28px 32px' : '40px 48px';
   const titleSize = isA5 ? '18px' : '22px';
   const bodySize = isA5 ? '12px' : '13px';

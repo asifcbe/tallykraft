@@ -9,11 +9,13 @@ import {
   Landmark, ArrowLeftRight,
 } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
+import { useSubscription } from './SubscriptionContext';
 import { useData } from './DataContext';
 import { useDialog } from './DialogContext';
 import { useI18n } from './i18n/I18nContext';
-import { useSubscription } from './SubscriptionContext';
 import { computeCashInHand, computeBankBalance } from './cashUtils';
+import { acknowledgeQuickNew } from './quickNewBridge';
+import { byTxTimeDesc, formatCreatedTime } from './txTimeUtils';
 
 const money = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const fmtDate = (d) => {
@@ -26,7 +28,6 @@ const CASH_OUT_REASONS = ['Owner Drawings', 'Bank Deposit', 'Petty Cash', 'Other
 const BANK_IN_REASONS  = ['Cash Deposit', 'Bank Transfer In', 'Interest Credited', 'Loan Received', 'Other'];
 const BANK_OUT_REASONS = ['Cash Withdrawal', 'Bank Transfer Out', 'Bank Charges', 'Loan Repayment', 'Cheque Issued', 'Other'];
 
-/* ─── shared helpers ─── */
 const isCash    = (m) => String(m || '').trim().toLowerCase() === 'cash';
 const isDigital = (m) => { const v = String(m || '').trim().toLowerCase(); return ['bank','cheque','neft','rtgs','upi','card'].includes(v); };
 const isSettled = (r) => {
@@ -36,7 +37,6 @@ const isSettled = (r) => {
   return (Number(r.balanceAmount) || 0) <= 0;
 };
 
-/* ─── Movement row ─── */
 const MovementRow = ({ m, onDelete, accentIn, accentOut, t }) => (
   <Box sx={{
     display: 'flex', alignItems: 'center', gap: 1.5,
@@ -45,7 +45,7 @@ const MovementRow = ({ m, onDelete, accentIn, accentOut, t }) => (
   }}>
     <Box sx={{
       p: 0.75, borderRadius: '50%', display: 'flex', flexShrink: 0,
-      bgcolor: m.dir === 'in' ? alpha(accentIn,  0.12) : alpha(accentOut, 0.12),
+      bgcolor: m.dir === 'in' ? alpha(accentIn, 0.12) : alpha(accentOut, 0.12),
       color:   m.dir === 'in' ? accentIn : accentOut,
     }}>
       {m.dir === 'in' ? <ArrowDownLeft size={15} /> : <ArrowUpRight size={15} />}
@@ -53,12 +53,14 @@ const MovementRow = ({ m, onDelete, accentIn, accentOut, t }) => (
     <Box sx={{ flex: 1, minWidth: 0 }}>
       <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.3 }} noWrap>{m.label}</Typography>
       <Typography variant="caption" color="text.secondary">
-        {fmtDate(m.date)}{m.note ? ` · ${m.note}` : ''}
+        {fmtDate(m.date)}{formatCreatedTime(m) ? ` · ${formatCreatedTime(m)}` : ''}{m.note ? ` · ${m.note}` : ''}
       </Typography>
     </Box>
-    {m.source === 'manual'
-      ? <Chip size="small" label="Manual" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700 }} />
-      : <Chip size="small" variant="outlined" label="Auto" sx={{ height: 18, fontSize: '0.6rem' }} />}
+    {m.transferId
+      ? <Chip size="small" icon={<ArrowLeftRight size={11} />} label="Transfer" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: alpha('#7c3aed', 0.12), color: '#7c3aed', '& .MuiChip-icon': { color: '#7c3aed' } }} />
+      : m.source === 'manual'
+        ? <Chip size="small" label="Manual" sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700 }} />
+        : <Chip size="small" variant="outlined" label="Auto" sx={{ height: 18, fontSize: '0.6rem' }} />}
     <Typography sx={{
       fontWeight: 800,
       color: m.dir === 'in' ? accentIn : accentOut,
@@ -68,7 +70,7 @@ const MovementRow = ({ m, onDelete, accentIn, accentOut, t }) => (
     </Typography>
     {m.source === 'manual' && (
       <Tooltip title={t('common.delete')}>
-        <IconButton size="small" onClick={() => onDelete(m.id)}
+        <IconButton size="small" onClick={() => onDelete(m.id, m.transferId)}
           sx={{ color: 'text.disabled', '&:hover': { color: '#dc2626' } }}>
           <Trash2 size={15} />
         </IconButton>
@@ -77,7 +79,6 @@ const MovementRow = ({ m, onDelete, accentIn, accentOut, t }) => (
   </Box>
 );
 
-/* ─── Add entry dialog ─── */
 const AddDialog = ({ open, dir, reasons, onClose, onSave, accentIn, accentOut, isMobile, t }) => {
   const [form, setForm] = useState({ amount: '', reason: '', note: '', date: new Date().toISOString().slice(0, 10) });
   const reset = () => setForm({ amount: '', reason: '', note: '', date: new Date().toISOString().slice(0, 10) });
@@ -135,26 +136,103 @@ const AddDialog = ({ open, dir, reasons, onClose, onSave, accentIn, accentOut, i
   );
 };
 
-/* ═══════════════════════════════════════════════════════════════════ */
+// Move money between the Cash drawer and the Bank account in one action —
+// previously required recording a Cash Out + a Bank In (or Bank Out + Cash
+// In) manually as two unrelated entries. Saves both legs as a single linked
+// pair (shared `transferId`) so they always stay in sync — deleting either
+// side removes both, so the books can't go out of balance with an orphaned
+// leg left behind.
+const TransferDialog = ({ open, onClose, onSave, cashBalance, bankBalance, isMobile, t }) => {
+  const [dir, setDir] = useState('cash_to_bank'); // or 'bank_to_cash'
+  const [form, setForm] = useState({ amount: '', note: '', date: new Date().toISOString().slice(0, 10) });
+  const reset = () => { setDir('cash_to_bank'); setForm({ amount: '', note: '', date: new Date().toISOString().slice(0, 10) }); };
+  const handleClose = () => { reset(); onClose(); };
+  const handleSave = () => { onSave({ ...form, dir }); reset(); };
+
+  const fromLabel = dir === 'cash_to_bank' ? 'Cash Drawer' : 'Bank Account';
+  const toLabel = dir === 'cash_to_bank' ? 'Bank Account' : 'Cash Drawer';
+  const fromBalance = dir === 'cash_to_bank' ? cashBalance : bankBalance;
+  const accent = '#7c3aed';
+
+  return (
+    <Dialog open={open} onClose={handleClose} maxWidth="xs" fullWidth fullScreen={isMobile}>
+      <DialogTitle sx={{ fontWeight: 800, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+          <Box sx={{ p: 0.5, borderRadius: 1.5, bgcolor: alpha(accent, 0.12), color: accent, display: 'flex' }}>
+            <ArrowLeftRight size={16} />
+          </Box>
+          Transfer Cash ↔ Bank
+        </Box>
+        <IconButton size="small" onClick={handleClose}><X size={18} /></IconButton>
+      </DialogTitle>
+      <DialogContent>
+        <Box sx={{
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5,
+          mt: 1, mb: 2.5, p: 1.5, borderRadius: 2, bgcolor: alpha(accent, 0.05), border: '1px solid', borderColor: alpha(accent, 0.15),
+        }}>
+          <Box sx={{ textAlign: 'center', flex: 1 }}>
+            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>From</Typography>
+            <Typography sx={{ fontWeight: 800, fontSize: '0.9rem' }}>{fromLabel}</Typography>
+          </Box>
+          <IconButton size="small"
+            onClick={() => setDir(d => d === 'cash_to_bank' ? 'bank_to_cash' : 'cash_to_bank')}
+            sx={{ bgcolor: accent, color: '#fff', '&:hover': { bgcolor: accent, opacity: 0.85 } }}>
+            <ArrowLeftRight size={15} />
+          </IconButton>
+          <Box sx={{ textAlign: 'center', flex: 1 }}>
+            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase' }}>To</Typography>
+            <Typography sx={{ fontWeight: 800, fontSize: '0.9rem' }}>{toLabel}</Typography>
+          </Box>
+        </Box>
+        <TextField
+          fullWidth autoFocus type="number" label={t('common.amount')} value={form.amount}
+          onChange={(e) => setForm({ ...form, amount: e.target.value })}
+          onKeyDown={(e) => { if (e.key === 'Enter' && Number(form.amount) > 0) handleSave(); }}
+          helperText={`Available in ${fromLabel}: ${money(fromBalance)}`}
+          slotProps={{
+            input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> },
+            htmlInput: { min: 0, step: 0.01, style: { fontSize: '1.3rem', fontWeight: 700 } },
+          }}
+          sx={{ mb: 2 }}
+        />
+        <TextField fullWidth size="small" type="date" label={t('common.date')} value={form.date}
+          onChange={(e) => setForm({ ...form, date: e.target.value })}
+          slotProps={{ inputLabel: { shrink: true } }} sx={{ mb: 2 }} />
+        <TextField fullWidth size="small" label="Reference / Note (optional)" value={form.note}
+          onChange={(e) => setForm({ ...form, note: e.target.value })} multiline rows={2} />
+      </DialogContent>
+      <DialogActions sx={{ p: 2 }}>
+        <Button onClick={handleClose} sx={{ textTransform: 'none' }}>{t('common.cancel')}</Button>
+        <Button variant="contained" disabled={!Number(form.amount) || Number(form.amount) <= 0}
+          onClick={handleSave}
+          sx={{ textTransform: 'none', fontWeight: 700, bgcolor: accent, '&:hover': { bgcolor: accent, opacity: 0.88 } }}>
+          Transfer
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+};
+
 const Cash = () => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { currentBusiness } = useBusiness();
-  const { getItems, addItem, deleteItem } = useData();
+  const { data, getItems, addItem, addItems, deleteItem } = useData();
   const { confirm } = useDialog();
   const { t } = useI18n();
+  // TallyKraft billing: data layer blocks the write anyway; this greys the CTAs.
   const { isBusinessActive } = useSubscription();
+  const canWrite = isBusinessActive(currentBusiness?.id);
   const bizId = currentBusiness?.id;
-  const canWrite = isBusinessActive(bizId);
 
-  /* ── raw data ── */
-  const sales      = useMemo(() => getItems('sales').filter(s => s.businessId === bizId),      [getItems, bizId]);
-  const purchases  = useMemo(() => getItems('purchases').filter(p => p.businessId === bizId),  [getItems, bizId]);
-  const payments   = useMemo(() => getItems('payments').filter(p => p.businessId === bizId),   [getItems, bizId]);
-  const expenses   = useMemo(() => getItems('expenses').filter(e => e.businessId === bizId),   [getItems, bizId]);
-  const cashEntries = useMemo(() => getItems('cashEntries').filter(c => c.businessId === bizId), [getItems, bizId]);
+  // Deps keyed on data[table] (not getItems, which changes identity on every
+  // mutation to ANY table) — see Dashboard.jsx/Reports.jsx for the same fix.
+  const sales      = useMemo(() => getItems('sales').filter(s => s.businessId === bizId),      [data.sales, bizId]);
+  const purchases  = useMemo(() => getItems('purchases').filter(p => p.businessId === bizId),  [data.purchases, bizId]);
+  const payments   = useMemo(() => getItems('payments').filter(p => p.businessId === bizId),   [data.payments, bizId]);
+  const expenses   = useMemo(() => getItems('expenses').filter(e => e.businessId === bizId),   [data.expenses, bizId]);
+  const cashEntries = useMemo(() => getItems('cashEntries').filter(c => c.businessId === bizId), [data.cashEntries, bizId]);
 
-  /* ── balances ── */
   const cash = useMemo(() => computeCashInHand({
     openingCash: currentBusiness?.openingCash, sales, purchases, payments, expenses, cashEntries,
   }), [currentBusiness?.openingCash, sales, purchases, payments, expenses, cashEntries]);
@@ -163,60 +241,56 @@ const Cash = () => {
     openingBank: currentBusiness?.openingBank, sales, purchases, payments, expenses, cashEntries,
   }), [currentBusiness?.openingBank, sales, purchases, payments, expenses, cashEntries]);
 
-  /* ── cash movements ── */
   const cashMovements = useMemo(() => {
     const rows = [];
     sales.filter(s => isCash(s.paymentMode) && isSettled(s))
-      .forEach(s => rows.push({ id: 'S'+s.id, date: s.date, dir: 'in',  label: `Cash sale ${s.invoiceNumber||''}`.trim(), amount: Number(s.totalAmount)||0, source:'auto' }));
+      .forEach(s => rows.push({ id: 'S'+s.id, date: s.date, createdAt: s.createdAt, dir: 'in', label: `Cash sale ${s.invoiceNumber||''}`.trim(), amount: Number(s.totalAmount)||0, source: 'auto' }));
     payments.filter(p => p.type==='PaymentIn' && isCash(p.paymentMode))
-      .forEach(p => rows.push({ id:'PI'+p.id, date: p.date, dir:'in',  label:`Payment from ${p.partyName||''}`.trim(), amount:Number(p.totalAmount)||0, source:'auto' }));
+      .forEach(p => rows.push({ id: 'PI'+p.id, date: p.date, createdAt: p.createdAt, dir: 'in', label: `Payment from ${p.partyName||''}`.trim(), amount: Number(p.totalAmount)||0, source: 'auto' }));
     purchases.filter(p => isCash(p.paymentMode) && isSettled(p))
-      .forEach(p => rows.push({ id:'PU'+p.id, date:p.date, dir:'out', label:`Cash purchase ${p.invoiceNumber||''}`.trim(), amount:Number(p.totalAmount)||0, source:'auto' }));
+      .forEach(p => rows.push({ id: 'PU'+p.id, date: p.date, createdAt: p.createdAt, dir: 'out', label: `Cash purchase ${p.invoiceNumber||''}`.trim(), amount: Number(p.totalAmount)||0, source: 'auto' }));
     payments.filter(p => p.type==='PaymentOut' && isCash(p.paymentMode))
-      .forEach(p => rows.push({ id:'PO'+p.id, date:p.date, dir:'out', label:`Payment to ${p.partyName||''}`.trim(), amount:Number(p.totalAmount)||0, source:'auto' }));
+      .forEach(p => rows.push({ id: 'PO'+p.id, date: p.date, createdAt: p.createdAt, dir: 'out', label: `Payment to ${p.partyName||''}`.trim(), amount: Number(p.totalAmount)||0, source: 'auto' }));
     expenses.filter(e => e.paymentMode==null || isCash(e.paymentMode))
-      .forEach(e => rows.push({ id:'E'+e.id, date:e.date, dir:'out', label:`${e.category||'Expense'}${e.description?' — '+e.description:''}`, amount:Number(e.amount)||0, source:'auto' }));
+      .forEach(e => rows.push({ id: 'E'+e.id, date: e.date, createdAt: e.createdAt, dir: 'out', label: `${e.category||'Expense'}${e.description?' — '+e.description:''}`, amount: Number(e.amount)||0, source: 'auto' }));
     cashEntries.filter(c => c.type==='in' || c.type==='out')
-      .forEach(c => rows.push({ id:c.id, date:c.date, dir:c.type, label:c.reason||(c.type==='in'?'Cash In':'Cash Out'), note:c.note, amount:Number(c.amount)||0, source:'manual' }));
-    return rows.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+      .forEach(c => rows.push({ id: c.id, date: c.date, createdAt: c.createdAt, dir: c.type, label: c.reason||(c.type==='in'?'Cash In':'Cash Out'), note: c.note, amount: Number(c.amount)||0, source: 'manual', transferId: c.transferId }));
+    return rows.sort(byTxTimeDesc);
   }, [sales, purchases, payments, expenses, cashEntries]);
 
-  /* ── bank movements ── */
   const bankMovements = useMemo(() => {
     const rows = [];
     sales.filter(s => isDigital(s.paymentMode) && isSettled(s))
-      .forEach(s => rows.push({ id:'BS'+s.id,  date:s.date, dir:'in',  label:`${s.paymentMode||'Bank'} sale ${s.invoiceNumber||''}`.trim(), amount:Number(s.totalAmount)||0, source:'auto' }));
+      .forEach(s => rows.push({ id: 'BS'+s.id, date: s.date, createdAt: s.createdAt, dir: 'in', label: `${s.paymentMode||'Bank'} sale ${s.invoiceNumber||''}`.trim(), amount: Number(s.totalAmount)||0, source: 'auto' }));
     payments.filter(p => p.type==='PaymentIn' && isDigital(p.paymentMode))
-      .forEach(p => rows.push({ id:'BPI'+p.id, date:p.date, dir:'in',  label:`${p.paymentMode||'Bank'} payment from ${p.partyName||''}`.trim(), amount:Number(p.totalAmount)||0, source:'auto' }));
+      .forEach(p => rows.push({ id: 'BPI'+p.id, date: p.date, createdAt: p.createdAt, dir: 'in', label: `${p.paymentMode||'Bank'} payment from ${p.partyName||''}`.trim(), amount: Number(p.totalAmount)||0, source: 'auto' }));
     purchases.filter(p => isDigital(p.paymentMode) && isSettled(p))
-      .forEach(p => rows.push({ id:'BPU'+p.id, date:p.date, dir:'out', label:`${p.paymentMode||'Bank'} purchase ${p.invoiceNumber||''}`.trim(), amount:Number(p.totalAmount)||0, source:'auto' }));
+      .forEach(p => rows.push({ id: 'BPU'+p.id, date: p.date, createdAt: p.createdAt, dir: 'out', label: `${p.paymentMode||'Bank'} purchase ${p.invoiceNumber||''}`.trim(), amount: Number(p.totalAmount)||0, source: 'auto' }));
     payments.filter(p => p.type==='PaymentOut' && isDigital(p.paymentMode))
-      .forEach(p => rows.push({ id:'BPO'+p.id, date:p.date, dir:'out', label:`${p.paymentMode||'Bank'} payment to ${p.partyName||''}`.trim(), amount:Number(p.totalAmount)||0, source:'auto' }));
+      .forEach(p => rows.push({ id: 'BPO'+p.id, date: p.date, createdAt: p.createdAt, dir: 'out', label: `${p.paymentMode||'Bank'} payment to ${p.partyName||''}`.trim(), amount: Number(p.totalAmount)||0, source: 'auto' }));
     expenses.filter(e => e.paymentMode!=null && isDigital(e.paymentMode))
-      .forEach(e => rows.push({ id:'BE'+e.id, date:e.date, dir:'out', label:`${e.category||'Expense'}${e.description?' — '+e.description:''}`, amount:Number(e.amount)||0, source:'auto' }));
+      .forEach(e => rows.push({ id: 'BE'+e.id, date: e.date, createdAt: e.createdAt, dir: 'out', label: `${e.category||'Expense'}${e.description?' — '+e.description:''}`, amount: Number(e.amount)||0, source: 'auto' }));
     cashEntries.filter(c => c.type==='bank_in' || c.type==='bank_out')
-      .forEach(c => rows.push({ id:c.id, date:c.date, dir: c.type==='bank_in'?'in':'out', label:c.reason||(c.type==='bank_in'?'Bank Credit':'Bank Debit'), note:c.note, amount:Number(c.amount)||0, source:'manual' }));
-    return rows.sort((a,b) => (b.date||'').localeCompare(a.date||''));
+      .forEach(c => rows.push({ id: c.id, date: c.date, createdAt: c.createdAt, dir: c.type==='bank_in'?'in':'out', label: c.reason||(c.type==='bank_in'?'Bank Credit':'Bank Debit'), note: c.note, amount: Number(c.amount)||0, source: 'manual', transferId: c.transferId }));
+    return rows.sort(byTxTimeDesc);
   }, [sales, purchases, payments, expenses, cashEntries]);
 
-  /* ── active tab ── */
+  const [activeTab, setActiveTab] = useState('cash');
+  const [cashDlg, setCashDlg] = useState(null);
+  const [bankDlg, setBankDlg] = useState(null);
+  const [transferDlg, setTransferDlg] = useState(false);
+
   useEffect(() => {
     const handler = (e) => {
       const intent = e.detail?.intent;
-      if (intent === 'cash_in')  { setActiveTab('cash'); setCashDlg('in'); }
-      if (intent === 'cash_out') { setActiveTab('cash'); setCashDlg('out'); }
-      if (intent === 'bank_in')  { setActiveTab('bank'); setBankDlg('bank_in'); }
-      if (intent === 'bank_out') { setActiveTab('bank'); setBankDlg('bank_out'); }
+      if (intent === 'cash_in')  { setActiveTab('cash'); setCashDlg('in'); acknowledgeQuickNew(e.detail); }
+      if (intent === 'cash_out') { setActiveTab('cash'); setCashDlg('out'); acknowledgeQuickNew(e.detail); }
+      if (intent === 'bank_in')  { setActiveTab('bank'); setBankDlg('bank_in'); acknowledgeQuickNew(e.detail); }
+      if (intent === 'bank_out') { setActiveTab('bank'); setBankDlg('bank_out'); acknowledgeQuickNew(e.detail); }
     };
     window.addEventListener('dashboard-quick-new', handler);
     return () => window.removeEventListener('dashboard-quick-new', handler);
   }, []);
-
-  const [activeTab, setActiveTab] = useState('cash'); // 'cash' | 'bank'
-
-  /* ── dialogs ── */
-  const [cashDlg, setCashDlg] = useState(null); // 'in' | 'out' | null
-  const [bankDlg, setBankDlg] = useState(null); // 'bank_in' | 'bank_out' | null
 
   const saveCashEntry = (form) => {
     const amt = Number(form.amount);
@@ -240,28 +314,58 @@ const Cash = () => {
     setBankDlg(null);
   };
 
-  const removeEntry = async (id) => {
-    const ok = await confirm({ title: 'Delete entry', message: 'Remove this entry? This cannot be undone.', confirmLabel: 'Delete', variant: 'danger' });
-    if (ok) deleteItem('cashEntries', id);
+  // Cash ↔ Bank transfer — one action instead of a manual Cash Out + Bank In
+  // (or Bank Out + Cash In) pair. Both legs are saved together via addItems
+  // (one batch write) and share a `transferId` so they're always recognized
+  // and removed as a linked pair, never leaving one side orphaned.
+  const saveTransfer = ({ amount, dir, date, note }) => {
+    const amt = Number(amount);
+    if (!amt || amt <= 0) return;
+    const transferId = (typeof crypto !== 'undefined' && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : `xfer_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const label = dir === 'cash_to_bank' ? 'Transfer to Bank' : 'Transfer from Bank';
+    const outType = dir === 'cash_to_bank' ? 'out' : 'bank_out';
+    const inType  = dir === 'cash_to_bank' ? 'bank_in' : 'in';
+    addItems('cashEntries', [
+      { businessId: bizId, type: outType, amount: amt, reason: label, note: note || '', date, transferId },
+      { businessId: bizId, type: inType,  amount: amt, reason: label, note: note || '', date, transferId },
+    ]);
+    setTransferDlg(false);
   };
 
-  /* ── colour tokens ── */
-  const cashColor  = '#0891b2';
-  const bankColor  = '#7c3aed';
-  const green      = '#16a34a';
-  const red        = '#dc2626';
+  const removeEntry = async (id, transferId) => {
+    const ok = await confirm({
+      title: transferId ? 'Delete transfer' : 'Delete entry',
+      message: transferId
+        ? 'This removes both sides of the transfer (the cash leg and the bank leg). This cannot be undone.'
+        : 'Remove this entry? This cannot be undone.',
+      confirmLabel: 'Delete', variant: 'danger',
+    });
+    if (!ok) return;
+    if (transferId) {
+      cashEntries.filter(c => c.transferId === transferId).forEach(c => deleteItem('cashEntries', c.id));
+    } else {
+      deleteItem('cashEntries', id);
+    }
+  };
+
+  const cashColor = '#0891b2';
+  const bankColor = '#0d9488';
+  const green     = '#16a34a';
+  const red       = '#dc2626';
 
   return (
-    <Box sx={{ maxWidth: 1200, mx: 'auto' }}>
+    <Box sx={{ mx: 0 }}>
 
-      {/* ── Dual-tab header ── */}
+      {/* Dual-tab header */}
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 2.5, flexWrap: 'wrap', gap: 1.5 }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <Box sx={{
             p: 1, borderRadius: 2, display: 'flex',
             background: activeTab === 'cash'
               ? `linear-gradient(135deg, ${cashColor}, #22d3ee)`
-              : `linear-gradient(135deg, ${bankColor}, #a78bfa)`,
+              : `linear-gradient(135deg, ${bankColor}, #14b8a6)`,
             boxShadow: `0 4px 12px ${alpha(activeTab === 'cash' ? cashColor : bankColor, 0.35)}`,
             transition: 'all 0.25s ease',
           }}>
@@ -279,14 +383,13 @@ const Cash = () => {
           </Box>
         </Box>
 
-        {/* Tab switcher pill */}
         <Box sx={{
           display: 'flex', gap: 0.5, p: 0.5,
           bgcolor: 'action.hover', borderRadius: 2.5,
           border: '1px solid', borderColor: 'divider',
         }}>
           {[
-            { id: 'cash', label: 'Cash Book', icon: Wallet, color: cashColor },
+            { id: 'cash', label: 'Cash Book', icon: Wallet,   color: cashColor },
             { id: 'bank', label: 'Bank Book', icon: Landmark, color: bankColor },
           ].map(({ id, label, icon: Icon, color }) => (
             <Box key={id} onClick={() => setActiveTab(id)} sx={{
@@ -307,9 +410,20 @@ const Cash = () => {
             </Box>
           ))}
         </Box>
+
+        <Button
+          variant="outlined" startIcon={<ArrowLeftRight size={15} />}
+          onClick={() => setTransferDlg(true)}
+          sx={{
+            textTransform: 'none', fontWeight: 700, borderRadius: 2.5,
+            color: '#7c3aed', borderColor: alpha('#7c3aed', 0.35),
+            '&:hover': { borderColor: '#7c3aed', bgcolor: alpha('#7c3aed', 0.06) },
+          }}>
+          Transfer Cash ↔ Bank
+        </Button>
       </Box>
 
-      {/* ══════════════ CASH BOOK ══════════════ */}
+      {/* CASH BOOK */}
       {activeTab === 'cash' && (
         <>
           <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: alpha(cashColor, 0.2), bgcolor: alpha(cashColor, 0.04), mb: 2.5 }}>
@@ -354,7 +468,7 @@ const Cash = () => {
         </>
       )}
 
-      {/* ══════════════ BANK BOOK ══════════════ */}
+      {/* BANK BOOK */}
       {activeTab === 'bank' && (
         <>
           <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: alpha(bankColor, 0.2), bgcolor: alpha(bankColor, 0.04), mb: 2.5 }}>
@@ -374,14 +488,12 @@ const Cash = () => {
                 <Stack direction="row" spacing={1}>
                   <Button
                     variant="contained" startIcon={<ArrowDownLeft size={16} />}
-                    disabled={!canWrite}
                     onClick={() => setBankDlg('bank_in')}
                     sx={{ fontWeight: 700, textTransform: 'none', bgcolor: green, '&:hover': { bgcolor: '#15803d' } }}>
                     Credit
                   </Button>
                   <Button
                     variant="contained" color="error" startIcon={<ArrowUpRight size={16} />}
-                    disabled={!canWrite}
                     onClick={() => setBankDlg('bank_out')}
                     sx={{ fontWeight: 700, textTransform: 'none' }}>
                     Debit / Withdraw
@@ -391,7 +503,6 @@ const Cash = () => {
             </CardContent>
           </Card>
 
-          {/* Quick-action chips */}
           <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', mb: 2 }}>
             {[
               { label: 'Cash Withdrawal', dir: 'bank_out', sub: 'ATM / counter withdrawal' },
@@ -401,8 +512,7 @@ const Cash = () => {
             ].map(({ label, dir, sub }) => {
               const isIn = dir === 'bank_in';
               return (
-                <Box key={label} onClick={() => canWrite && setBankDlg(dir)} sx={{
-                  opacity: canWrite ? 1 : 0.45, pointerEvents: canWrite ? 'auto' : 'none',
+                <Box key={label} onClick={() => setBankDlg(dir)} sx={{
                   display: 'flex', flexDirection: 'column', px: 1.75, py: 1,
                   borderRadius: 2, cursor: 'pointer', border: '1px solid',
                   borderColor: isIn ? alpha(green, 0.25) : alpha(red, 0.22),
@@ -443,7 +553,7 @@ const Cash = () => {
         </>
       )}
 
-      {/* ── Cash add dialog ── */}
+      {/* Cash add dialog */}
       <AddDialog
         open={!!cashDlg} dir={cashDlg}
         reasons={cashDlg === 'in' ? CASH_IN_REASONS : CASH_OUT_REASONS}
@@ -451,12 +561,20 @@ const Cash = () => {
         accentIn={green} accentOut={red} isMobile={isMobile} t={t}
       />
 
-      {/* ── Bank add dialog ── */}
+      {/* Bank add dialog */}
       <AddDialog
         open={!!bankDlg} dir={bankDlg}
         reasons={bankDlg === 'bank_in' ? BANK_IN_REASONS : BANK_OUT_REASONS}
         onClose={() => setBankDlg(null)} onSave={saveBankEntry}
         accentIn={green} accentOut={red} isMobile={isMobile} t={t}
+      />
+
+      {/* Cash ↔ Bank transfer dialog */}
+      <TransferDialog
+        open={transferDlg}
+        onClose={() => setTransferDlg(false)} onSave={saveTransfer}
+        cashBalance={cash.balance} bankBalance={bank.balance}
+        isMobile={isMobile} t={t}
       />
 
     </Box>

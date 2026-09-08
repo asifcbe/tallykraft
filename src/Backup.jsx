@@ -1,18 +1,21 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
   Box, Button, Card, CardContent, Typography, Grid,
-  CircularProgress, Alert, Paper, TextField, Switch, FormControlLabel,
-  InputAdornment
+  CircularProgress, Alert, Paper
 } from '@mui/material';
-import { Download, Upload, CloudUpload, CloudDownload, AlertCircle, Folder, Crown } from 'lucide-react';
+import { Download, Upload, CloudUpload, CloudDownload, AlertCircle, RefreshCw, ArrowRight } from 'lucide-react';
 import { useData } from './DataContext';
 import { useConfig } from './ConfigContext';
-import { useDialog } from './DialogContext';
 import { useSubscription } from './SubscriptionContext';
+import { useBusiness } from './BusinessContext';
+import { useDialog } from './DialogContext';
 import { useI18n } from './i18n/I18nContext';
+import { useTabs } from './TabsContext';
+import { getAllImagesForBusiness, restoreReferenceImage } from './referenceImages';
 
 const Backup = () => {
   const { confirm } = useDialog();
+  const { openTab } = useTabs();
   const {
     data,
     allBusinessData,
@@ -28,10 +31,12 @@ const Backup = () => {
   const currentBizKey = String(currentBusinessId);
   const currentBizName = allBusinessData[currentBizKey]?.name || 'Business';
   const { config } = useConfig();
-  const { isBusinessProPlan } = useSubscription();
   const { t } = useI18n();
-  // Online/cloud backup is a Pro (₹299) feature, per business.
-  const isPro = isBusinessProPlan(currentBusinessId);
+  const { currentBusiness } = useBusiness();
+  const { isBusinessActive } = useSubscription();
+  // Cloud backup/restore requires an active subscription for the current
+  // business (every active plan is cloud-sync in TallyKraft).
+  const isPro = isBusinessActive(currentBusiness?.id);
   const canExportFile = config.features?.backupExportFile !== false;
   const canRestoreFile = config.features?.backupRestoreFile !== false;
   const canBackupOnline = isPro && config.features?.backupOnline !== false;
@@ -40,31 +45,6 @@ const Backup = () => {
   const [loading, setLoading] = useState(false);
   const [onlineLoading, setOnlineLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [autoBackup, setAutoBackup] = useState(() => localStorage.getItem('tallykraft_autoBackup') === 'true');
-  const [backupFolder, setBackupFolder] = useState(() => localStorage.getItem('tallykraft_backupFolder') || '');
-
-  useEffect(() => {
-    localStorage.setItem('tallykraft_autoBackup', autoBackup);
-  }, [autoBackup]);
-
-  useEffect(() => {
-    localStorage.setItem('tallykraft_backupFolder', backupFolder);
-  }, [backupFolder]);
-
-  useEffect(() => {
-    const handleBeforeUnload = () => {
-      const bKey = String(currentBusinessId);
-      const biz = allBusinessData?.[bKey];
-      if (autoBackup && biz) {
-        try {
-          const payload = JSON.stringify({ businesses: { [bKey]: biz }, exportedAt: new Date().toISOString() });
-          localStorage.setItem('tallykraft_autobackup', payload);
-        } catch (_) {}
-      }
-    };
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
-  }, [autoBackup, allBusinessData, currentBusinessId]);
 
   const exportData = async () => {
     setLoading(true);
@@ -81,14 +61,61 @@ const Backup = () => {
         exportedAt: new Date().toISOString()
       };
       const safeName = currentBizName.replace(/[^a-z0-9]/gi, '_').toLowerCase();
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-      link.download = `tallykraft_${safeName}_${new Date().toISOString().split('T')[0]}.json`;
-      link.click();
-      URL.revokeObjectURL(url);
-      setMessage({ type: 'success', text: `Backup for "${currentBizName}" exported successfully!` });
+      const dateStamp = new Date().toISOString().split('T')[0];
+
+      // Reference images (Sales/Purchases attachments) live only in local
+      // IndexedDB — never in `biz`/Firestore — so they have to be pulled in
+      // separately here rather than already being part of the payload above.
+      const images = await getAllImagesForBusiness(currentBizKey).catch(() => []);
+
+      let includeImages = false;
+      if (images.length > 0) {
+        includeImages = await confirm({
+          title: 'Include reference images?',
+          message: `This business has ${images.length} reference image${images.length !== 1 ? 's' : ''} attached to sales/purchases, stored only on this device. Include them in the backup as a .zip with an images/ folder? Choosing "No backup" exports the data only (JSON), without images.`,
+          confirmLabel: 'Yes, include images',
+          cancelLabel: 'No, data only',
+        });
+      }
+
+      if (includeImages) {
+        const { default: JSZip } = await import('jszip');
+        const zip = new JSZip();
+        zip.file('data.json', JSON.stringify(payload, null, 2));
+        const imagesFolder = zip.folder('images');
+        // Human-readable filenames (INV-0001_A.jpg) go in images/ for the
+        // user to browse directly, but restoring needs the real recordId
+        // (filenames are built from invoice NUMBER, which isn't guaranteed
+        // unique/stable the way the record's internal id is) — so a
+        // manifest travels alongside mapping each file back to its record.
+        const manifest = [];
+        images.forEach((img) => {
+          const fileName = img.fileName || `${img.recordId}_${img.letter || 'X'}.jpg`;
+          imagesFolder.file(fileName, img.blob);
+          manifest.push({
+            fileName, recordId: img.recordId, table: img.table,
+            businessId: img.businessId, letter: img.letter,
+          });
+        });
+        zip.file('images-manifest.json', JSON.stringify(manifest, null, 2));
+        const zipBlob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(zipBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `tallykraft_${safeName}_${dateStamp}.zip`;
+        link.click();
+        URL.revokeObjectURL(url);
+        setMessage({ type: 'success', text: `Backup for "${currentBizName}" (with ${images.length} image${images.length !== 1 ? 's' : ''}) exported successfully!` });
+      } else {
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `tallykraft_${safeName}_${dateStamp}.json`;
+        link.click();
+        URL.revokeObjectURL(url);
+        setMessage({ type: 'success', text: `Backup for "${currentBizName}" exported successfully!` });
+      }
     } catch (error) {
       setMessage({ type: 'error', text: 'Export failed: ' + error.message });
     }
@@ -104,14 +131,56 @@ const Backup = () => {
     setLoading(true);
     setMessage({ type: '', text: '' });
     try {
-      const text = await file.text();
+      const isZip = file.name.toLowerCase().endsWith('.zip');
+      let text;
+      let pendingImages = null; // [{ fileName, recordId, table, businessId, letter, blob }]
+
+      if (isZip) {
+        const { default: JSZip } = await import('jszip');
+        const zip = await JSZip.loadAsync(file);
+        const dataEntry = zip.file('data.json');
+        if (!dataEntry) throw new Error('This .zip does not contain a data.json — not a valid TallyKraft backup.');
+        text = await dataEntry.async('string');
+
+        const manifestEntry = zip.file('images-manifest.json');
+        if (manifestEntry) {
+          const manifest = JSON.parse(await manifestEntry.async('string'));
+          pendingImages = await Promise.all(manifest.map(async (m) => {
+            const entry = zip.file(`images/${m.fileName}`);
+            if (!entry) return null;
+            const blob = await entry.async('blob');
+            return { ...m, blob };
+          }));
+          pendingImages = pendingImages.filter(Boolean);
+        }
+      } else {
+        text = await file.text();
+      }
+
       const parsed = JSON.parse(text);
       const businesses = parsed.businesses && typeof parsed.businesses === 'object' ? parsed.businesses : null;
 
       if (businesses && Object.keys(businesses).length > 0) {
         const result = await restoreFromFile(businesses);
         if (result.success) {
-          setMessage({ type: 'success', text: 'Data restored successfully! Reloading...' });
+          // restoreFromFile preserves each sale/purchase row's original id
+          // (see DataContext.jsx), so images can be re-associated by the
+          // recordId recorded in the manifest with no remapping needed.
+          if (pendingImages?.length) {
+            await Promise.all(pendingImages.map((img) =>
+              restoreReferenceImage({
+                recordId: img.recordId, table: img.table,
+                businessId: currentBizKey, letter: img.letter,
+                fileName: img.fileName, blob: img.blob,
+              }).catch((e) => console.error('[importData] image restore failed:', img.fileName, e))
+            ));
+          }
+          setMessage({
+            type: 'success',
+            text: pendingImages?.length
+              ? `Data restored with ${pendingImages.length} image${pendingImages.length !== 1 ? 's' : ''} successfully! Reloading...`
+              : 'Data restored successfully! Reloading...',
+          });
           event.target.value = '';
           setTimeout(() => window.location.reload(), 1200);
         } else {
@@ -198,11 +267,42 @@ const Backup = () => {
   };
 
   return (
-    <Box sx={{ maxWidth: 1100, mx: 'auto' }}>
+    <Box sx={{ mx: 0 }}>
       <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1rem', mb: 1 }}>{t('backup.title')}</Typography>
       <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
         All backup and restore operations apply to the current business: <strong>{currentBizName}</strong>.
       </Typography>
+
+      {/* Migration banner */}
+      <Box sx={{
+        display: 'flex', alignItems: 'center', gap: 2, flexWrap: 'wrap',
+        p: 2, mb: 2.5, borderRadius: 2.5,
+        background: 'linear-gradient(135deg, #134e4a 0%, #0f766e 50%, #0d9488 100%)',
+      }}>
+        <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', flexShrink: 0 }}>
+          <RefreshCw size={20} color="white" />
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ color: 'white', fontWeight: 800, fontSize: '0.95rem', lineHeight: 1.2 }}>
+            Switching from Vyapar or My Bill Book?
+          </Typography>
+          <Typography sx={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.8rem' }}>
+            Import your Items, Customers, Vendors, Sales & Purchases in one step.
+          </Typography>
+        </Box>
+        <Button
+          variant="contained"
+          onClick={() => openTab('/migrate', 'Migrate Data')}
+          endIcon={<ArrowRight size={15} />}
+          sx={{
+            textTransform: 'none', fontWeight: 700, borderRadius: 2, flexShrink: 0,
+            bgcolor: 'rgba(255,255,255,0.2)', color: 'white', border: '1px solid rgba(255,255,255,0.3)',
+            '&:hover': { bgcolor: 'rgba(255,255,255,0.3)' },
+          }}
+        >
+          Migrate Data
+        </Button>
+      </Box>
 
       {message.text && (
         <Alert severity={message.type} sx={{ mb: 2 }} onClose={() => setMessage({ type: '', text: '' })}>
@@ -253,7 +353,7 @@ const Backup = () => {
                   startIcon={loading ? <CircularProgress size={16} /> : <Upload size={16} />}
                 >
                   Upload
-                  <input type="file" hidden accept=".json" onChange={importData} />
+                  <input type="file" hidden accept=".json,.zip" onChange={importData} />
                 </Button>
               </CardContent>
             </Card>
@@ -310,68 +410,15 @@ const Backup = () => {
           </Grid>
         )}
 
-        {/* Upsell — online backup is a Pro (₹299) feature */}
-        {!isPro && (
-          <Grid item xs={12} sm={6} md={6}>
-            <Card elevation={0} sx={{ borderRadius: 1.5, border: '1px dashed', borderColor: 'warning.main', bgcolor: (t) => t.palette.mode === 'light' ? '#fffbeb' : 'rgba(217,119,6,0.08)' }}>
-              <CardContent sx={{ py: 2, px: 2, display: 'flex', alignItems: 'center', gap: 2 }}>
-                <Box sx={{ color: 'warning.main', flexShrink: 0 }}><Crown size={34} /></Box>
-                <Box sx={{ flex: 1, minWidth: 0 }}>
-                  <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.25 }}>Online cloud backup is a Pro feature</Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
-                    Upgrade this business to the <strong>Pro plan (₹299/mo)</strong> to back up & restore from the cloud and sync across devices. Local file backup stays free.
-                  </Typography>
-                </Box>
-                <Button
-                  variant="contained"
-                  color="warning"
-                  size="small"
-                  startIcon={<Crown size={16} />}
-                  onClick={() => { window.location.href = `/subscribe?bId=${currentBusinessId || 1}`; }}
-                  sx={{ flexShrink: 0, fontWeight: 700, textTransform: 'none' }}
-                >
-                  Upgrade
-                </Button>
-              </CardContent>
-            </Card>
-          </Grid>
-        )}
-
-        <Grid item xs={12}>
-          <Card elevation={0} sx={{ borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
-            <CardContent sx={{ py: 2, px: 2 }}>
-              <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 1.5 }}>Options</Typography>
-              <Grid container spacing={2} alignItems="center">
-                <Grid item xs={12} md={8}>
-                  <TextField
-                    fullWidth
-                    size="small"
-                    label="Backup folder hint"
-                    value={backupFolder}
-                    onChange={(e) => setBackupFolder(e.target.value)}
-                    helperText="Reminder where you save backups."
-                    InputProps={{ startAdornment: <InputAdornment position="start"><Folder size={18} /></InputAdornment> }}
-                  />
-                </Grid>
-                <Grid item xs={12} md={4}>
-                  <FormControlLabel
-                    control={<Switch checked={autoBackup} onChange={(e) => setAutoBackup(e.target.checked)} color="primary" />}
-                    label={<Typography variant="body2">Snapshot on close</Typography>}
-                  />
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
-        </Grid>
       </Grid>
 
       <Paper sx={{ mt: 2, p: 2, bgcolor: 'action.hover', borderRadius: 1.5 }} variant="outlined">
         <Box sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
           <AlertCircle size={20} color="text.secondary" />
           <Box>
-            <Typography variant="caption" sx={{ fontWeight: 600 }}>Why backup?</Typography>
+            <Typography variant="caption" sx={{ fontWeight: 600 }}>Auto-save is enabled</Typography>
             <Typography variant="caption" color="text.secondary" display="block">
-              Your data is stored on this device. Use &quot;Backup to Online&quot; or &quot;Download&quot; to keep a copy.
+              Every change is automatically saved to the cloud (Firestore). Use &quot;Backup to Online&quot; for a manual snapshot, or &quot;Download&quot; to keep a local JSON copy.
             </Typography>
           </Box>
         </Box>

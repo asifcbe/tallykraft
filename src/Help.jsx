@@ -189,28 +189,11 @@ const SECTIONS = [
       'Business Profile: shop name, address, GSTIN, phone, logo, signature.',
       'Features: switch modules on/off — POS, Estimates, Barcodes, Stock Alert.',
       'Invoice: paper size, tax mode, prefix, bill sections.',
-      'Theme: light/dark mode and accent colour.',
       'Language: English, Hindi, Tamil, Telugu, and more.',
     ],
     tips: [
       'Upload your logo in Business Profile — it prints on every invoice.',
       'Enter your GSTIN so it appears on all bills automatically.',
-    ],
-  },
-  {
-    id: 'subscription', icon: Shield, color: '#f59e0b',
-    title: 'Plans & Subscription',
-    summary: 'Free trial, Basic, and Pro plans — what\'s included and how to renew.',
-    steps: [
-      'Every new business starts with a 3-day free trial — all features unlocked.',
-      'After the trial: data is visible but you cannot create, edit, print, or export.',
-      'Tap the pill in the top bar or go to Subscribe to choose a plan.',
-      'Basic: data stored locally on this device only.',
-      'Pro: cloud sync — log in on any device and see the same data.',
-    ],
-    tips: [
-      'Pro plan backs up data to the cloud in real time.',
-      'Basic plan data is safe unless browser storage is cleared.',
     ],
   },
   {
@@ -222,7 +205,6 @@ const SECTIONS = [
       'Tap "Download Backup" to save all your data as a file.',
       'Tap "Restore from Backup" and select the file to restore.',
       'Good habit: download a backup once a week.',
-      'Pro plan users get automatic cloud backup in real time.',
     ],
     tips: [
       'Save backup files to Google Drive to protect against device loss or reset.',
@@ -252,7 +234,6 @@ const SECTIONS = [
       'Add a second business: Settings → My Businesses → Add Business.',
       'Switch businesses using the switcher at the top of the sidebar.',
       'Each business has its own data, invoices, parties, and subscription.',
-      'Multi-device: subscribe to Pro → log in on any device → data syncs.',
       'Invite staff: Settings → Staff Management.',
     ],
     tips: [
@@ -264,7 +245,7 @@ const SECTIONS = [
 
 // Group sections for the overview grid
 const GROUPS = [
-  { label: 'Get started', ids: ['dashboard', 'settings', 'subscription'] },
+  { label: 'Get started', ids: ['dashboard', 'settings'] },
   { label: 'Daily transactions', ids: ['sales', 'purchases', 'pos', 'payments', 'expenses'] },
   { label: 'Manage data', ids: ['parties', 'items', 'cash'] },
   { label: 'Reports & tools', ids: ['reports', 'print', 'backup', 'multidevice'] },
@@ -285,7 +266,6 @@ const DetailPanel = ({ section, onClose }) => {
       display: 'flex',
       alignItems: 'flex-end',
       justifyContent: 'center',
-      // overlay
       '&::before': {
         content: '""',
         position: 'absolute',
@@ -308,7 +288,6 @@ const DetailPanel = ({ section, onClose }) => {
           bgcolor: isDark ? '#111827' : '#fff',
           boxShadow: '0 -8px 40px rgba(0,0,0,0.2)',
           pb: 4,
-          // hide scrollbar visually
           scrollbarWidth: 'none',
           '&::-webkit-scrollbar': { display: 'none' },
         }}
@@ -327,7 +306,6 @@ const DetailPanel = ({ section, onClose }) => {
           position: 'relative',
           overflow: 'hidden',
         }}>
-          {/* decorative circles */}
           <Box sx={{ position: 'absolute', top: -30, right: -20, width: 100, height: 100, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.08)', pointerEvents: 'none' }} />
           <Box sx={{ position: 'absolute', bottom: -20, right: 60, width: 60, height: 60, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
 

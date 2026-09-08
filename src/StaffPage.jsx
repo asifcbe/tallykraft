@@ -14,7 +14,12 @@ import {
 } from 'lucide-react';
 import { useData } from './DataContext';
 import { useBusiness } from './BusinessContext';
+import { useAuth } from './AuthContext';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
+import { firestore } from './db';
+import { doc, setDoc, deleteDoc } from 'firebase/firestore';
+import { useBusinessAuthDoc } from './businessCode';
+import { resolveMaxStaff, DEFAULT_MAX_STAFF } from './businessLimits';
 
 const DAYS_IN_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -32,8 +37,8 @@ const ROLES = ['Manager', 'Cashier', 'Sales Staff', 'Delivery', 'Accountant', 'H
 const fmt = (n) => new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 }).format(n || 0);
 
 const roleColor = (role) => {
-  const map = { Manager: '#6366f1', Cashier: '#0ea5e9', 'Sales Staff': '#22c55e', Delivery: '#f59e0b', Accountant: '#8b5cf6', Helper: '#64748b', Security: '#ef4444', Other: '#64748b' };
-  return map[role] || '#6366f1';
+  const map = { Manager: '#111111', Cashier: '#3f3f46', 'Sales Staff': '#22c55e', Delivery: '#f59e0b', Accountant: '#8b5cf6', Helper: '#64748b', Security: '#ef4444', Other: '#64748b' };
+  return map[role] || '#111111';
 };
 
 const initials = (name = '') => name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2) || '?';
@@ -51,14 +56,63 @@ export default function StaffPage() {
   const isDark = theme.palette.mode === 'dark';
 
   const { currentBusiness } = useBusiness();
+  const { currentBusiness: authBusiness, currentUser, staffSession } = useAuth();
   const { addItem, updateItem, deleteItem, getItems } = useData();
   const bId = currentBusiness?.id;
+  const firestoreBizId = authBusiness?.id || bId;
+
+  const syncToStaffAccounts = async (id, record, password = '') => {
+    if (!firestoreBizId) return;
+    try {
+      const payload = {
+        id,
+        name: record.name,
+        username: record.username || '',
+        active: record.status !== 'inactive',
+        features: record.features || {},
+        role: record.role || '',
+        phone: record.phone || '',
+        email: record.email || '',
+        salary: record.salary || 0,
+        salaryType: record.salaryType || 'monthly',
+        joiningDate: record.joiningDate || '',
+        notes: record.notes || '',
+        showInSalesSelector: !!record.showInSalesSelector,
+        businessId: String(bId),
+        ...(password ? { password } : {}),
+      };
+      await setDoc(
+        doc(firestore, 'businesses', firestoreBizId, 'staffAccounts', id),
+        payload,
+        { merge: true }
+      );
+    } catch (e) {
+      console.warn('[StaffPage] staffAccounts sync failed:', e);
+    }
+  };
+
+  const deleteFromStaffAccounts = async (id) => {
+    if (!firestoreBizId) return;
+    try {
+      await deleteDoc(doc(firestore, 'businesses', firestoreBizId, 'staffAccounts', id));
+    } catch (e) {
+      console.warn('[StaffPage] staffAccounts delete failed:', e);
+    }
+  };
 
   const rawMembers = getItems('staffMembers').filter(s => s.businessId === bId);
   const rawAttendance = getItems('staffAttendance').filter(s => s.businessId === bId);
   const rawSalary = getItems('staffSalary').filter(s => s.businessId === bId);
 
+  // Super-admin per-business staff cap (Admin → Businesses → Usage Limits).
+  const ownerUidForLimits = currentUser?.uid || staffSession?.ownerUid || null;
+  const limitsBizDoc = useBusinessAuthDoc(currentBusiness, ownerUidForLimits);
+  const maxStaff = resolveMaxStaff(limitsBizDoc);
+  const staffCount = rawMembers.filter(m => m.status !== 'inactive').length;
+  const atStaffCap = staffCount >= maxStaff;
+
   const [tab, setTab] = useState(0);
+  const [dlgTab, setDlgTab] = useState(0);
   const [search, setSearch] = useState('');
   const [reportFrom, setReportFrom] = useState(() => {
     const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
@@ -69,6 +123,7 @@ export default function StaffPage() {
   const [memberDialog, setMemberDialog] = useState({ open: false, editing: null });
   const [memberForm, setMemberForm] = useState({});
   const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [memberError, setMemberError] = useState('');
 
   // ─ Attendance state ─
   const t = today();
@@ -78,6 +133,9 @@ export default function StaffPage() {
   // ─ Salary state ─
   const [salMonth, setSalMonth] = useState(t.month);
   const [salYear, setSalYear] = useState(t.year);
+  const [salPayDialog, setSalPayDialog] = useState(null); // { member, netSalary, existing }
+  const [salPayForm, setSalPayForm] = useState({ paymentMode: 'Cash', cashAmt: '', bankAmt: '', date: new Date().toISOString().split('T')[0], notes: '' });
+  const [salPayError, setSalPayError] = useState('');
 
   const activeMembers = rawMembers.filter(m => m.status !== 'inactive');
   const filteredMembers = rawMembers.filter(m =>
@@ -95,13 +153,13 @@ export default function StaffPage() {
   const attKey = (staffId, day) => `${staffId}_${attYear}-${String(attMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   const attMap = useMemo(() => {
     const m = {};
-    rawAttendance.forEach(a => { m[`${a.staffId}_${a.date}`] = a; });
+    rawAttendance.forEach(a => { m[`${String(a.staffId)}_${a.date}`] = a; });
     return m;
   }, [rawAttendance]);
 
   const getAtt = (staffId, day) => {
     const dateStr = `${attYear}-${String(attMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-    return attMap[`${staffId}_${dateStr}`];
+    return attMap[`${String(staffId)}_${dateStr}`];
   };
 
   const cycleAttendance = (staffId, staffName, day) => {
@@ -159,45 +217,125 @@ export default function StaffPage() {
   };
 
   const getSalaryRecord = (staffId) =>
-    rawSalary.find(s => s.staffId === staffId && s.month === salMonth && s.year === salYear);
+    rawSalary.find(s => String(s.staffId) === String(staffId) && s.month === salMonth && s.year === salYear);
 
-  const toggleSalaryPaid = (member) => {
+  const openSalaryPayDialog = (member) => {
     const existing = getSalaryRecord(member.id);
     const net = calcNetSalary(member, salYear, salMonth);
-    if (existing) {
-      if (existing.status === 'paid') {
-        updateItem('staffSalary', existing.id, { status: 'pending', paidDate: null });
-      } else {
-        updateItem('staffSalary', existing.id, { status: 'paid', paidDate: new Date().toISOString() });
-      }
-    } else {
-      addItem('staffSalary', {
-        businessId: bId, staffId: member.id, staffName: member.name,
-        month: salMonth, year: salYear,
-        baseSalary: member.salary || 0, netSalary: net,
-        status: 'paid', paidDate: new Date().toISOString(),
-        id: Date.now() + Math.random(),
-      });
+    if (existing?.status === 'paid') {
+      // Already paid — toggle back to pending directly
+      updateItem('staffSalary', existing.id, { status: 'pending', paidDate: null });
+      return;
     }
+    setSalPayForm({ paymentMode: 'Cash', cashAmt: String(net), bankAmt: '', date: new Date().toISOString().split('T')[0], notes: '' });
+    setSalPayError('');
+    setSalPayDialog({ member, netSalary: net, existing });
+  };
+
+  const confirmSalaryPayment = async () => {
+    if (!salPayDialog) return;
+    const { member, netSalary, existing } = salPayDialog;
+    const { paymentMode, cashAmt, bankAmt, date, notes } = salPayForm;
+
+    // DataContext.addItem silently rejects (returns false, no throw) any
+    // expenses record with amount <= 0 — a zero net salary (e.g. daily-wage
+    // staff with no attendance marked that month) would otherwise flip the
+    // salary to "paid" while the expense record never actually gets created.
+    if (!netSalary || netSalary <= 0) {
+      setSalPayError('Net salary is ₹0 — check attendance/salary amount before marking as paid.');
+      return;
+    }
+
+    let cashPart = 0, bankPart = 0;
+    if (paymentMode === 'Cash') { cashPart = netSalary; }
+    else if (paymentMode === 'Bank') { bankPart = netSalary; }
+    else { cashPart = Number(cashAmt) || 0; bankPart = Number(bankAmt) || 0; }
+
+    const paidDate = new Date(date || undefined).toISOString();
+    const monthName_ = new Date(salYear, salMonth, 1).toLocaleString('en-IN', { month: 'long' });
+
+    // Save/update salary record
+    if (existing) {
+      await updateItem('staffSalary', existing.id, { status: 'paid', paidDate, paymentMode, cashAmt: cashPart, bankAmt: bankPart });
+    } else {
+      const saved = await addItem('staffSalary', {
+        id: crypto.randomUUID(), businessId: bId, staffId: member.id, staffName: member.name,
+        month: salMonth, year: salYear,
+        baseSalary: member.salary || 0, netSalary,
+        status: 'paid', paidDate, paymentMode, cashAmt: cashPart, bankAmt: bankPart,
+      });
+      if (!saved) { setSalPayError('Failed to save salary record. Please try again.'); return; }
+    }
+
+    // Record as expense
+    const expenseSaved = await addItem('expenses', {
+      id: crypto.randomUUID(), businessId: bId,
+      date: date || new Date().toISOString().split('T')[0],
+      category: 'Staff Salary',
+      description: `Salary — ${member.name} (${monthName_} ${salYear})`,
+      amount: netSalary,
+      paymentMode,
+      ...(paymentMode === 'Split' ? { paymentSplit: { cashAmt: cashPart, bankAmt: bankPart } } : {}),
+      notes: notes || '',
+    });
+    if (!expenseSaved) {
+      setSalPayError('Salary marked as paid, but the expense record failed to save. Please add it manually from Expenses.');
+      return;
+    }
+
+    setSalPayError('');
+    setSalPayDialog(null);
   };
 
   // ─ Member dialog ─
   const openAddMember = () => {
-    setMemberForm({ name: '', role: 'Sales Staff', phone: '', email: '', salary: '', salaryType: 'monthly', joiningDate: '', notes: '', status: 'active' });
+    if (atStaffCap) return;
+    setMemberError('');
+    setDlgTab(0);
+    setMemberForm({ name: '', username: '', password: '', role: 'Sales Staff', phone: '', email: '', salary: '', salaryType: 'monthly', joiningDate: '', notes: '', status: 'active', features: {}, showInSalesSelector: false });
     setMemberDialog({ open: true, editing: null });
   };
   const openEditMember = (m) => {
-    setMemberForm({ ...m });
+    setMemberError('');
+    setDlgTab(0);
+    setMemberForm({ features: {}, showInSalesSelector: false, username: '', password: '', ...m });
     setMemberDialog({ open: true, editing: m });
   };
-  const saveMember = () => {
-    if (!memberForm.name?.trim()) return;
-    const record = { ...memberForm, salary: Number(memberForm.salary) || 0, businessId: bId };
-    if (memberDialog.editing) {
-      updateItem('staffMembers', memberDialog.editing.id, record);
-    } else {
-      addItem('staffMembers', { ...record, id: Date.now() });
+  const saveMember = async () => {
+    setMemberError('');
+    if (!memberForm.name?.trim()) { setMemberError('Name is required.'); return; }
+    if (!bId) { setMemberError('No business selected.'); return; }
+    if (!memberDialog.editing && atStaffCap) {
+      setMemberError(`Staff limit reached (${maxStaff}). Contact your administrator to raise it.`);
+      return;
     }
+    const record = {
+      name: memberForm.name.trim(),
+      username: (memberForm.username || '').trim().toLowerCase().replace(/\s/g, ''),
+      role: memberForm.role || 'Sales Staff',
+      phone: memberForm.phone || '',
+      email: memberForm.email || '',
+      salary: Number(memberForm.salary) || 0,
+      salaryType: memberForm.salaryType || 'monthly',
+      joiningDate: memberForm.joiningDate || '',
+      notes: memberForm.notes || '',
+      status: memberForm.status || 'active',
+      features: memberForm.features || {},
+      showInSalesSelector: !!memberForm.showInSalesSelector,
+      businessId: bId,
+    };
+    let savedId;
+    if (memberDialog.editing) {
+      const ok = updateItem('staffMembers', memberDialog.editing.id, record);
+      if (!ok) { setMemberError('Failed to save. Please try again.'); return; }
+      savedId = memberDialog.editing.id;
+    } else {
+      const id = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `staff_${Date.now()}`;
+      const ok = addItem('staffMembers', { ...record, id });
+      if (!ok) { setMemberError('Failed to save. Make sure you are logged in and try again.'); return; }
+      savedId = id;
+    }
+    await syncToStaffAccounts(savedId, record, memberForm.password || '');
     setMemberDialog({ open: false, editing: null });
   };
 
@@ -224,11 +362,11 @@ export default function StaffPage() {
   );
 
   return (
-    <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 1320, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, sm: 3 }, mx: 0 }}>
       {/* ── Hero ── */}
       <Box sx={{
         borderRadius: 4,
-        background: 'linear-gradient(135deg, #1e1b4b 0%, #3730a3 55%, #4f46e5 100%)',
+        background: 'linear-gradient(135deg, #134e4a 0%, #0f766e 50%, #0d9488 100%)',
         p: { xs: 2.5, sm: 3.5 },
         mb: 3,
         position: 'relative',
@@ -241,14 +379,19 @@ export default function StaffPage() {
             <Typography variant="h5" sx={{ fontWeight: 800, color: '#fff', mb: 0.5 }}>Staff Management</Typography>
             <Typography variant="body2" sx={{ color: alpha('#fff', 0.7) }}>Manage your team, track attendance and process payroll</Typography>
           </Box>
-          <Button
-            variant="contained"
-            startIcon={<Plus size={16} />}
-            onClick={openAddMember}
-            sx={{ bgcolor: alpha('#fff', 0.15), color: '#fff', backdropFilter: 'blur(4px)', borderRadius: 2, fontWeight: 600, border: `1px solid ${alpha('#fff', 0.2)}`, '&:hover': { bgcolor: alpha('#fff', 0.25) } }}
-          >
-            Add Staff
-          </Button>
+          <Tooltip title={atStaffCap ? `Staff limit reached (${maxStaff} of ${maxStaff}). Contact your administrator to raise it.` : ''}>
+            <span>
+              <Button
+                variant="contained"
+                startIcon={<Plus size={16} />}
+                onClick={openAddMember}
+                disabled={atStaffCap}
+                sx={{ bgcolor: alpha('#fff', 0.15), color: '#fff', backdropFilter: 'blur(4px)', borderRadius: 2, fontWeight: 600, border: `1px solid ${alpha('#fff', 0.2)}`, '&:hover': { bgcolor: alpha('#fff', 0.25) }, '&.Mui-disabled': { color: alpha('#fff', 0.4), bgcolor: alpha('#fff', 0.06) } }}
+              >
+                {atStaffCap ? `Staff ${staffCount}/${maxStaff}` : 'Add Staff'}
+              </Button>
+            </span>
+          </Tooltip>
         </Box>
         <Box sx={{ display: 'flex', gap: { xs: 3, sm: 5 }, mt: 3, flexWrap: 'wrap' }}>
           <StatCard icon={Users} value={activeMembers.length} label="Total Active Staff" color="#a5b4fc" />
@@ -547,7 +690,7 @@ export default function StaffPage() {
                             size="small"
                             color={isPaid ? 'success' : 'primary'}
                             startIcon={isPaid ? <Check size={14} /> : <DollarSign size={14} />}
-                            onClick={() => toggleSalaryPaid(m)}
+                            onClick={() => openSalaryPayDialog(m)}
                             sx={{ borderRadius: 2, fontWeight: 600, mt: 0.5 }}
                           >
                             {isPaid ? 'Mark as Unpaid' : 'Mark as Paid'}
@@ -646,117 +789,258 @@ export default function StaffPage() {
       })()}
 
       {/* ══ ADD / EDIT MEMBER DIALOG ══════════════════════════════════════════ */}
-      <Dialog open={memberDialog.open} onClose={() => setMemberDialog({ open: false, editing: null })} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
-        <DialogTitle sx={{ fontWeight: 700, pb: 0 }}>
-          {memberDialog.editing ? 'Edit Staff Member' : 'Add Staff Member'}
-        </DialogTitle>
-        <DialogContent sx={{ pt: 2 }}>
-          <Grid container spacing={2} sx={{ mt: 0 }}>
-            <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Full Name" size="small" value={memberForm.name || ''} onChange={e => setMemberForm(f => ({ ...f, name: e.target.value }))} required />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Role</InputLabel>
-                <Select label="Role" value={memberForm.role || 'Sales Staff'} onChange={e => setMemberForm(f => ({ ...f, role: e.target.value }))}>
-                  {ROLES.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Phone" size="small" value={memberForm.phone || ''} onChange={e => setMemberForm(f => ({ ...f, phone: e.target.value }))} />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Email" size="small" value={memberForm.email || ''} onChange={e => setMemberForm(f => ({ ...f, email: e.target.value }))} />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Salary Amount (₹)" size="small" type="number" value={memberForm.salary || ''} onChange={e => setMemberForm(f => ({ ...f, salary: e.target.value }))} />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Salary Type</InputLabel>
-                <Select label="Salary Type" value={memberForm.salaryType || 'monthly'} onChange={e => setMemberForm(f => ({ ...f, salaryType: e.target.value }))}>
-                  {SALARY_TYPES.map(t => <MenuItem key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</MenuItem>)}
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <TextField fullWidth label="Joining Date" size="small" type="date" InputLabelProps={{ shrink: true }} value={memberForm.joiningDate || ''} onChange={e => setMemberForm(f => ({ ...f, joiningDate: e.target.value }))} />
-            </Grid>
-            <Grid item xs={12} sm={6}>
-              <FormControl fullWidth size="small">
-                <InputLabel>Status</InputLabel>
-                <Select label="Status" value={memberForm.status || 'active'} onChange={e => setMemberForm(f => ({ ...f, status: e.target.value }))}>
-                  <MenuItem value="active">Active</MenuItem>
-                  <MenuItem value="inactive">Inactive</MenuItem>
-                </Select>
-              </FormControl>
-            </Grid>
-            <Grid item xs={12}>
-              <FormControlLabel
-                control={<Switch checked={!!memberForm.showInSalesSelector} onChange={e => setMemberForm(f => ({ ...f, showInSalesSelector: e.target.checked }))} />}
-                label="Show in Sales / POS staff selector"
-              />
-            </Grid>
-            <Grid item xs={12}>
-              <Divider sx={{ my: 0.5 }} />
-              <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                Section Access (for staff login)
-              </Typography>
-              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
-                {[
-                  { key: 'dashboard', label: 'Dashboard' },
-                  { key: 'parties', label: 'Parties' },
-                  { key: 'items', label: 'Items' },
-                  { key: 'pos', label: 'POS' },
-                  { key: 'sales', label: 'Sales' },
-                  { key: 'purchases', label: 'Purchases' },
-                  { key: 'expenses', label: 'Expenses' },
-                  { key: 'payments', label: 'Payments' },
-                  { key: 'cash', label: 'Cash & Bank' },
-                  { key: 'reports', label: 'Reports' },
-                  { key: 'estimates', label: 'Estimates' },
-                  { key: 'creditNotes', label: 'Credit Notes' },
-                  { key: 'debitNotes', label: 'Debit Notes' },
-                  { key: 'deliveryNotes', label: 'Delivery Notes' },
-                  { key: 'ledger', label: 'Ledger' },
-                  { key: 'membership', label: 'Membership' },
-                  { key: 'opticals', label: 'Opticals' },
-                  { key: 'viewPurchasePrice', label: 'View Purchase Price' },
-                ].map(({ key, label }) => {
-                  const on = !!(memberForm.features || {})[key];
-                  return (
-                    <Chip
-                      key={key}
-                      label={label}
-                      size="small"
-                      clickable
-                      onClick={() => setMemberForm(f => ({ ...f, features: { ...(f.features || {}), [key]: !on } }))}
-                      sx={{
-                        fontWeight: 600, fontSize: '0.72rem',
-                        bgcolor: on ? 'primary.main' : 'action.hover',
-                        color: on ? '#fff' : 'text.secondary',
-                        '&:hover': { opacity: 0.85 },
-                      }}
-                    />
-                  );
-                })}
+      {(() => {
+        const dialogTabs = ['Profile', 'Salary & Login', 'Access'];
+        const sf = (key) => memberForm[key] ?? '';
+        const upd = (key) => (e) => setMemberForm(f => ({ ...f, [key]: e.target.value }));
+        const featOn = (key) => !!(memberForm.features || {})[key];
+        const toggleFeat = (key) => setMemberForm(f => ({ ...f, features: { ...(f.features || {}), [key]: !featOn(key) } }));
+        const ACCESS_ITEMS = [
+          { key: 'dashboard', label: 'Dashboard' }, { key: 'pos', label: 'POS' },
+          { key: 'sales', label: 'Sales' }, { key: 'purchases', label: 'Purchases' },
+          { key: 'parties', label: 'Parties' }, { key: 'items', label: 'Items' },
+          { key: 'expenses', label: 'Expenses' }, { key: 'payments', label: 'Payments' },
+          { key: 'cash', label: 'Cash & Bank' }, { key: 'reports', label: 'Reports' },
+          { key: 'estimates', label: 'Estimates' }, { key: 'creditNotes', label: 'Credit Notes' },
+          { key: 'debitNotes', label: 'Debit Notes' }, { key: 'deliveryNotes', label: 'Delivery Notes' },
+          { key: 'ledger', label: 'Ledger' }, { key: 'membership', label: 'Membership' },
+          { key: 'opticals', label: 'Opticals' }, { key: 'viewPurchasePrice', label: 'View Purchase Price' },
+        ];
+        const allOn = ACCESS_ITEMS.every(({ key }) => featOn(key));
+        return (
+          <Dialog
+            open={memberDialog.open}
+            onClose={() => { setMemberDialog({ open: false, editing: null }); setMemberError(''); }}
+            maxWidth="sm" fullWidth
+            PaperProps={{ sx: { borderRadius: '16px', overflow: 'hidden' } }}
+          >
+            {/* Gradient header */}
+            <Box sx={{ background: 'linear-gradient(135deg, #134e4a 0%, #0f766e 50%, #0d9488 100%)', px: 3, pt: 2.5, pb: 0 }}>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 2 }}>
+                <Avatar sx={{ width: 44, height: 44, bgcolor: 'rgba(255,255,255,0.15)', fontSize: '1.1rem', fontWeight: 800, color: '#fff', border: '2px solid rgba(255,255,255,0.3)' }}>
+                  {(memberForm.name?.[0] || (memberDialog.editing ? '?' : '+')).toUpperCase()}
+                </Avatar>
+                <Box>
+                  <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: '#fff', lineHeight: 1.2 }}>
+                    {memberDialog.editing ? memberDialog.editing.name : 'New Staff Member'}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.65)', lineHeight: 1.3 }}>
+                    {memberDialog.editing ? `Editing • ${memberDialog.editing.role || 'Staff'}` : 'Fill in the details below'}
+                  </Typography>
+                </Box>
+                <Box sx={{ ml: 'auto', display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.5, borderRadius: '20px', bgcolor: memberForm.status !== 'inactive' ? 'rgba(34,197,94,0.2)' : 'rgba(148,163,184,0.2)', border: `1px solid ${memberForm.status !== 'inactive' ? 'rgba(34,197,94,0.4)' : 'rgba(148,163,184,0.3)'}`, cursor: 'pointer' }}
+                  onClick={() => setMemberForm(f => ({ ...f, status: f.status === 'inactive' ? 'active' : 'inactive' }))}>
+                  <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: memberForm.status !== 'inactive' ? '#22c55e' : '#94a3b8' }} />
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: memberForm.status !== 'inactive' ? '#4ade80' : 'rgba(255,255,255,0.5)', whiteSpace: 'nowrap' }}>
+                    {memberForm.status !== 'inactive' ? 'Active' : 'Inactive'}
+                  </Typography>
+                </Box>
               </Box>
-            </Grid>
-            <Grid item xs={12}>
-              <TextField fullWidth label="Notes (optional)" size="small" multiline rows={2} value={memberForm.notes || ''} onChange={e => setMemberForm(f => ({ ...f, notes: e.target.value }))} />
-            </Grid>
-          </Grid>
+              {/* Tab strip */}
+              <Box sx={{ display: 'flex', gap: 0 }}>
+                {dialogTabs.map((label, i) => (
+                  <Box key={label} onClick={() => setDlgTab(i)} sx={{
+                    px: 2, py: 1, cursor: 'pointer', fontSize: '0.82rem', fontWeight: 600,
+                    color: dlgTab === i ? '#fff' : 'rgba(255,255,255,0.5)',
+                    borderBottom: dlgTab === i ? '2px solid #fff' : '2px solid transparent',
+                    transition: 'all 0.15s',
+                    '&:hover': { color: dlgTab === i ? '#fff' : 'rgba(255,255,255,0.75)' },
+                  }}>{label}</Box>
+                ))}
+              </Box>
+            </Box>
+
+            <DialogContent sx={{ p: 0, '&::-webkit-scrollbar': { width: 6 }, '&::-webkit-scrollbar-thumb': { bgcolor: '#e2e8f0', borderRadius: 3 } }}>
+              {memberError && (
+                <Box sx={{ mx: 3, mt: 2, px: 1.5, py: 1, borderRadius: '8px', bgcolor: '#fef2f2', border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <AlertCircle size={14} color="#dc2626" />
+                  <Typography sx={{ fontSize: '0.8rem', color: '#dc2626', fontWeight: 600 }}>{memberError}</Typography>
+                </Box>
+              )}
+
+              {/* ── Tab 0: Profile ── */}
+              <Box sx={{ display: dlgTab === 0 ? 'block' : 'none', px: 3, py: 2.5 }}>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5 }}>
+                  <TextField size="small" label="Full Name *" fullWidth value={sf('name')}
+                    onChange={upd('name')} sx={{ flex: '1 1 200px' }} />
+                  <TextField size="small" select label="Role" value={sf('role') || 'Sales Staff'}
+                    onChange={upd('role')} sx={{ flex: '1 1 140px' }}>
+                    {ROLES.map(r => <MenuItem key={r} value={r}>{r}</MenuItem>)}
+                  </TextField>
+                  <TextField size="small" label="Phone" value={sf('phone')}
+                    onChange={upd('phone')} sx={{ flex: '1 1 140px' }} />
+                  <TextField size="small" label="Email" value={sf('email')}
+                    onChange={upd('email')} sx={{ flex: '1 1 180px' }} />
+                  <TextField size="small" label="Joining Date" type="date" value={sf('joiningDate')}
+                    onChange={upd('joiningDate')} slotProps={{ inputLabel: { shrink: true } }} sx={{ flex: '1 1 150px' }} />
+                  <TextField size="small" label="Notes" value={sf('notes')}
+                    onChange={upd('notes')} sx={{ flex: '1 1 200px' }} />
+                </Box>
+                <Box sx={{ mt: 2, pt: 1.5, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Typography sx={{ fontSize: '0.82rem', color: '#475569' }}>Show in Sales / POS staff selector</Typography>
+                  <Switch size="small" checked={!!memberForm.showInSalesSelector}
+                    onChange={e => setMemberForm(f => ({ ...f, showInSalesSelector: e.target.checked }))} />
+                </Box>
+              </Box>
+
+              {/* ── Tab 1: Salary & Login ── */}
+              <Box sx={{ display: dlgTab === 1 ? 'block' : 'none', px: 3, py: 2.5 }}>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Salary</Typography>
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', mb: 2.5 }}>
+                  <TextField size="small" label="Amount (₹)" type="number" value={sf('salary')}
+                    onChange={upd('salary')} sx={{ flex: '1 1 140px' }} />
+                  <TextField size="small" select label="Type" value={sf('salaryType') || 'monthly'}
+                    onChange={upd('salaryType')} sx={{ flex: '1 1 120px' }}>
+                    {SALARY_TYPES.map(t => <MenuItem key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</MenuItem>)}
+                  </TextField>
+                </Box>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Login Credentials</Typography>
+                <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                  <TextField size="small" label="Username" placeholder="e.g. rahul" value={sf('username')}
+                    helperText="Used to log in — lowercase, no spaces"
+                    onChange={e => setMemberForm(f => ({ ...f, username: e.target.value.toLowerCase().replace(/\s/g, '') }))}
+                    sx={{ flex: '1 1 160px' }} />
+                  <TextField size="small" label={memberDialog.editing ? 'Password (blank = keep)' : 'Password'} type="password"
+                    value={sf('password')} onChange={upd('password')} sx={{ flex: '1 1 160px' }} />
+                </Box>
+              </Box>
+
+              {/* ── Tab 2: Access ── */}
+              <Box sx={{ display: dlgTab === 2 ? 'block' : 'none', px: 3, py: 2.5 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
+                  <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#94a3b8', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Section Access</Typography>
+                  <Box sx={{ display: 'flex', gap: 0.5 }}>
+                    <Button size="small" onClick={() => setMemberForm(f => ({ ...f, features: ACCESS_ITEMS.reduce((a, { key }) => ({ ...a, [key]: true }), {}) }))}
+                      sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: primary, '&:hover': { bgcolor: alpha(primary, 0.06) } }}>All On</Button>
+                    <Button size="small" onClick={() => setMemberForm(f => ({ ...f, features: ACCESS_ITEMS.reduce((a, { key }) => ({ ...a, [key]: false }), {}) }))}
+                      sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#94a3b8', '&:hover': { bgcolor: '#f1f5f9' } }}>All Off</Button>
+                  </Box>
+                </Box>
+                <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 0.75 }}>
+                  {ACCESS_ITEMS.map(({ key, label }) => {
+                    const on = featOn(key);
+                    return (
+                      <Box key={key} onClick={() => toggleFeat(key)} sx={{
+                        display: 'flex', alignItems: 'center', gap: 0.75, px: 1.25, py: 0.875,
+                        borderRadius: '8px', cursor: 'pointer', border: '1.5px solid', transition: 'all 0.12s',
+                        borderColor: on ? alpha(primary, 0.35) : '#f1f5f9',
+                        bgcolor: on ? alpha(primary, 0.06) : '#fafafa',
+                        '&:hover': { borderColor: on ? alpha(primary, 0.5) : '#e2e8f0', bgcolor: on ? alpha(primary, 0.1) : '#f8fafc' },
+                      }}>
+                        <Box sx={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, transition: 'background 0.12s',
+                          bgcolor: on ? primary : '#e2e8f0' }} />
+                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: on ? primary : '#64748b', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          {label}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+                {allOn && (
+                  <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Check size={13} color={primary} />
+                    <Typography sx={{ fontSize: '0.75rem', color: primary, fontWeight: 600 }}>Full access granted</Typography>
+                  </Box>
+                )}
+              </Box>
+            </DialogContent>
+
+            <DialogActions sx={{ px: 3, py: 2, borderTop: '1px solid #f1f5f9', bgcolor: '#fafafa', gap: 1 }}>
+              <Button onClick={() => { setMemberDialog({ open: false, editing: null }); setMemberError(''); }}
+                sx={{ borderRadius: '8px', textTransform: 'none', color: '#64748b', '&:hover': { bgcolor: '#f1f5f9' } }}>
+                Cancel
+              </Button>
+              <Box sx={{ flex: 1, display: 'flex', gap: 0.75 }}>
+                {dialogTabs.map((label, i) => (
+                  <Box key={i} onClick={() => setDlgTab(i)}
+                    sx={{ flex: 1, height: 3, borderRadius: '2px', cursor: 'pointer', transition: 'background 0.15s',
+                      bgcolor: dlgTab === i ? primary : '#e2e8f0' }} />
+                ))}
+              </Box>
+              <Button variant="contained" onClick={saveMember} disabled={!memberForm.name?.trim()}
+                sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, px: 2.5,
+                  bgcolor: primary, '&:hover': { bgcolor: '#0f766e' }, '&.Mui-disabled': { bgcolor: alpha(primary, 0.2), color: alpha(primary, 0.45) } }}>
+                {memberDialog.editing ? 'Save Changes' : 'Add Member'}
+              </Button>
+            </DialogActions>
+          </Dialog>
+        );
+      })()}
+
+      {/* ══ DELETE CONFIRM ════════════════════════════════════════════════════ */}
+      {/* ── Salary Payment Dialog ── */}
+      <Dialog open={!!salPayDialog} onClose={() => { setSalPayDialog(null); setSalPayError(''); }} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ fontWeight: 700, pb: 0.5 }}>
+          Pay Salary — {salPayDialog?.member?.name}
+        </DialogTitle>
+        <DialogContent sx={{ pt: 1.5 }}>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
+            {new Date(salYear, salMonth, 1).toLocaleString('en-IN', { month: 'long' })} {salYear} · Net ₹{fmt(salPayDialog?.netSalary || 0)}
+          </Typography>
+
+          {salPayError && (
+            <Box sx={{ mb: 2, p: 1.25, borderRadius: '8px', bgcolor: '#fef2f2', border: '1px solid #fecaca' }}>
+              <Typography sx={{ fontSize: '0.78rem', color: '#dc2626', fontWeight: 600 }}>{salPayError}</Typography>
+            </Box>
+          )}
+
+          {/* Payment Mode */}
+          <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151', mb: 0.75 }}>Payment Mode</Typography>
+          <Box sx={{ display: 'flex', gap: 0.75, mb: 2 }}>
+            {['Cash', 'Bank', 'Split'].map(mode => (
+              <Box key={mode} onClick={() => {
+                const net = salPayDialog?.netSalary || 0;
+                setSalPayForm(f => ({
+                  ...f, paymentMode: mode,
+                  cashAmt: mode === 'Cash' ? String(net) : mode === 'Split' ? '' : '',
+                  bankAmt: mode === 'Bank' ? String(net) : mode === 'Split' ? '' : '',
+                }));
+              }}
+                sx={{
+                  flex: 1, py: 0.75, textAlign: 'center', borderRadius: '8px', cursor: 'pointer', fontWeight: 700, fontSize: '0.82rem',
+                  border: '1.5px solid', transition: 'all 0.12s',
+                  borderColor: salPayForm.paymentMode === mode ? primary : '#e5e7eb',
+                  bgcolor: salPayForm.paymentMode === mode ? alpha(primary, 0.08) : '#fafafa',
+                  color: salPayForm.paymentMode === mode ? primary : '#64748b',
+                }}>
+                {mode}
+              </Box>
+            ))}
+          </Box>
+
+          {salPayForm.paymentMode === 'Split' && (
+            <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+              <TextField size="small" label="Cash ₹" type="number" fullWidth
+                value={salPayForm.cashAmt}
+                onChange={e => setSalPayForm(f => ({ ...f, cashAmt: e.target.value }))}
+                helperText={`Balance: ₹${fmt(Math.max(0, (salPayDialog?.netSalary || 0) - (Number(salPayForm.cashAmt) || 0)))}`}
+              />
+              <TextField size="small" label="Bank ₹" type="number" fullWidth
+                value={salPayForm.bankAmt}
+                onChange={e => setSalPayForm(f => ({ ...f, bankAmt: e.target.value }))}
+              />
+            </Box>
+          )}
+
+          <TextField size="small" label="Payment Date" type="date" fullWidth sx={{ mb: 1.5 }}
+            value={salPayForm.date}
+            onChange={e => setSalPayForm(f => ({ ...f, date: e.target.value }))}
+            InputLabelProps={{ shrink: true }}
+          />
+          <TextField size="small" label="Notes (optional)" fullWidth
+            value={salPayForm.notes}
+            onChange={e => setSalPayForm(f => ({ ...f, notes: e.target.value }))}
+          />
         </DialogContent>
-        <DialogActions sx={{ px: 3, pb: 2.5 }}>
-          <Button onClick={() => setMemberDialog({ open: false, editing: null })} sx={{ borderRadius: 2 }}>Cancel</Button>
-          <Button variant="contained" onClick={saveMember} disabled={!memberForm.name?.trim()} sx={{ borderRadius: 2, fontWeight: 600 }}>
-            {memberDialog.editing ? 'Save Changes' : 'Add Member'}
+        <DialogActions sx={{ pb: 2.5, px: 2.5, gap: 1 }}>
+          <Button onClick={() => { setSalPayDialog(null); setSalPayError(''); }} sx={{ borderRadius: 2 }}>Cancel</Button>
+          <Button variant="contained" sx={{ borderRadius: 2, fontWeight: 700, bgcolor: primary, '&:hover': { bgcolor: '#0f766e' } }}
+            onClick={confirmSalaryPayment}>
+            Confirm Payment
           </Button>
         </DialogActions>
       </Dialog>
 
-      {/* ══ DELETE CONFIRM ════════════════════════════════════════════════════ */}
       <Dialog open={!!deleteConfirm} onClose={() => setDeleteConfirm(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 700 }}>Delete Staff Member?</DialogTitle>
         <DialogContent>
@@ -767,9 +1051,11 @@ export default function StaffPage() {
         <DialogActions sx={{ pb: 2.5, px: 2.5 }}>
           <Button onClick={() => setDeleteConfirm(null)} sx={{ borderRadius: 2 }}>Cancel</Button>
           <Button variant="contained" color="error" sx={{ borderRadius: 2, fontWeight: 600 }} onClick={() => {
-            deleteItem('staffMembers', deleteConfirm.id);
-            rawAttendance.filter(a => a.staffId === deleteConfirm.id).forEach(a => deleteItem('staffAttendance', a.id));
-            rawSalary.filter(s => s.staffId === deleteConfirm.id).forEach(s => deleteItem('staffSalary', s.id));
+            const id = deleteConfirm.id;
+            deleteItem('staffMembers', id);
+            rawAttendance.filter(a => String(a.staffId) === String(id)).forEach(a => deleteItem('staffAttendance', a.id));
+            rawSalary.filter(s => String(s.staffId) === String(id)).forEach(s => deleteItem('staffSalary', s.id));
+            deleteFromStaffAccounts(id);
             setDeleteConfirm(null);
           }}>Delete</Button>
         </DialogActions>

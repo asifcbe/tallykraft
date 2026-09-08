@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Box, Card, CardContent, Typography, Button, TextField, Stack,
-  ToggleButton, ToggleButtonGroup, useTheme, alpha, InputAdornment, Divider,
+  ToggleButton, ToggleButtonGroup, useTheme, alpha, InputAdornment, Divider, Tooltip,
 } from '@mui/material';
 import { Calculator as CalcIcon, Percent, Receipt, Tag, Delete } from 'lucide-react';
 
@@ -271,27 +271,27 @@ const Calculator = ({ embedded = false }) => {
         </Stack>
       )}
 
-      {/* Type selector */}
-      <Box sx={{ display: 'flex', gap: 1, mb: 2.5, flexWrap: 'wrap' }}>
+      {/* Type selector — icon-only pills with tooltip labels */}
+      <Box sx={{ display: 'flex', gap: 1, mb: 2.5 }}>
         {TYPES.map(({ key, label, icon: Icon }) => {
           const sel = key === type;
           return (
-            <Button
-              key={key}
-              onClick={() => setType(key)}
-              startIcon={<Icon size={15} />}
-              variant={sel ? 'contained' : 'outlined'}
-              size="small"
-              disableElevation
-              sx={{
-                borderRadius: 2, textTransform: 'none', fontWeight: 700, fontSize: '0.8rem',
-                ...(sel
-                  ? { background: `linear-gradient(135deg, ${primary} 0%, ${alpha(primary, 0.8)} 100%)` }
-                  : { color: 'text.secondary', borderColor: 'divider' }),
-              }}
-            >
-              {label}
-            </Button>
+            <Tooltip key={key} title={label} placement="bottom">
+              <Button
+                onClick={() => setType(key)}
+                variant={sel ? 'contained' : 'outlined'}
+                size="small"
+                disableElevation
+                sx={{
+                  borderRadius: 2, minWidth: 0, flexShrink: 0, px: 1.25, py: 0.75,
+                  ...(sel
+                    ? { background: `linear-gradient(135deg, ${primary} 0%, ${alpha(primary, 0.8)} 100%)` }
+                    : { color: 'text.secondary', borderColor: 'divider' }),
+                }}
+              >
+                <Icon size={16} />
+              </Button>
+            </Tooltip>
           );
         })}
       </Box>

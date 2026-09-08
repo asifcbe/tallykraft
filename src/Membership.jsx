@@ -78,7 +78,7 @@ const emptyForm = () => ({
 const MembershipPage = () => {
   const theme = useTheme();
   const primary = theme.palette.primary.main;
-  const { getItems, addItem, updateItem, deleteItem } = useData();
+  const { getItems, data, addItem, updateItem, deleteItem } = useData();
   const { currentBusiness } = useBusiness();
   const { confirm } = useDialog();
   const bId = currentBusiness?.id;
@@ -95,23 +95,25 @@ const MembershipPage = () => {
   const showSnack = (msg, severity = 'success') => setSnackbar({ open: true, msg, severity });
 
   // ── Data ────────────────────────────────────────────────────────────────────
+  /* eslint-disable react-hooks/exhaustive-deps */
   const memberships = useMemo(() =>
     getItems('memberships').filter(m => m.businessId === bId),
-    [getItems, bId]
+    [data.memberships, bId]
   );
   const customers = useMemo(() =>
     getItems('parties').filter(p => p.businessId === bId && (p.type === 'Customer' || p.type === 'Both'))
       .sort((a, b) => a.name.localeCompare(b.name)),
-    [getItems, bId]
+    [data.parties, bId]
   );
-  const allSales = useMemo(() => getItems('sales').filter(s => s.businessId === bId), [getItems, bId]);
+  const allSales = useMemo(() => getItems('sales').filter(s => s.businessId === bId), [data.sales, bId]);
   // Items the user has created with category "Membership" — these become available plan options
   const membershipItems = useMemo(() =>
     getItems('items').filter(i => i.businessId === bId &&
       (i.isMembership || i.category?.toLowerCase() === 'membership'))
       .sort((a, b) => a.name.localeCompare(b.name)),
-    [getItems, bId]
+    [data.items, bId]
   );
+  /* eslint-enable react-hooks/exhaustive-deps */
 
   const getMembershipSales = (m) => allSales.filter(s => s.membershipId === m.id);
 
@@ -285,7 +287,7 @@ const MembershipPage = () => {
     const cfg = {
       overdue:          { label: `${daysOverdue}d overdue`, color: '#dc2626', bg: '#fee2e2' },
       due_today:        { label: 'Due today',              color: '#d97706', bg: '#fef3c7' },
-      awaiting_payment: { label: 'Awaiting payment',       color: '#0369a1', bg: '#dbeafe' },
+      awaiting_payment: { label: 'Awaiting payment',       color: '#27272a', bg: '#dbeafe' },
       upcoming:         { label: daysLeft != null ? `Due in ${daysLeft}d` : 'Upcoming', color: '#16a34a', bg: '#dcfce7' },
       paused:           { label: 'Paused',                 color: '#6b7280', bg: '#f3f4f6' },
       cancelled:        { label: 'Cancelled',              color: '#ef4444', bg: '#fee2e2' },
@@ -301,12 +303,12 @@ const MembershipPage = () => {
   };
 
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1440, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, mx: 0 }}>
 
       {/* ── Hero ─────────────────────────────────────────────────────────────── */}
       <Box sx={{
         borderRadius: 3,
-        background: 'linear-gradient(135deg, #1e3a5f 0%, #1d4ed8 60%, #3b82f6 100%)',
+        background: 'linear-gradient(135deg, #134e4a 0%, #0f766e 50%, #0d9488 100%)',
         p: { xs: 2.5, md: 3 }, mb: 3, position: 'relative', overflow: 'hidden',
       }}>
         <Box sx={{ position: 'absolute', top: -50, right: -50, width: 200, height: 200, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
@@ -321,7 +323,7 @@ const MembershipPage = () => {
             </Box>
           </Box>
           <Button variant="contained" disableElevation startIcon={<Plus size={15} />} onClick={openAdd}
-            sx={{ bgcolor: 'white', color: '#1d4ed8', fontWeight: 700, borderRadius: 2, textTransform: 'none', flexShrink: 0, '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' } }}>
+            sx={{ bgcolor: 'white', color: '#111111', fontWeight: 700, borderRadius: 2, textTransform: 'none', flexShrink: 0, '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' } }}>
             New Membership
           </Button>
         </Box>
@@ -391,7 +393,7 @@ const MembershipPage = () => {
                   const isActive = m.status === 'active';
                   const canInvoice = isActive && bState.state !== 'awaiting_payment';
                   const rowBg = bState.state === 'overdue' ? alpha('#dc2626', 0.03)
-                    : bState.state === 'awaiting_payment' ? alpha('#0369a1', 0.03)
+                    : bState.state === 'awaiting_payment' ? alpha('#27272a', 0.03)
                     : bState.state === 'due_today' ? alpha('#d97706', 0.03)
                     : 'transparent';
 
@@ -479,7 +481,7 @@ const MembershipPage = () => {
                                   sx={{
                                     fontSize: '0.72rem', textTransform: 'none', borderRadius: 1.5, whiteSpace: 'nowrap',
                                     ...(bState.state === 'overdue' || bState.state === 'due_today'
-                                      ? { bgcolor: '#1d4ed8', '&:hover': { bgcolor: '#1e40af' } }
+                                      ? { bgcolor: '#27272a', '&:hover': { bgcolor: '#111111' } }
                                       : {}),
                                   }}
                                 >

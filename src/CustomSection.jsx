@@ -169,8 +169,8 @@ const CustomSection = ({ sectionId: sectionIdProp } = {}) => {
             {label}
           </Typography>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mt: 1, flexWrap: 'wrap' }}>
-            <TextField size="small" type="number" label={`Total ${unit}`} value={cv.total}
-              onChange={e => handleFieldChange(field.id, { ...cv, total: Math.max(0, Number(e.target.value)) })}
+            <TextField size="small" type="number" label={`Total ${unit}`} value={cv.total === 0 ? '' : cv.total}
+              onChange={e => { const v = e.target.value; handleFieldChange(field.id, { ...cv, total: v === '' ? 0 : Math.max(0, Number(v)) }); }}
               sx={{ width: 110 }} inputProps={{ min: 0 }} />
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
               <IconButton size="small" onClick={() => handleFieldChange(field.id, { ...cv, used: Math.max(0, (cv.used || 0) - 1) })}
@@ -465,7 +465,7 @@ const CustomSection = ({ sectionId: sectionIdProp } = {}) => {
 
   // ─── List View ───────────────────────────────────────────────────────────
   return (
-    <Box sx={{ p: { xs: 2, md: 4 }, maxWidth: 1440, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, md: 4 }, mx: 0 }}>
       {/* Section header */}
       <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 3 }}>
         <Stack direction="row" spacing={2} alignItems="center">

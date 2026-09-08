@@ -4,16 +4,66 @@ import {
   TextField, Chip, alpha, useTheme, IconButton, InputAdornment,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
   Select, FormControl, InputLabel, Tooltip, CircularProgress,
+  Menu, ListItemIcon, ListItemText,
 } from '@mui/material';
 import {
   BookOpen, Search, Printer, Download, ChevronLeft, ChevronRight,
   ArrowUpCircle, ArrowDownCircle, FileText, CreditCard, User,
-  TrendingUp, TrendingDown, Calendar, X,
+  TrendingUp, TrendingDown, Calendar, X, Share2, ListChecks,
 } from 'lucide-react';
 import { useData } from './DataContext';
 import { useBusiness } from './BusinessContext';
 import { useReactToPrint } from 'react-to-print';
 import { exportToExcel } from './exportUtils';
+import SendDialog from './SendDialog';
+import { byTxTimeAsc, formatCreatedTime } from './txTimeUtils';
+
+// Mirrors the deliverFile pattern used elsewhere (Sales.jsx etc.) — kept
+// local since none of those helpers are exported/shared across files.
+const canUseFileShare = (file) => {
+  try {
+    return !!(navigator.canShare && navigator.canShare({ files: [file] }));
+  } catch { return false; }
+};
+const cleanWaPhone = (raw = '') => {
+  const digits = String(raw).replace(/\D/g, '');
+  if (!digits) return '';
+  if (digits.startsWith('91') && digits.length === 12) return digits;
+  if (digits.length === 10) return `91${digits}`;
+  return digits;
+};
+const canCopyFileToClipboard = (file) => {
+  try {
+    return typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write && /^image\//.test(file.type);
+  } catch { return false; }
+};
+const deliverLedgerFile = async (file, { toWhatsApp = false, phone = '' } = {}) => {
+  if (canUseFileShare(file)) {
+    await navigator.share({ files: [file], title: file.name });
+    return { method: 'share' };
+  }
+  if (toWhatsApp && canCopyFileToClipboard(file)) {
+    try {
+      await navigator.clipboard.write([new ClipboardItem({ [file.type]: file })]);
+      const num = cleanWaPhone(phone);
+      window.open(num ? `https://wa.me/${num}` : 'https://wa.me/', '_blank');
+      return { method: 'clipboard' };
+    } catch (err) {
+      console.error('Clipboard copy failed, falling back to download', err);
+    }
+  }
+  const url = URL.createObjectURL(file);
+  const a = document.createElement('a');
+  a.href = url; a.download = file.name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  if (toWhatsApp) {
+    const num = cleanWaPhone(phone);
+    window.open(num ? `https://wa.me/${num}` : 'https://wa.me/', '_blank');
+    return { method: 'download+chat', fileName: file.name };
+  }
+  return { method: 'download', fileName: file.name };
+};
 
 const pad = (n) => String(n).padStart(2, '0');
 const fmtDate = (d) => {
@@ -30,16 +80,16 @@ const fmtAmt = (n) => {
 const TYPE_META = {
   sale:        { label: 'Sale Invoice',    icon: FileText,       color: '#16a34a', bg: '#dcfce7', drCr: 'DR' },
   purchase:    { label: 'Purchase Bill',   icon: FileText,       color: '#dc2626', bg: '#fee2e2', drCr: 'CR' },
-  paymentIn:   { label: 'Payment Received',icon: ArrowDownCircle,color: '#0369a1', bg: '#dbeafe', drCr: 'CR' },
-  paymentOut:  { label: 'Payment Made',    icon: ArrowUpCircle,  color: '#7c3aed', bg: '#ede9fe', drCr: 'DR' },
+  paymentIn:   { label: 'Payment Received',icon: ArrowDownCircle,color: '#27272a', bg: '#dbeafe', drCr: 'CR' },
+  paymentOut:  { label: 'Payment Made',    icon: ArrowUpCircle,  color: '#3f3f46', bg: '#ede9fe', drCr: 'DR' },
   creditNote:  { label: 'Credit Note',     icon: CreditCard,     color: '#b45309', bg: '#fef3c7', drCr: 'CR' },
-  debitNote:   { label: 'Debit Note',      icon: CreditCard,     color: '#be185d', bg: '#fce7f3', drCr: 'DR' },
+  debitNote:   { label: 'Debit Note',      icon: CreditCard,     color: '#3f3f46', bg: '#fce7f3', drCr: 'DR' },
 };
 
 const LedgerPage = () => {
   const theme = useTheme();
   const primary = theme.palette.primary.main;
-  const { getItems } = useData();
+  const { getItems, data } = useData();
   const { currentBusiness } = useBusiness();
   const bId = currentBusiness?.id;
   const printRef = useRef();
@@ -52,7 +102,8 @@ const LedgerPage = () => {
 
   const parties = useMemo(() =>
     getItems('parties').filter(p => p.businessId === bId).sort((a, b) => a.name.localeCompare(b.name)),
-    [getItems, bId]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data.parties, bId]
   );
 
   const selectedParty = parties.find(p => p.id === selectedPartyId);
@@ -64,40 +115,48 @@ const LedgerPage = () => {
 
     // Sales (customer invoices) — debit (customer owes us)
     getItems('sales').filter(s => s.businessId === bId && s.partyId === selectedPartyId).forEach(s => {
-      entries.push({ id: `sale_${s.id}`, type: 'sale', date: s.date, time: s.time || '', ref: s.invoiceNumber, amount: s.totalAmount || 0, notes: s.description || '', raw: s });
+      entries.push({ id: `sale_${s.id}`, type: 'sale', date: s.date, time: s.time || '', createdAt: s.createdAt, ref: s.invoiceNumber, amount: s.totalAmount || 0, notes: s.description || '', raw: s });
     });
 
     // Purchases (vendor bills) — credit (we owe vendor)
     getItems('purchases').filter(p => p.businessId === bId && p.partyId === selectedPartyId).forEach(p => {
-      entries.push({ id: `pur_${p.id}`, type: 'purchase', date: p.date, time: p.time || '', ref: p.invoiceNumber, amount: p.totalAmount || 0, notes: p.description || '', raw: p });
+      entries.push({ id: `pur_${p.id}`, type: 'purchase', date: p.date, time: p.time || '', createdAt: p.createdAt, ref: p.invoiceNumber, amount: p.totalAmount || 0, notes: p.description || '', raw: p });
     });
 
     // Payments In — credit (reduces what customer owes)
     getItems('payments').filter(p => p.businessId === bId && p.partyId === selectedPartyId && p.type === 'PaymentIn').forEach(p => {
-      entries.push({ id: `pin_${p.id}`, type: 'paymentIn', date: p.date, time: '', ref: p.referenceNo || '—', amount: p.totalAmount || 0, notes: p.notes || '', raw: p });
+      entries.push({ id: `pin_${p.id}`, type: 'paymentIn', date: p.date, time: '', createdAt: p.createdAt, ref: p.referenceNo || '—', amount: p.totalAmount || 0, notes: p.notes || '', raw: p });
     });
 
     // Payments Out — debit (reduces what we owe vendor)
     getItems('payments').filter(p => p.businessId === bId && p.partyId === selectedPartyId && p.type === 'PaymentOut').forEach(p => {
-      entries.push({ id: `pout_${p.id}`, type: 'paymentOut', date: p.date, time: '', ref: p.referenceNo || '—', amount: p.totalAmount || 0, notes: p.notes || '', raw: p });
+      entries.push({ id: `pout_${p.id}`, type: 'paymentOut', date: p.date, time: '', createdAt: p.createdAt, ref: p.referenceNo || '—', amount: p.totalAmount || 0, notes: p.notes || '', raw: p });
     });
 
     // Credit Notes — reduce customer balance
     getItems('creditNotes').filter(c => c.businessId === bId && c.partyId === selectedPartyId).forEach(c => {
-      entries.push({ id: `cn_${c.id}`, type: 'creditNote', date: c.date, time: '', ref: c.noteNumber || '—', amount: c.totalAmount || 0, notes: c.reason || '', raw: c });
+      entries.push({ id: `cn_${c.id}`, type: 'creditNote', date: c.date, time: '', createdAt: c.createdAt, ref: c.noteNumber || '—', amount: c.totalAmount || 0, notes: c.reason || '', raw: c });
     });
 
     // Debit Notes — reduce vendor balance
     getItems('debitNotes').filter(d => d.businessId === bId && d.partyId === selectedPartyId).forEach(d => {
-      entries.push({ id: `dn_${d.id}`, type: 'debitNote', date: d.date, time: '', ref: d.noteNumber || '—', amount: d.totalAmount || 0, notes: d.reason || '', raw: d });
+      entries.push({ id: `dn_${d.id}`, type: 'debitNote', date: d.date, time: '', createdAt: d.createdAt, ref: d.noteNumber || '—', amount: d.totalAmount || 0, notes: d.reason || '', raw: d });
     });
 
+    // Sorted by date first, then the real creation timestamp (falls back to
+    // date+time for records saved before createdAt existed) — previously
+    // payments/notes had no `time` at all, so same-day entries tied and fell
+    // back to insertion order instead of the order they actually happened in.
     return entries.sort((a, b) => {
       const dc = a.date.localeCompare(b.date);
       if (dc !== 0) return dc;
-      return (a.time || '').localeCompare(b.time || '');
+      return byTxTimeAsc(a, b);
     });
-  }, [selectedPartyId, bId, getItems]);
+    // getItems identity changes on ANY table mutation app-wide; depend on the
+    // specific tables this memo actually reads so an unrelated edit elsewhere
+    // doesn't rebuild the whole ledger.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedPartyId, bId, data.sales, data.purchases, data.payments, data.creditNotes, data.debitNotes]);
 
   const openingBalance = selectedParty ? (Number(selectedParty.openingBalance) || 0) : 0;
   const openingBalanceType = selectedParty?.balanceType || 'receivable';
@@ -147,11 +206,164 @@ const LedgerPage = () => {
     ], `ledger_${selectedParty?.name || 'party'}.xlsx`);
   };
 
+  // ── WhatsApp / Email / PDF / Image share ──────────────────────────────────
+  const [sendOpen, setSendOpen] = useState(false);
+  const [shareLoading, setShareLoading] = useState(false);
+  // 'summary' = one line per entry (compact); 'full' = every sale/purchase's
+  // line items + every payment's mode, so the recipient can see exactly what
+  // was billed and how each payment was settled without opening each bill.
+  const [sendMode, setSendMode] = useState('summary');
+  const [shareMenuAnchor, setShareMenuAnchor] = useState(null);
+  // On-screen equivalent of "Share Complete Statement" — shows each entry's
+  // line items (sales/purchases) or payment mode/split (payments) inline in
+  // the table itself, not just when sharing.
+  const [showFullDetail, setShowFullDetail] = useState(false);
+
+  const buildLedgerMessage = () => {
+    const periodLabel = dateFrom && dateTo ? `${fmtDate(dateFrom)} to ${fmtDate(dateTo)}` : 'All dates';
+    const lines = [
+      `*${currentBusiness?.name || 'Business'} — Account Statement*`,
+      '',
+      `Party: *${selectedParty?.name || ''}*`,
+      `Period: ${periodLabel}`,
+      '',
+    ];
+    if (entriesWithBalance.length === 0) {
+      lines.push('No transactions for this period.');
+    } else {
+      entriesWithBalance.slice(-20).forEach(e => {
+        const meta = TYPE_META[e.type] || {};
+        const isDR = meta.drCr === 'DR';
+        lines.push(`${fmtDate(e.date)}  ${meta.label || e.type}  ${e.ref || ''}  ${isDR ? '+' : '-'}${fmtAmt(e.amount)}`);
+      });
+      if (entriesWithBalance.length > 20) lines.push(`…and ${entriesWithBalance.length - 20} more entries (see attached PDF/image for full statement)`);
+    }
+    lines.push('');
+    lines.push(`Total Debit: ${fmtAmt(totalDebit)}`);
+    lines.push(`Total Credit: ${fmtAmt(totalCredit)}`);
+    lines.push(`*Closing Balance: ${fmtAmt(Math.abs(closingBalance))} ${closingBalance >= 0 ? `DR (owed to ${currentBusiness?.name || 'us'})` : `CR (${currentBusiness?.name || 'we'} owe)`}*`);
+    lines.push('');
+    lines.push('_Sent via TallyKraft_');
+    return lines.join('\n');
+  };
+
+  // Full statement — every sale/purchase's line items and every payment's
+  // mode, not just a one-line-per-entry total. Uses the same `.raw` record
+  // each ledger entry already carries (the actual sale/purchase/payment doc).
+  const buildFullLedgerMessage = () => {
+    const periodLabel = dateFrom && dateTo ? `${fmtDate(dateFrom)} to ${fmtDate(dateTo)}` : 'All dates';
+    const lines = [
+      `*${currentBusiness?.name || 'Business'} — Complete Statement*`,
+      '',
+      `Party: *${selectedParty?.name || ''}*`,
+      `Period: ${periodLabel}`,
+      '',
+    ];
+    if (openingBalance !== 0) {
+      lines.push(`Opening Balance: ${fmtAmt(openingBalance)} ${openingBalanceType === 'receivable' ? 'DR' : 'CR'}`);
+      lines.push('');
+    }
+    if (entriesWithBalance.length === 0) {
+      lines.push('No transactions for this period.');
+    } else {
+      entriesWithBalance.forEach(e => {
+        const meta = TYPE_META[e.type] || {};
+        const isDR = meta.drCr === 'DR';
+        lines.push(`*${fmtDate(e.date)} — ${meta.label || e.type} ${e.ref || ''}*`);
+        if (e.type === 'sale' || e.type === 'purchase') {
+          (e.raw?.items || []).forEach(item => {
+            // A qty derived from a typed Amount (Sales.jsx's Amount→Qty
+            // auto-calc) can carry more precision than 2dp — keep the raw
+            // value for the qty×rate fallback math, round only what's shown.
+            const rawQty = Number(item.qty) || 0;
+            const qty = Math.round(rawQty * 100) / 100;
+            const rate = Number(item.price) || 0;
+            const lineTotal = Number(item.total) || rawQty * rate;
+            lines.push(`  • ${item.name} × ${qty}${item.unit ? ` ${item.unit}` : ''} @ ₹${rate.toFixed(2)} = ₹${lineTotal.toFixed(2)}`);
+          });
+        } else if (e.type === 'paymentIn' || e.type === 'paymentOut') {
+          const mode = e.raw?.paymentMode;
+          const split = e.raw?.paymentSplit;
+          if (mode === 'Split' && split) {
+            lines.push(`  Paid via: Split — Cash ₹${Number(split.cash || 0).toFixed(2)} + ${split.bankMode || 'Bank'} ₹${Number(split.bank || 0).toFixed(2)}`);
+          } else if (mode) {
+            lines.push(`  Paid via: ${mode}`);
+          }
+          if (e.notes) lines.push(`  Note: ${e.notes}`);
+        } else if (e.notes) {
+          lines.push(`  ${e.notes}`);
+        }
+        lines.push(`  ${isDR ? 'Debit' : 'Credit'}: ${fmtAmt(e.amount)}  |  Balance: ${fmtAmt(Math.abs(e.runningBalance))} ${e.runningBalance >= 0 ? 'DR' : 'CR'}`);
+        lines.push('');
+      });
+    }
+    lines.push(`Total Debit: ${fmtAmt(totalDebit)}`);
+    lines.push(`Total Credit: ${fmtAmt(totalCredit)}`);
+    lines.push(`*Closing Balance: ${fmtAmt(Math.abs(closingBalance))} ${closingBalance >= 0 ? `DR (owed to ${currentBusiness?.name || 'us'})` : `CR (${currentBusiness?.name || 'we'} owe)`}*`);
+    lines.push('');
+    lines.push('_Sent via TallyKraft_');
+    return lines.join('\n');
+  };
+
+  const captureLedgerCanvas = async () => {
+    const { default: html2canvas } = await import('html2canvas');
+    return html2canvas(printRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+  };
+
+  const shareLedgerAsPDF = async (opts = {}) => {
+    if (!printRef.current) return;
+    setShareLoading(true);
+    try {
+      const [canvas, { jsPDF }] = await Promise.all([
+        captureLedgerCanvas(),
+        import('jspdf').then(m => ({ jsPDF: m.jsPDF })),
+      ]);
+      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      const pdfWidthMm = 210; // A4
+      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
+      const pdf = new jsPDF({ unit: 'mm', format: [pdfWidthMm, pdfHeightMm] });
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const fileName = `ledger_${selectedParty?.name || 'party'}.pdf`;
+      const file = new File([pdf.output('blob')], fileName, { type: 'application/pdf' });
+      await deliverLedgerFile(file, opts);
+    } catch (err) {
+      console.error('Share ledger as PDF failed', err);
+      alert('Could not generate the ledger PDF. Please try again.');
+    } finally { setShareLoading(false); }
+  };
+
+  const shareLedgerAsImage = async (opts = {}) => {
+    if (!printRef.current) return;
+    setShareLoading(true);
+    try {
+      const canvas = await captureLedgerCanvas();
+      await new Promise((resolve, reject) => {
+        canvas.toBlob(async (blob) => {
+          if (!blob) { reject(new Error('No blob')); return; }
+          const fileName = `ledger_${selectedParty?.name || 'party'}.png`;
+          const file = new File([blob], fileName, { type: 'image/png' });
+          await deliverLedgerFile(file, opts);
+          resolve();
+        }, 'image/png');
+      });
+    } catch (err) {
+      console.error('Share ledger as Image failed', err);
+      alert('Could not generate the ledger image. Please try again.');
+    } finally { setShareLoading(false); }
+  };
+
+  const openLedgerSendDialog = (mode = 'summary') => {
+    setSendMode(mode);
+    setSendOpen(true);
+    import('html2canvas');
+    import('jspdf');
+  };
+
   return (
-    <Box sx={{ p: { xs: 2, md: 3 }, maxWidth: 1320, mx: 'auto' }}>
+    <Box sx={{ p: { xs: 2, md: 3 }, mx: 0 }}>
       {/* Hero */}
       <Box sx={{
-        borderRadius: 3, background: 'linear-gradient(135deg, #1e1b4b 0%, #4338ca 60%, #6366f1 100%)',
+        borderRadius: 3, background: 'linear-gradient(135deg, #134e4a 0%, #0f766e 50%, #0d9488 100%)',
         p: { xs: 2.5, md: 3.5 }, mb: 3, position: 'relative', overflow: 'hidden',
       }}>
         <Box sx={{ position: 'absolute', top: -40, right: -40, width: 180, height: 180, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
@@ -215,9 +427,44 @@ const LedgerPage = () => {
           <TextField size="small" placeholder="Search ref / notes…" value={search} onChange={e => setSearch(e.target.value)}
             sx={{ flex: 1, minWidth: 150 }}
             slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search size={14} /></InputAdornment>, endAdornment: search ? <IconButton size="small" onClick={() => setSearch('')}><X size={13} /></IconButton> : null } }} />
-          <Box sx={{ display: 'flex', gap: 1, ml: 'auto' }}>
-            <Tooltip title="Print"><IconButton size="small" onClick={handlePrint} disabled={!selectedPartyId}><Printer size={17} /></IconButton></Tooltip>
-            <Tooltip title="Export Excel"><IconButton size="small" onClick={handleExport} disabled={!selectedPartyId}><Download size={17} /></IconButton></Tooltip>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, ml: 'auto' }}>
+            <Tooltip title={showFullDetail ? 'Showing complete statement — click to collapse' : 'Show complete statement (line items + payment mode per entry)'}>
+              <span>
+                <Button
+                  size="small"
+                  variant={showFullDetail ? 'contained' : 'outlined'}
+                  onClick={() => setShowFullDetail(v => !v)}
+                  disabled={!selectedPartyId}
+                  startIcon={<ListChecks size={15} />}
+                  sx={{ textTransform: 'none', fontWeight: 600, whiteSpace: 'nowrap' }}
+                >
+                  Complete Statement
+                </Button>
+              </span>
+            </Tooltip>
+            <Tooltip title="Print">
+              <span><IconButton size="small" onClick={handlePrint} disabled={!selectedPartyId}><Printer size={17} /></IconButton></span>
+            </Tooltip>
+            <Tooltip title="Export Excel">
+              <span><IconButton size="small" onClick={handleExport} disabled={!selectedPartyId}><Download size={17} /></IconButton></span>
+            </Tooltip>
+            <Tooltip title="Share ledger (WhatsApp / Email / PDF / Image)">
+              <span>
+                <IconButton size="small" onClick={(e) => setShareMenuAnchor(e.currentTarget)} disabled={!selectedPartyId} sx={{ color: '#25D366' }}>
+                  <Share2 size={17} />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Menu anchorEl={shareMenuAnchor} open={Boolean(shareMenuAnchor)} onClose={() => setShareMenuAnchor(null)}>
+              <MenuItem onClick={() => { setShareMenuAnchor(null); openLedgerSendDialog('summary'); }}>
+                <ListItemIcon><Share2 size={16} /></ListItemIcon>
+                <ListItemText primary="Share Summary" secondary="One line per entry — quick overview" />
+              </MenuItem>
+              <MenuItem onClick={() => { setShareMenuAnchor(null); openLedgerSendDialog('full'); }}>
+                <ListItemIcon><ListChecks size={16} /></ListItemIcon>
+                <ListItemText primary="Share Complete Statement" secondary="Every bill's items + every payment's mode" />
+              </MenuItem>
+            </Menu>
           </Box>
         </Stack>
       </Paper>
@@ -268,7 +515,7 @@ const LedgerPage = () => {
               <TableBody>
                 {/* Opening balance row */}
                 {openingBalance !== 0 && (
-                  <TableRow sx={{ bgcolor: alpha('#6366f1', 0.04) }}>
+                  <TableRow sx={{ bgcolor: alpha("#111111", 0.04) }}>
                     <TableCell sx={{ fontSize: '0.78rem', color: 'text.secondary' }}>—</TableCell>
                     <TableCell><Chip size="small" label="Opening Balance" sx={{ fontSize: '0.68rem', fontWeight: 600 }} /></TableCell>
                     <TableCell />
@@ -295,39 +542,79 @@ const LedgerPage = () => {
                   const meta = TYPE_META[entry.type] || {};
                   const isDR = meta.drCr === 'DR';
                   const Icon = meta.icon || FileText;
+                  const split = entry.raw?.paymentSplit;
+                  const paymentMode = entry.raw?.paymentMode;
+                  const items = (entry.type === 'sale' || entry.type === 'purchase') ? (entry.raw?.items || []) : [];
                   return (
-                    <TableRow key={entry.id} hover sx={{ '&:hover': { bgcolor: alpha(primary, 0.03) } }}>
-                      <TableCell sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
-                        {fmtDate(entry.date)}
-                        {entry.time && <Typography component="div" sx={{ fontSize: '0.68rem', color: 'text.disabled' }}>{entry.time}</Typography>}
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                          <Box sx={{ p: 0.5, borderRadius: 1, bgcolor: meta.bg, display: 'flex', flexShrink: 0 }}>
-                            <Icon size={12} style={{ color: meta.color }} />
+                    <React.Fragment key={entry.id}>
+                      <TableRow hover sx={{ '&:hover': { bgcolor: alpha(primary, 0.03) } }}>
+                        <TableCell sx={{ fontSize: '0.78rem', whiteSpace: 'nowrap' }}>
+                          {fmtDate(entry.date)}
+                          {(entry.time || formatCreatedTime(entry.raw)) && (
+                            <Typography component="div" sx={{ fontSize: '0.68rem', color: 'text.disabled' }}>
+                              {entry.time || formatCreatedTime(entry.raw)}
+                            </Typography>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                            <Box sx={{ p: 0.5, borderRadius: 1, bgcolor: meta.bg, display: 'flex', flexShrink: 0 }}>
+                              <Icon size={12} style={{ color: meta.color }} />
+                            </Box>
+                            <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: meta.color }}>{meta.label}</Typography>
                           </Box>
-                          <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: meta.color }}>{meta.label}</Typography>
-                        </Box>
-                      </TableCell>
-                      <TableCell sx={{ fontSize: '0.78rem', fontFamily: 'monospace' }}>{entry.ref}</TableCell>
-                      <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary', maxWidth: 200 }}>
-                        <Typography variant="caption" sx={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{entry.notes || '—'}</Typography>
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontSize: '0.82rem', fontWeight: isDR ? 700 : 400, color: isDR ? '#dc2626' : 'text.disabled' }}>
-                        {isDR ? fmtAmt(entry.amount) : '—'}
-                      </TableCell>
-                      <TableCell align="right" sx={{ fontSize: '0.82rem', fontWeight: !isDR ? 700 : 400, color: !isDR ? '#16a34a' : 'text.disabled' }}>
-                        {!isDR ? fmtAmt(entry.amount) : '—'}
-                      </TableCell>
-                      <TableCell align="right">
-                        <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: entry.runningBalance >= 0 ? '#16a34a' : '#dc2626' }}>
-                          {fmtAmt(Math.abs(entry.runningBalance))}
-                          <Typography component="span" sx={{ fontSize: '0.68rem', fontWeight: 600, ml: 0.25, color: 'text.secondary' }}>
-                            {entry.runningBalance >= 0 ? 'DR' : 'CR'}
+                        </TableCell>
+                        <TableCell sx={{ fontSize: '0.78rem', fontFamily: 'monospace' }}>{entry.ref}</TableCell>
+                        <TableCell sx={{ fontSize: '0.75rem', color: 'text.secondary', maxWidth: 200 }}>
+                          <Typography variant="caption" sx={{ display: '-webkit-box', WebkitLineClamp: 1, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{entry.notes || '—'}</Typography>
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontSize: '0.82rem', fontWeight: isDR ? 700 : 400, color: isDR ? '#dc2626' : 'text.disabled' }}>
+                          {isDR ? fmtAmt(entry.amount) : '—'}
+                        </TableCell>
+                        <TableCell align="right" sx={{ fontSize: '0.82rem', fontWeight: !isDR ? 700 : 400, color: !isDR ? '#16a34a' : 'text.disabled' }}>
+                          {!isDR ? fmtAmt(entry.amount) : '—'}
+                        </TableCell>
+                        <TableCell align="right">
+                          <Typography sx={{ fontSize: '0.82rem', fontWeight: 700, color: entry.runningBalance >= 0 ? '#16a34a' : '#dc2626' }}>
+                            {fmtAmt(Math.abs(entry.runningBalance))}
+                            <Typography component="span" sx={{ fontSize: '0.68rem', fontWeight: 600, ml: 0.25, color: 'text.secondary' }}>
+                              {entry.runningBalance >= 0 ? 'DR' : 'CR'}
+                            </Typography>
                           </Typography>
-                        </Typography>
-                      </TableCell>
-                    </TableRow>
+                        </TableCell>
+                      </TableRow>
+                      {showFullDetail && (items.length > 0 || paymentMode) && (
+                        <TableRow sx={{ bgcolor: alpha(meta.color || primary, 0.03) }}>
+                          <TableCell />
+                          <TableCell colSpan={6} sx={{ py: 1, borderBottom: '1px dashed', borderColor: 'divider' }}>
+                            {items.length > 0 && (
+                              <Stack spacing={0.25}>
+                                {items.map((item, ii) => {
+                                  // A qty derived from a typed Amount can carry more precision than
+                                  // 2dp — keep the raw value for the fallback math, round only the display.
+                                  const rawQty = Number(item.qty) || 0;
+                                  const qty = Math.round(rawQty * 100) / 100;
+                                  const rate = Number(item.price) || 0;
+                                  const lineTotal = Number(item.total) || rawQty * rate;
+                                  return (
+                                    <Typography key={ii} sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+                                      • {item.name} × {qty}{item.unit ? ` ${item.unit}` : ''} @ {fmtAmt(rate)} = {fmtAmt(lineTotal)}
+                                    </Typography>
+                                  );
+                                })}
+                              </Stack>
+                            )}
+                            {paymentMode && (
+                              <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 600 }}>
+                                {paymentMode === 'Split' && split
+                                  ? `Paid via: Split — Cash ${fmtAmt(split.cash)} + ${split.bankMode || 'Bank'} ${fmtAmt(split.bank)}`
+                                  : `Paid via: ${paymentMode}`}
+                              </Typography>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </React.Fragment>
                   );
                 })}
 
@@ -352,6 +639,22 @@ const LedgerPage = () => {
           </TableContainer>
         </Paper>
       )}
+
+      <SendDialog
+        open={sendOpen}
+        onClose={() => setSendOpen(false)}
+        tx={{ invoiceNumber: `Ledger — ${selectedParty?.name || ''}`, partyName: selectedParty?.name, totalAmount: Math.abs(closingBalance) }}
+        party={selectedParty}
+        businessName={currentBusiness?.name || 'TallyKraft'}
+        isSale
+        dialogTitle={sendMode === 'full' ? 'Share Complete Statement' : 'Share Ledger'}
+        initialMessage={sendMode === 'full' ? buildFullLedgerMessage() : buildLedgerMessage()}
+        onSharePDF={() => shareLedgerAsPDF()}
+        onShareImage={() => shareLedgerAsImage()}
+        onSharePDFToWhatsApp={() => shareLedgerAsPDF({ toWhatsApp: true, phone: selectedParty?.phone })}
+        onShareImageToWhatsApp={() => shareLedgerAsImage({ toWhatsApp: true, phone: selectedParty?.phone })}
+        shareLoading={shareLoading}
+      />
     </Box>
   );
 };

@@ -4,14 +4,18 @@ import { alpha } from '@mui/material';
 const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) => {
   if (!data || !business) return null;
 
-  const { rightEye, leftEye, patientName, phone, date, frameType, lensType, notes } = data;
+  const { rightEye, leftEye, patientName, phone, gender, age, date, frameType, lensType, notes } = data;
 
   // Paper size dimensions (width x height in mm)
   const paperSizes = {
+    'A3': { width: '297mm', height: '420mm' },
     'A4': { width: '210mm', height: '297mm' },
     'A5': { width: '148mm', height: '210mm' },
+    'A6': { width: '105mm', height: '148mm' },
     'Letter': { width: '216mm', height: '279mm' },
-    'Legal': { width: '216mm', height: '356mm' }
+    'Legal': { width: '216mm', height: '356mm' },
+    'Executive': { width: '184mm', height: '267mm' },
+    'Statement': { width: '140mm', height: '216mm' }
   };
   
   const selectedSize = paperSizes[paperSize] || paperSizes['A4'];
@@ -46,13 +50,13 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
       lineHeight: '1.5'
     }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px', borderBottom: '2px solid #1976d2', paddingBottom: '20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '40px', borderBottom: '2px solid #3f3f46', paddingBottom: '20px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', flex: 1 }}>
           {business.logo && (
             <img src={business.logo} alt="Logo" style={{ maxHeight: '64px', maxWidth: '140px', objectFit: 'contain' }} />
           )}
           <div>
-            <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#1976d2', margin: '0 0 5px 0' }}>
+            <h1 style={{ fontSize: '28px', fontWeight: 'bold', color: '#3f3f46', margin: '0 0 5px 0' }}>
               {business.name}
             </h1>
             <p style={{ margin: '2px 0', fontSize: '14px' }}>{business.address}</p>
@@ -61,18 +65,21 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
           </div>
         </div>
         <div style={{ textAlign: 'right' }}>
-          <h2 style={{ fontSize: '20px', fontWeight: 'bold', margin: '0 0 10px 0', color: '#64748b' }}>
-            OPHTHALMIC PRESCRIPTION
-          </h2>
           <p style={{ margin: '2px 0' }}>Date: <strong>{date}</strong></p>
         </div>
       </div>
 
       {/* Patient Info */}
       <div style={{ marginBottom: '40px', backgroundColor: '#f8fafc', padding: '15px', borderRadius: '8px' }}>
-        <div style={{ display: 'flex', gap: '40px' }}>
+        <div style={{ display: 'flex', gap: '40px', flexWrap: 'wrap' }}>
           <div><span style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Patient Name:</span> <br/> <strong style={{ fontSize: '18px' }}>{patientName}</strong></div>
           <div><span style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Phone:</span> <br/> <strong style={{ fontSize: '18px' }}>{phone || 'N/A'}</strong></div>
+          {gender && (
+            <div><span style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Gender:</span> <br/> <strong style={{ fontSize: '18px' }}>{gender}</strong></div>
+          )}
+          {age && (
+            <div><span style={{ color: '#64748b', fontSize: '12px', textTransform: 'uppercase' }}>Age:</span> <br/> <strong style={{ fontSize: '18px' }}>{age} yrs</strong></div>
+          )}
         </div>
       </div>
 
@@ -89,16 +96,18 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
             <th style={tableHeaderStyle}>Axis (°)</th>
             <th style={tableHeaderStyle}>Add (D)</th>
             <th style={tableHeaderStyle}>VA</th>
+            <th style={tableHeaderStyle}>PD (mm)</th>
           </tr>
         </thead>
         <tbody>
           <tr>
-            <td style={{ ...cellStyle, textAlign: 'left', fontWeight: 'bold', color: '#1976d2' }}>Right Eye (OD)</td>
+            <td style={{ ...cellStyle, textAlign: 'left', fontWeight: 'bold', color: '#3f3f46' }}>Right Eye (OD)</td>
             <td style={cellStyle}>{rightEye.sphere || '0.00'}</td>
             <td style={cellStyle}>{rightEye.cylinder || '0.00'}</td>
             <td style={cellStyle}>{rightEye.axis || '0'}°</td>
             <td style={cellStyle}>{rightEye.add || '0.00'}</td>
             <td style={cellStyle}>{rightEye.va || 'N/A'}</td>
+            <td style={cellStyle}>{rightEye.pd || '—'}</td>
           </tr>
           <tr>
             <td style={{ ...cellStyle, textAlign: 'left', fontWeight: 'bold', color: '#dc004e' }}>Left Eye (OS)</td>
@@ -107,6 +116,7 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
             <td style={cellStyle}>{leftEye.axis || '0'}°</td>
             <td style={cellStyle}>{leftEye.add || '0.00'}</td>
             <td style={cellStyle}>{leftEye.va || 'N/A'}</td>
+            <td style={cellStyle}>{leftEye.pd || '—'}</td>
           </tr>
         </tbody>
       </table>
@@ -134,7 +144,7 @@ const OpticalTemplate = forwardRef(({ data, business, paperSize = 'A4' }, ref) =
       {/* Footer */}
       <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '40px' }}>
         <div style={{ fontSize: '10px', color: '#94a3b8' }}>
-          <p>© TALLYKRAFT Optical Management</p>
+          <p>© DIGITZEBRA Optical Management</p>
           <p>This prescription is valid for 6 months from the date of examination.</p>
         </div>
         <div style={{ textAlign: 'center' }}>
