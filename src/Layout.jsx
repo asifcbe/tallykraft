@@ -145,6 +145,9 @@ import UpiQrImage from './UpiQrImage';
 const drawerWidth = 240;
 const miniWidth = 64; // collapsed sidebar — icons only
 const APP_BAR_H = 52; // single unified bar height
+// Oxblood brand fill for the left nav (white text on it); the warm-stone
+// #e0b878 is the accent used on the "Kraft" wordmark + the selected-item rail.
+const OXBLOOD_SIDEBAR = 'linear-gradient(180deg, #3f1417 0%, #5c1f22 55%, #6e2a2c 100%)';
 
 // Routes accessible to staff and the feature key required in staffSession.features.
 // Routes not listed here are admin-only and will be blocked for all staff sessions.
@@ -866,11 +869,13 @@ const Layout = () => {
   const drawer = (
     <Box sx={{
       height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden',
-      bgcolor: '#ffffff',
-      color: 'text.primary',
-      borderRight: '1px solid',
-      borderColor: 'divider',
+      background: OXBLOOD_SIDEBAR,
+      color: '#fff',
       position: 'relative',
+      '&::before': {
+        content: '""', position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(120% 60% at 0% 0%, rgba(255,255,255,0.08), transparent 60%)',
+      },
     }}>
       {/* Logo */}
       <Box
@@ -881,8 +886,7 @@ const Layout = () => {
           justifyContent: collapsed ? 'center' : 'space-between',
           minHeight: APP_BAR_H,
           flexShrink: 0,
-          borderBottom: '1px solid',
-          borderColor: 'divider',
+          borderBottom: '1px solid rgba(255,255,255,0.12)',
           position: 'relative', zIndex: 1,
         }}
       >
@@ -891,7 +895,7 @@ const Layout = () => {
             <IconButton
               size="small"
               onClick={handleDrawerToggle}
-              sx={{ p: 0.5, borderRadius: 1.5, '&:hover': { bgcolor: 'action.hover' } }}
+              sx={{ p: 0.5, borderRadius: 1.5, bgcolor: '#fff', '&:hover': { bgcolor: 'rgba(255,255,255,0.88)' } }}
             >
               <TallyKraftLogo size={26} variant="icon" />
             </IconButton>
@@ -899,17 +903,19 @@ const Layout = () => {
         ) : (
           <>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-              <TallyKraftLogo size={26} variant="icon" />
-              <Box component="span" sx={{ fontSize: '1.05rem', lineHeight: 1, letterSpacing: '-0.02em', color: '#5c1f22', whiteSpace: 'nowrap', userSelect: 'none' }}>
+              <Box sx={{ bgcolor: '#fff', borderRadius: 1.5, p: 0.5, display: 'flex', lineHeight: 0 }}>
+                <TallyKraftLogo size={24} variant="icon" />
+              </Box>
+              <Box component="span" sx={{ fontSize: '1.05rem', lineHeight: 1, letterSpacing: '-0.02em', color: '#fff', whiteSpace: 'nowrap', userSelect: 'none' }}>
                 <Box component="span" sx={{ fontWeight: 700 }}>Tally</Box>
-                <Box component="span" sx={{ fontWeight: 800, color: '#5c1f22' }}>Kraft</Box>
+                <Box component="span" sx={{ fontWeight: 800, color: '#e0b878' }}>Kraft</Box>
               </Box>
             </Box>
             <Tooltip title="Collapse sidebar" placement="right">
               <IconButton
                 size="small"
                 onClick={handleDrawerToggle}
-                sx={{ color: 'text.disabled', '&:hover': { color: 'text.primary', bgcolor: 'action.hover' } }}
+                sx={{ color: 'rgba(255,255,255,0.6)', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' } }}
               >
                 <ChevronLeft size={16} />
               </IconButton>
@@ -923,16 +929,16 @@ const Layout = () => {
         flexGrow: 1, overflowY: 'auto', overflowX: 'hidden', px: collapsed ? 0 : 1, py: 1,
         position: 'relative', zIndex: 1,
         '&::-webkit-scrollbar': { width: 5 },
-        '&::-webkit-scrollbar-thumb': { background: 'rgba(0,0,0,0.12)', borderRadius: 3 },
+        '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.18)', borderRadius: 3 },
       }}>
         {displayGroups.map((group, groupIdx) => (
           <React.Fragment key={groupIdx}>
             {group.label && !collapsed && (
-              <Typography variant="overline" sx={{ display: 'block', px: 1.5, pt: 2, pb: 0.5, fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.08em', color: 'text.disabled', userSelect: 'none' }}>
+              <Typography variant="overline" sx={{ display: 'block', px: 1.5, pt: 2, pb: 0.5, fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.45)', userSelect: 'none' }}>
                 {group.label}
               </Typography>
             )}
-            {group.label && collapsed && groupIdx > 0 && <Divider sx={{ my: 1, mx: 0.5 }} />}
+            {group.label && collapsed && groupIdx > 0 && <Divider sx={{ my: 1, mx: 0.5, borderColor: 'rgba(255,255,255,0.12)' }} />}
             <List dense disablePadding>
               {group.items.map((item) => {
                 const isDuplicate = item.path === '/sales' || item.path === '/reports';
@@ -951,18 +957,19 @@ const Layout = () => {
                         sx={{
                           borderRadius: 2, py: 1, px: collapsed ? 0 : 1.25, position: 'relative', flex: 1, minWidth: 0,
                           justifyContent: collapsed ? 'center' : 'flex-start',
-                          color: 'text.secondary',
+                          color: 'rgba(255,255,255,0.78)',
                           transition: 'background-color 0.15s ease, color 0.15s ease',
                           '&.Mui-selected': {
-                            bgcolor: alpha('#5c1f22', 0.08), color: '#5c1f22',
-                            '&::before': collapsed ? {} : { content: '""', position: 'absolute', left: -4, top: '22%', bottom: '22%', width: 3, borderRadius: '0 3px 3px 0', backgroundColor: '#5c1f22' },
-                            '&:hover': { bgcolor: alpha('#5c1f22', 0.12) },
-                            '& .MuiListItemIcon-root': { color: '#5c1f22' },
+                            bgcolor: 'rgba(255,255,255,0.16)', color: '#fff',
+                            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)',
+                            '&::before': collapsed ? {} : { content: '""', position: 'absolute', left: -4, top: '22%', bottom: '22%', width: 3, borderRadius: '0 3px 3px 0', backgroundColor: '#e0b878' },
+                            '&:hover': { bgcolor: 'rgba(255,255,255,0.22)' },
+                            '& .MuiListItemIcon-root': { color: '#fff' },
                           },
-                          '&:not(.Mui-selected)': { '&:hover': { bgcolor: 'action.hover', color: 'text.primary', '& .MuiListItemIcon-root': { color: 'text.primary' } } },
+                          '&:not(.Mui-selected)': { '&:hover': { bgcolor: 'rgba(255,255,255,0.08)', color: '#fff', '& .MuiListItemIcon-root': { color: '#fff' } } },
                         }}
                       >
-                        <ListItemIcon sx={{ minWidth: collapsed ? 0 : 34, justifyContent: 'center', color: selected ? '#5c1f22' : 'text.disabled' }}>
+                        <ListItemIcon sx={{ minWidth: collapsed ? 0 : 34, justifyContent: 'center', color: selected ? '#fff' : 'rgba(255,255,255,0.6)' }}>
                           {item.icon}
                         </ListItemIcon>
                         {!collapsed && (
@@ -986,7 +993,7 @@ const Layout = () => {
           business-code sessions get the same access as Google-auth admins */}
       {config.multiBusiness && (!isStaff || isAdminSession) && (
         <Box sx={{ flexShrink: 0, position: 'relative', zIndex: 1 }}>
-          <Divider />
+          <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
           <Box sx={{ p: collapsed ? 0.75 : 1.25 }}>
             <Tooltip title={collapsed ? (currentBusiness?.name || 'Select Business') : ''} placement="right" disableHoverListener={!collapsed}>
               <ListItemButton
@@ -994,17 +1001,16 @@ const Layout = () => {
                 onClick={(e) => setBusinessMenuAnchor(e.currentTarget)}
                 sx={{
                   borderRadius: 2,
-                  border: '1px solid',
-                  borderColor: 'divider',
-                  bgcolor: 'action.hover',
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  bgcolor: 'rgba(255,255,255,0.06)',
                   py: 0.875,
                   px: collapsed ? 0 : 1.25,
                   justifyContent: collapsed ? 'center' : 'flex-start',
-                  '&:hover': { bgcolor: alpha('#5c1f22', 0.08) },
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
                 }}
               >
                 <ListItemIcon sx={{ minWidth: collapsed ? 0 : 32, justifyContent: 'center' }}>
-                  <Box sx={{ width: 26, height: 26, borderRadius: 1.25, bgcolor: alpha('#5c1f22', 0.1), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Box sx={{ width: 26, height: 26, borderRadius: 1.25, bgcolor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <Store size={14} color="#5c1f22" />
                   </Box>
                 </ListItemIcon>
@@ -1012,8 +1018,8 @@ const Layout = () => {
                   <ListItemText
                     primary={currentBusiness?.name || 'Select Business'}
                     secondary="Switch business"
-                    primaryTypographyProps={{ fontSize: '0.75rem', fontWeight: 700, noWrap: true, color: 'text.primary' }}
-                    secondaryTypographyProps={{ fontSize: '0.625rem', color: 'text.disabled' }}
+                    primaryTypographyProps={{ fontSize: '0.75rem', fontWeight: 700, noWrap: true, color: '#fff' }}
+                    secondaryTypographyProps={{ fontSize: '0.625rem', color: 'rgba(255,255,255,0.55)' }}
                   />
                 )}
               </ListItemButton>
