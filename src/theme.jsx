@@ -53,8 +53,9 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
     '0 80px 168px rgba(15,23,42,0.3), 0 40px 44px rgba(15,23,42,0.14)',
   ];
 
-  const borderColor = isLight ? '#e2e8f0' : '#1e293b';
-  const focusRing = `0 0 0 3px ${isLight ? `rgba(${primaryColor === 'indigo' ? '79,70,229' : primaryColor === 'blue' ? '37,99,235' : primaryColor === 'green' ? '5,150,105' : '124,58,237'},0.15)` : 'rgba(148,163,184,0.2)'}`;
+  const borderColor = isLight ? '#e4e8ee' : '#1e293b';
+  const borderStrong = isLight ? '#cbd5e1' : '#334155';
+  const focusRing = `0 0 0 3px rgba(${primaryRgb},0.14)`;
 
   return createTheme({
     palette: {
@@ -68,24 +69,24 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
         contrastText: '#ffffff',
       },
       background: {
-        default: isLight ? '#f8fafc' : '#0a0f1e',
+        default: isLight ? '#f3f6f9' : '#0a0f1e',
         paper: isLight ? '#ffffff' : '#111827',
       },
       success: { main: '#059669', light: '#d1fae5', dark: '#047857', contrastText: '#fff' },
-      error: { main: '#dc2626', light: '#fee2e2', dark: '#b91c1c', contrastText: '#fff' },
-      warning: { main: '#d97706', light: '#fef3c7', dark: '#b45309', contrastText: '#fff' },
+      error: { main: '#dc2626', light: '#fef2f2', dark: '#b91c1c', contrastText: '#fff' },
+      warning: { main: '#d97706', light: '#fffbeb', dark: '#b45309', contrastText: '#fff' },
       info: { main: '#0284c7', light: '#e0f2fe', dark: '#0369a1', contrastText: '#fff' },
       text: {
-        primary: isLight ? '#0f172a' : '#f1f5f9',
-        secondary: isLight ? '#64748b' : '#94a3b8',
-        disabled: isLight ? '#94a3b8' : '#475569',
+        primary: isLight ? '#111827' : '#f1f5f9',
+        secondary: isLight ? '#52606d' : '#94a3b8',
+        disabled: isLight ? '#9ca3af' : '#475569',
       },
       divider: borderColor,
       action: {
-        hover: isLight ? 'rgba(15,23,42,0.04)' : 'rgba(248,250,252,0.04)',
-        selected: isLight ? `rgba(${primaryColor === 'indigo' ? '79,70,229' : primaryColor === 'blue' ? '37,99,235' : primaryColor === 'green' ? '5,150,105' : '124,58,237'},0.08)` : 'rgba(148,163,184,0.12)',
+        hover: isLight ? `rgba(${primaryRgb},0.05)` : 'rgba(248,250,252,0.04)',
+        selected: isLight ? `rgba(${primaryRgb},0.09)` : 'rgba(148,163,184,0.12)',
         disabledBackground: isLight ? '#f1f5f9' : '#1e293b',
-        focus: isLight ? 'rgba(15,23,42,0.08)' : 'rgba(248,250,252,0.08)',
+        focus: isLight ? `rgba(${primaryRgb},0.10)` : 'rgba(248,250,252,0.08)',
       },
     },
     typography: {
@@ -122,15 +123,13 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
             '&:hover': { boxShadow: 'none' },
           },
           contained: {
-            '&:hover': {
-              boxShadow: '0 2px 8px rgba(15,23,42,0.12)',
-            },
+            '&:hover': { boxShadow: `0 2px 8px rgba(${primaryRgb},0.28)` },
           },
           outlined: {
             borderColor: borderColor,
             '&:hover': {
-              borderColor: isLight ? '#cbd5e1' : '#334155',
-              backgroundColor: isLight ? 'rgba(15,23,42,0.03)' : 'rgba(248,250,252,0.03)',
+              borderColor: borderStrong,
+              backgroundColor: isLight ? `rgba(${primaryRgb},0.04)` : 'rgba(248,250,252,0.03)',
             },
           },
           sizeSmall: {
@@ -156,9 +155,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
           root: {
             backgroundImage: 'none',
             borderRadius: 8,
-            boxShadow: isLight
-              ? '0 1px 3px rgba(15,23,42,0.06), 0 1px 2px rgba(15,23,42,0.04)'
-              : 'none',
+            boxShadow: isLight ? '0 1px 3px rgba(0,0,0,0.06), 0 1px 2px rgba(0,0,0,0.04)' : 'none',
             border: `1px solid ${borderColor}`,
           },
         },
@@ -171,7 +168,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
             border: `1px solid ${borderColor}`,
             backgroundImage: 'none',
             transition: 'box-shadow 0.2s ease',
-            '&:hover': { boxShadow: '0 4px 16px rgba(15,23,42,0.08)' },
+            '&:hover': { boxShadow: '0 4px 16px rgba(0,0,0,0.08)' },
           },
         },
       },
@@ -181,10 +178,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
         },
       },
       MuiTextField: {
-        defaultProps: {
-          variant: 'outlined',
-          size: 'small',
-        },
+        defaultProps: { variant: 'outlined', size: 'small' },
         styleOverrides: {
           root: {
             '& .MuiOutlinedInput-root': {
@@ -192,16 +186,10 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
               fontSize: '0.8125rem',
               backgroundColor: isLight ? '#ffffff' : 'rgba(255,255,255,0.02)',
               transition: 'box-shadow 0.15s ease',
-              '& fieldset': {
-                borderColor: borderColor,
-                transition: 'border-color 0.15s ease',
-              },
-              '&:hover fieldset': { borderColor: isLight ? '#cbd5e1' : '#334155' },
+              '& fieldset': { borderColor: borderColor, transition: 'border-color 0.15s ease' },
+              '&:hover fieldset': { borderColor: borderStrong },
               '&.Mui-focused': { boxShadow: focusRing },
-              '&.Mui-focused fieldset': {
-                borderWidth: 1.5,
-                borderColor: palette.primary.main,
-              },
+              '&.Mui-focused fieldset': { borderWidth: 1.5, borderColor: palette.primary.main },
               '&.Mui-error fieldset': { borderColor: '#dc2626' },
               '&.Mui-disabled': { backgroundColor: isLight ? '#f8fafc' : '#0f172a' },
             },
@@ -222,51 +210,32 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
           root: {
             borderRadius: 8,
             '& fieldset': { borderColor: borderColor },
-            '&:hover fieldset': { borderColor: isLight ? '#cbd5e1' : '#334155' },
+            '&:hover fieldset': { borderColor: borderStrong },
             '&.Mui-focused': { boxShadow: focusRing },
-            '&.Mui-focused fieldset': {
-              borderWidth: 1.5,
-              borderColor: palette.primary.main,
-            },
+            '&.Mui-focused fieldset': { borderWidth: 1.5, borderColor: palette.primary.main },
           },
           notchedOutline: { borderColor: borderColor },
         },
       },
       MuiTableCell: {
         styleOverrides: {
-          root: {
-            padding: '9px 12px',
-            fontSize: '0.8125rem',
-            borderColor: isLight ? '#f1f5f9' : '#1e293b',
-          },
+          root: { padding: '9px 12px', fontSize: '0.8125rem', borderColor: isLight ? '#f1f5f9' : '#1e293b' },
           head: {
-            fontWeight: 600,
-            fontSize: '0.6875rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.07em',
-            backgroundColor: isLight ? '#f8fafc' : '#0d1526',
-            color: isLight ? '#64748b' : '#94a3b8',
-            padding: '8px 12px',
-            lineHeight: 1.3,
-            borderBottom: `2px solid ${borderColor}`,
-            whiteSpace: 'nowrap',
+            fontWeight: 600, fontSize: '0.6875rem', textTransform: 'uppercase',
+            letterSpacing: '0.07em', backgroundColor: isLight ? '#fafafa' : '#0d1526',
+            color: isLight ? '#52525b' : '#94a3b8', padding: '8px 12px', lineHeight: 1.3,
+            borderBottom: `1.5px solid ${borderStrong}`, whiteSpace: 'nowrap',
           },
-          stickyHeader: {
-            backgroundColor: isLight ? '#f8fafc' : '#0d1526',
-          },
+          stickyHeader: { backgroundColor: isLight ? '#fafafa' : '#0d1526' },
         },
       },
       MuiTableRow: {
         styleOverrides: {
           root: {
             '&:last-child td': { borderBottom: 'none' },
-            '&.MuiTableRow-hover:hover': {
-              backgroundColor: isLight ? '#f8fafc' : 'rgba(248,250,252,0.02)',
-            },
+            '&.MuiTableRow-hover:hover': { backgroundColor: isLight ? '#fafafa' : 'rgba(248,250,252,0.02)' },
           },
-          head: {
-            backgroundColor: isLight ? '#f8fafc' : '#0d1526',
-          },
+          head: { backgroundColor: isLight ? '#fafafa' : '#0d1526' },
         },
       },
       MuiTableContainer: {
@@ -274,10 +243,7 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
           root: {
             '&::-webkit-scrollbar': { height: 6, width: 6 },
             '&::-webkit-scrollbar-track': { background: 'transparent' },
-            '&::-webkit-scrollbar-thumb': {
-              background: isLight ? '#cbd5e1' : '#334155',
-              borderRadius: 3,
-            },
+            '&::-webkit-scrollbar-thumb': { background: isLight ? '#d4d4d8' : '#334155', borderRadius: 3 },
           },
         },
       },
@@ -383,10 +349,10 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
             borderRadius: 8,
             transition: 'background-color 0.15s ease, color 0.15s ease',
             '&.Mui-selected': {
-              backgroundColor: `rgba(${primaryRgb},0.08)`,
+              backgroundColor: `rgba(${primaryRgb},0.09)`,
               color: palette.primary.main,
               fontWeight: 600,
-              '&:hover': { backgroundColor: `rgba(${primaryRgb},0.12)` },
+              '&:hover': { backgroundColor: `rgba(${primaryRgb},0.14)` },
               '& .MuiListItemIcon-root': { color: palette.primary.main },
             },
           },
@@ -413,14 +379,10 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
       },
       MuiAlert: {
         styleOverrides: {
-          root: {
-            fontSize: '0.8125rem',
-            borderRadius: 8,
-            padding: '8px 14px',
-          },
-          standardSuccess: { border: '1px solid rgba(5,150,105,0.2)', backgroundColor: isLight ? '#f0fdf4' : 'rgba(5,150,105,0.08)' },
-          standardError: { border: '1px solid rgba(220,38,38,0.2)', backgroundColor: isLight ? '#fef2f2' : 'rgba(220,38,38,0.08)' },
-          standardWarning: { border: '1px solid rgba(217,119,6,0.2)', backgroundColor: isLight ? '#fffbeb' : 'rgba(217,119,6,0.08)' },
+          root: { fontSize: '0.8125rem', borderRadius: 8, padding: '8px 14px' },
+          standardSuccess: { border: '1px solid rgba(5,150,105,0.25)', backgroundColor: isLight ? '#eef4f0' : 'rgba(5,150,105,0.08)' },
+          standardError: { border: '1px solid rgba(220,38,38,0.25)', backgroundColor: isLight ? '#fbeae8' : 'rgba(220,38,38,0.08)' },
+          standardWarning: { border: '1px solid rgba(217,119,6,0.25)', backgroundColor: isLight ? '#f7f1e2' : 'rgba(217,119,6,0.08)' },
           standardInfo: { border: '1px solid rgba(2,132,199,0.2)', backgroundColor: isLight ? '#f0f9ff' : 'rgba(2,132,199,0.08)' },
         },
       },
@@ -453,7 +415,10 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
       MuiSwitch: {
         styleOverrides: {
           root: { width: 36, height: 22, padding: 0 },
-          switchBase: { padding: 2 },
+          switchBase: {
+            padding: 2,
+            '&.Mui-checked': { color: '#fff', '& + .MuiSwitch-track': { backgroundColor: palette.primary.main, opacity: 1 } },
+          },
           thumb: { width: 18, height: 18 },
           track: { borderRadius: 11 },
         },
@@ -543,7 +508,8 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
       },
       MuiLinearProgress: {
         styleOverrides: {
-          root: { borderRadius: 4, height: 6 },
+          root: { borderRadius: 4, height: 6, backgroundColor: isLight ? '#e4e4e7' : '#1e293b' },
+          bar: { backgroundColor: palette.primary.main },
         },
       },
       MuiSkeleton: {

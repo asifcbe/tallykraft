@@ -259,7 +259,7 @@ export const DataProvider = ({ children }) => {
 
   // Listen for business changes from localStorage
   useEffect(() => {
-    const storedBusinessId = Number(localStorage.getItem('currentBusinessId')) || 1;
+    const storedBusinessId = Number(localStorage.getItem('tallykraft_currentBusinessId')) || 1;
     setCurrentBusinessId(storedBusinessId);
   }, []);
 
@@ -286,7 +286,7 @@ export const DataProvider = ({ children }) => {
     }
   });
 
-  const isCompleteOffline = () => localStorage.getItem('sb_offline_mode') === 'true';
+  const isCompleteOffline = () => localStorage.getItem('tallykraft_offline_mode') === 'true';
 
   // ── Debounced flush ────────────────────────────────────────────────────────
   // Called after every mutation. Schedules a single write 400 ms after the
@@ -338,7 +338,7 @@ export const DataProvider = ({ children }) => {
   // Updates data + allBusinessData synchronously (single React batch), then
   // triggers a debounced persist. Returns the new `data` snapshot.
   const applyMutation = useCallback((table, newTableData) => {
-    const bKey = String(currentBusinessIdRef.current || localStorage.getItem('currentBusinessId') || 1);
+    const bKey = String(currentBusinessIdRef.current || localStorage.getItem('tallykraft_currentBusinessId') || 1);
     const newData = { ...dataRef.current, [table]: newTableData };
     const currentBiz = allDataRef.current[bKey];
     const newAll = currentBiz
@@ -405,13 +405,13 @@ export const DataProvider = ({ children }) => {
       if (finalData) {
         allDataRef.current = finalData;
         setAllBusinessData(finalData);
-        const storedId = Number(localStorage.getItem('currentBusinessId'));
+        const storedId = Number(localStorage.getItem('tallykraft_currentBusinessId'));
         const ids = Object.values(finalData).map(b => b.id);
         const validId = ids.includes(storedId) ? storedId : ids[0];
         if (validId) {
           currentBusinessIdRef.current = validId;
           setCurrentBusinessId(validId);
-          localStorage.setItem('currentBusinessId', validId.toString());
+          localStorage.setItem('tallykraft_currentBusinessId', validId.toString());
         }
       } else {
         const defaultData = createDefaultBusinessData();
@@ -419,7 +419,7 @@ export const DataProvider = ({ children }) => {
         setAllBusinessData(defaultData);
         currentBusinessIdRef.current = 1;
         setCurrentBusinessId(1);
-        localStorage.setItem('currentBusinessId', '1');
+        localStorage.setItem('tallykraft_currentBusinessId', '1');
         await saveToIndexedDB(defaultData);
       }
     } catch (error) {
@@ -429,7 +429,7 @@ export const DataProvider = ({ children }) => {
       setAllBusinessData(defaultData);
       currentBusinessIdRef.current = 1;
       setCurrentBusinessId(1);
-      localStorage.setItem('currentBusinessId', '1');
+      localStorage.setItem('tallykraft_currentBusinessId', '1');
       await saveToIndexedDB(defaultData);
     } finally {
       setLoading(false);
@@ -688,7 +688,7 @@ export const DataProvider = ({ children }) => {
   const updateCurrentBusinessId = (businessId) => {
     currentBusinessIdRef.current = businessId;
     setCurrentBusinessId(businessId);
-    localStorage.setItem('currentBusinessId', businessId.toString());
+    localStorage.setItem('tallykraft_currentBusinessId', businessId.toString());
   };
 
   // ── CRUD — all synchronous, single debounced write ─────────────────────────
@@ -713,11 +713,33 @@ export const DataProvider = ({ children }) => {
     if (table === 'items' && !item.name?.trim()) return false;
     if (table === 'payments' && (!item.partyId || !item.totalAmount || item.totalAmount <= 0)) return false;
     if (table === 'expenses' && (!item.amount || item.amount <= 0 || !item.date || !item.category)) return false;
-    if (table === 'cashEntries' && (!item.amount || item.amount <= 0 || !item.date || (item.type !== 'in' && item.type !== 'out'))) return false;
+    if (table === 'cashEntries' && (!item.amount || item.amount <= 0 || !item.date || !['in','out','bank_in','bank_out'].includes(item.type))) return false;
 
     const newItem = { ...item, id: item.id || Date.now() };
     applyMutation(table, [...(dataRef.current[table] || []), newItem]);
     return true;
+  };
+
+  // Bulk-insert: validates each item with the same rules as addItem, appends all
+  // valid ones in a single applyMutation (one state update, one persist write).
+  // Returns { saved, skipped } counts.
+  const addItems = (table, items) => {
+    if (!isBusinessActive(currentBusinessIdRef.current)) return { saved: 0, skipped: items.length };
+    const valid = [];
+    let skipped = 0;
+    const now = Date.now();
+    items.forEach((item, i) => {
+      if (!item || typeof item !== 'object') { skipped++; return; }
+      if (table === 'parties') {
+        if (!item.name?.trim() || !item.type || (item.type !== 'Customer' && item.type !== 'Vendor')) { skipped++; return; }
+      }
+      if (table === 'items' && !item.name?.trim()) { skipped++; return; }
+      valid.push({ ...item, id: item.id || (now + i) });
+    });
+    if (valid.length) {
+      applyMutation(table, [...(dataRef.current[table] || []), ...valid]);
+    }
+    return { saved: valid.length, skipped };
   };
 
   const updateItem = (table, id, updates) => {
@@ -798,7 +820,7 @@ export const DataProvider = ({ children }) => {
       setCurrentBusinessId(1);
       dataRef.current = fresh['1'].data;
       setData(fresh['1'].data);
-      localStorage.setItem('currentBusinessId', '1');
+      localStorage.setItem('tallykraft_currentBusinessId', '1');
       chunkCountsRef.current = {};
       await setLocalData(currentUser.uid, fresh);
       return { success: true };
@@ -881,6 +903,7 @@ export const DataProvider = ({ children }) => {
       loading,
       saving,
       addItem,
+      addItems,
       updateItem,
       deleteItem,
       getItems,

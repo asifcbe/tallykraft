@@ -6,23 +6,28 @@ import {
   Chip, InputAdornment, MenuItem, Autocomplete, TablePagination,
   Snackbar, Alert, Avatar, Tooltip, alpha, useTheme
 } from '@mui/material';
-import { Plus, Search, Edit2, Trash2, Users, TrendingUp, TrendingDown, UserCheck, Store, Upload, Download } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Users, TrendingUp, TrendingDown, UserCheck, Store, Upload, Download, LayoutList } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
 import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
 import { useDialog } from './DialogContext';
+import { useSubscription } from './SubscriptionContext';
 import ImportDialog from './ImportDialog';
+import BulkAddDialog from './BulkAddDialog';
 import { exportToExcel, PARTY_COLUMNS } from './exportUtils';
 
 const PartiesPage = () => {
   const { currentBusiness } = useBusiness();
   const { data, addItem, updateItem, deleteItem, getItems } = useData();
   const { confirm } = useDialog();
+  const { isBusinessActive } = useSubscription();
+  const canWrite = isBusinessActive(currentBusiness?.id);
   const { t } = useI18n();
   const [tab, setTab] = useState(0);
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [editingParty, setEditingParty] = useState(null);
   const [formData, setFormData] = useState({
     name: '', type: 'Customer', phone: '', gstNumber: '', address: '', balance: 0
@@ -202,13 +207,14 @@ const PartiesPage = () => {
           </Box>
           <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, alignItems: 'center' }}>
             {/* Mobile: icon-only */}
-            <Tooltip title="Import"><IconButton size="small" onClick={() => setImportOpen(true)} sx={{ display: { xs: 'inline-flex', sm: 'none' }, color: 'white', bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}><Upload size={16} /></IconButton></Tooltip>
-            <Tooltip title="Export"><IconButton size="small" onClick={() => exportToExcel(parties, PARTY_COLUMNS, 'parties_export.xlsx')} sx={{ display: { xs: 'inline-flex', sm: 'none' }, color: 'white', bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}><Download size={16} /></IconButton></Tooltip>
-            <Button variant="contained" onClick={() => handleOpen()} sx={{ display: { xs: 'inline-flex', sm: 'none' }, flexDirection: 'column', alignItems: 'center', gap: 0.25, bgcolor: 'white', color: '#3730a3', fontWeight: 700, minWidth: 0, px: 1.25, py: 0.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }, borderRadius: 2, textTransform: 'none', lineHeight: 1 }}><Plus size={15} /><Typography sx={{ fontSize: '0.6rem', fontWeight: 700, lineHeight: 1 }}>{tab === 0 ? 'Add Customer' : 'Add Vendor'}</Typography></Button>
+            <Tooltip title="Import"><IconButton size="small" disabled={!canWrite} onClick={() => setImportOpen(true)} sx={{ display: { xs: 'inline-flex', sm: 'none' }, color: 'white', bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}><Upload size={16} /></IconButton></Tooltip>
+            <Tooltip title="Export"><IconButton size="small" disabled={!canWrite} onClick={() => exportToExcel(parties, PARTY_COLUMNS, 'parties_export.xlsx')} sx={{ display: { xs: 'inline-flex', sm: 'none' }, color: 'white', bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.4)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}><Download size={16} /></IconButton></Tooltip>
+            <Button variant="contained" disabled={!canWrite} onClick={() => handleOpen()} sx={{ display: { xs: 'inline-flex', sm: 'none' }, flexDirection: 'column', alignItems: 'center', gap: 0.25, bgcolor: 'white', color: '#3730a3', fontWeight: 700, minWidth: 0, px: 1.25, py: 0.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }, borderRadius: 2, textTransform: 'none', lineHeight: 1 }}><Plus size={15} /><Typography sx={{ fontSize: '0.6rem', fontWeight: 700, lineHeight: 1 }}>{tab === 0 ? 'Add Customer' : 'Add Vendor'}</Typography></Button>
             {/* Desktop: full buttons */}
-            <Button variant="outlined" size="small" startIcon={<Upload size={16} />} onClick={() => setImportOpen(true)} sx={{ display: { xs: 'none', sm: 'inline-flex' }, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', borderColor: 'rgba(255,255,255,0.4)', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)', borderColor: 'white' }, borderRadius: 2, textTransform: 'none' }}>Import</Button>
-            <Button variant="outlined" size="small" startIcon={<Download size={16} />} onClick={() => exportToExcel(parties, PARTY_COLUMNS, 'parties_export.xlsx')} sx={{ display: { xs: 'none', sm: 'inline-flex' }, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', borderColor: 'rgba(255,255,255,0.4)', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)', borderColor: 'white' }, borderRadius: 2, textTransform: 'none' }}>Export</Button>
-            <Button variant="contained" size="small" startIcon={<Plus size={16} />} onClick={() => handleOpen()} sx={{ display: { xs: 'none', sm: 'inline-flex' }, bgcolor: 'white', color: '#3730a3', fontWeight: 700, '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }, borderRadius: 2, textTransform: 'none' }}>{tab === 0 ? 'Add Customer' : 'Add Vendor'}</Button>
+            <Button variant="outlined" size="small" disabled={!canWrite} startIcon={<Upload size={16} />} onClick={() => setImportOpen(true)} sx={{ display: { xs: 'none', sm: 'inline-flex' }, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', borderColor: 'rgba(255,255,255,0.4)', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)', borderColor: 'white' }, borderRadius: 2, textTransform: 'none' }}>Import</Button>
+            <Button variant="outlined" size="small" disabled={!canWrite} startIcon={<Download size={16} />} onClick={() => exportToExcel(parties, PARTY_COLUMNS, 'parties_export.xlsx')} sx={{ display: { xs: 'none', sm: 'inline-flex' }, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', borderColor: 'rgba(255,255,255,0.4)', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)', borderColor: 'white' }, borderRadius: 2, textTransform: 'none' }}>Export</Button>
+            <Button variant="outlined" size="small" disabled={!canWrite} startIcon={<LayoutList size={16} />} onClick={() => setBulkAddOpen(true)} sx={{ display: { xs: 'none', sm: 'inline-flex' }, bgcolor: 'rgba(255,255,255,0.1)', color: 'white', borderColor: 'rgba(255,255,255,0.4)', fontWeight: 600, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)', borderColor: 'white' }, borderRadius: 2, textTransform: 'none' }}>Bulk Add</Button>
+            <Button variant="contained" size="small" disabled={!canWrite} startIcon={<Plus size={16} />} onClick={() => handleOpen()} sx={{ display: { xs: 'none', sm: 'inline-flex' }, bgcolor: 'white', color: '#3730a3', fontWeight: 700, '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' }, borderRadius: 2, textTransform: 'none' }}>{tab === 0 ? 'Add Customer' : 'Add Vendor'}</Button>
           </Box>
         </Box>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' }, gap: 1.5, position: 'relative' }}>
@@ -396,10 +402,10 @@ const PartiesPage = () => {
                       />
                     </TableCell>
                     <TableCell align="right">
-                      <IconButton size="small" onClick={() => handleOpen(party)} color="primary">
+                      <IconButton size="small" disabled={!canWrite} onClick={() => handleOpen(party)} color="primary">
                         <Edit2 size={16} />
                       </IconButton>
-                      <IconButton size="small" onClick={() => handleDelete(party.id)} color="error">
+                      <IconButton size="small" disabled={!canWrite} onClick={() => handleDelete(party.id)} color="error">
                         <Trash2 size={16} />
                       </IconButton>
                     </TableCell>
@@ -551,6 +557,12 @@ const PartiesPage = () => {
             await addItem('parties', partyData);
           }
         }}
+      />
+
+      <BulkAddDialog
+        open={bulkAddOpen}
+        onClose={() => setBulkAddOpen(false)}
+        type={tab === 0 ? 'customer' : 'vendor'}
       />
 
       <Snackbar

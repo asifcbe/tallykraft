@@ -6,26 +6,26 @@ const ThemeContext = createContext();
 
 export const ThemeProviderWrapper = ({ children }) => {
   const [currentTheme, setCurrentTheme] = useState(() => {
-    const saved = localStorage.getItem('appTheme');
+    const saved = localStorage.getItem('tallykraft_appTheme');
     return saved || 'lightIndigo';
   });
 
   const [mode, setMode] = useState(() => {
-    const saved = localStorage.getItem('appMode');
+    const saved = localStorage.getItem('tallykraft_appMode');
     return saved || 'light';
   });
 
   const [primaryColor, setPrimaryColor] = useState(() => {
-    const saved = localStorage.getItem('appPrimaryColor');
+    const saved = localStorage.getItem('tallykraft_appPrimaryColor');
     return saved || 'indigo';
   });
 
   useEffect(() => {
     const themeKey = `${mode}${primaryColor.charAt(0).toUpperCase() + primaryColor.slice(1)}`;
     setCurrentTheme(themeKey);
-    localStorage.setItem('appTheme', themeKey);
-    localStorage.setItem('appMode', mode);
-    localStorage.setItem('appPrimaryColor', primaryColor);
+    localStorage.setItem('tallykraft_appTheme', themeKey);
+    localStorage.setItem('tallykraft_appMode', mode);
+    localStorage.setItem('tallykraft_appPrimaryColor', primaryColor);
   }, [mode, primaryColor]);
 
   const theme = themes[currentTheme] || themes.lightIndigo;

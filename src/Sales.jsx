@@ -41,6 +41,8 @@ import {
   Tooltip,
   Menu,
   useTheme,
+  Backdrop,
+  CircularProgress,
 } from "@mui/material";
 import {
   Plus,
@@ -75,12 +77,13 @@ import {
 } from "lucide-react";
 import { exportToExcel, exportToTallyXML, SALE_COLUMNS, PURCHASE_COLUMNS } from './exportUtils';
 import { useBusiness } from "./BusinessContext";
-import { useFinancialYear } from './FinancialYearContext';
 import { useData } from "./DataContext";
 import { useConfig } from "./ConfigContext";
 import { useAuth } from "./AuthContext";
+import { useSubscription } from "./SubscriptionContext";
 import { useReactToPrint } from "react-to-print";
 import { useLocation } from "react-router-dom";
+import { useTabs } from "./TabsContext";
 import InvoiceTemplate from "./InvoiceTemplate";
 import { FitPreview } from "./TxListView";
 import { useI18n } from "./i18n/I18nContext";
@@ -251,12 +254,17 @@ const SalesPage = ({ mode = "sales" }) => {
   const { confirm, showAlert } = useDialog();
   const isSale = mode === "sales";
   const { currentBusiness } = useBusiness();
-  const { activeFY } = useFinancialYear();
   const { data, addItem, updateItem, deleteItem, getItems } = useData();
   const { config } = useConfig();
-  const { staffSession } = useAuth();
+  const { staffSession, currentUser } = useAuth();
+  const { isBusinessActive } = useSubscription();
+  const canWrite = isBusinessActive(currentBusiness?.id);
   const canViewPurchasePrice = !staffSession || !!staffSession.features?.viewPurchasePrice;
+  const ownerName = staffSession ? staffSession.name : (currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Admin');
+  const salesStaff = getItems('staffMembers').filter(s => s.businessId === currentBusiness?.id && s.showInSalesSelector === true && s.status === 'active');
   const location = useLocation();
+  const { tabs, activeTabId } = useTabs();
+  const thisPath = mode === "purchase" ? "/purchases" : "/sales";
   const barcodeScanEnabled = !!config.features?.barcode;
 
   const [view, setView] = useState("list");
@@ -287,16 +295,13 @@ const SalesPage = ({ mode = "sales" }) => {
   const [printingTx, setPrintingTx] = useState(null);
   const [printTrigger, setPrintTrigger] = useState(0);
   const [paperSize, setPaperSize] = useState(() => config.defaultPaperSize || 'A4');
-  const _paperSizeInit = React.useRef(!!config.defaultPaperSize);
   React.useEffect(() => {
-    if (!_paperSizeInit.current && config.defaultPaperSize) {
-      setPaperSize(config.defaultPaperSize);
-      _paperSizeInit.current = true;
-    }
+    if (config.defaultPaperSize) setPaperSize(config.defaultPaperSize);
   }, [config.defaultPaperSize]);
   const printRef = useRef();
   const pdfRef = useRef();
   const bulkPrintRef = useRef();
+  const _shareInFlight = useRef(false);
   const [pdfLoading, setPdfLoading] = useState(false);
   const [shareMenuAnchor, setShareMenuAnchor] = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
@@ -309,14 +314,20 @@ const SalesPage = ({ mode = "sales" }) => {
   const [bulkPrintDateTo, setBulkPrintDateTo] = useState(
     () => new Date().toISOString().split("T")[0],
   );
+  const [bulkPrintPartyId, setBulkPrintPartyId] = useState("");
   const [isBulkPrinting, setIsBulkPrinting] = useState(false);
   const [bulkPrintSelectedIds, setBulkPrintSelectedIds] = useState(
     () => new Set(),
   );
   const [advance, setAdvance] = useState("");
+  const [paymentMode, setPaymentMode] = useState("Cash");
+  const [splitCash, setSplitCash] = useState("");
+  const [splitBank, setSplitBank] = useState("");
+  const [splitBankMode, setSplitBankMode] = useState("Bank");
   const [isSaving, setIsSaving] = useState(false);
   const [dueDate, setDueDate] = useState("");
   const [taxMode, setTaxMode] = useState("exclusive");
+  const [selectedBilledBy, setSelectedBilledBy] = useState('');
 
   const [pfProduct, setPfProduct] = useState(null);
   const [pfDate, setPfDate] = useState(
@@ -345,8 +356,10 @@ const SalesPage = ({ mode = "sales" }) => {
   const [itemDialog, setItemDialog] = useState({ open: false, name: "" });
   const itemDialogCallbackRef = useRef(null);
   const savingRef = useRef(false);
+  const formIsInterState = !!(currentBusiness?.state && selectedParty?.state && currentBusiness.state !== selectedParty.state);
   const keepDataOnNewRef = useRef(false);
   const pendingScannedItemRef = useRef(null);
+  const prevActiveTabIdRef = useRef(activeTabId);
   const gModeRef = useRef(false);
   const gModeTimerRef = useRef(null);
   const viewRef = useRef(view);
@@ -360,6 +373,7 @@ const SalesPage = ({ mode = "sales" }) => {
   const [sendParty, setSendParty] = useState(null);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [bulkSendOpen, setBulkSendOpen] = useState(false);
+  const [moreMenuAnchor, setMoreMenuAnchor] = useState(null);
 
   // Invoice previews auto-scale to fit their container via <FitPreview>.
   const [roundOff, setRoundOff] = useState(0); // 0=off, +1/+2/+3=round-up to 1/10/100, -1/-2/-3=round-down
@@ -470,38 +484,22 @@ const SalesPage = ({ mode = "sales" }) => {
   };
 
   const generateInvoiceNumber = (date, isSaleMode) => {
-    const d = date ? new Date(date + "T12:00:00") : new Date();
-    const monthNames = [
-      "JAN",
-      "FEB",
-      "MAR",
-      "APR",
-      "MAY",
-      "JUN",
-      "JUL",
-      "AUG",
-      "SEP",
-      "OCT",
-      "NOV",
-      "DEC",
-    ];
-    const month = monthNames[d.getMonth()];
-    const year = String(d.getFullYear()).slice(-2);
     const prefix = isSaleMode
-      ? `INVSB${month}${year}-`
-      : `BILL${month}${year}-`;
-    const existing = getItems(isSaleMode ? "sales" : "purchases").filter(
-      (tx) =>
-        tx.businessId === currentBusiness?.id &&
-        tx.invoiceNumber?.startsWith(prefix),
+      ? (config.invoiceNumberConfig?.salesPrefix || 'INV')
+      : (config.invoiceNumberConfig?.purchasePrefix || 'BILL');
+    const startNum = isSaleMode
+      ? (config.invoiceNumberConfig?.salesStartingNumber || 1)
+      : (config.invoiceNumberConfig?.purchaseStartingNumber || 1);
+    const existing = getItems(isSaleMode ? 'sales' : 'purchases').filter(
+      (tx) => tx.businessId === currentBusiness?.id && tx.invoiceNumber?.startsWith(prefix + '-')
     );
-    let maxSerial = 0;
+    let maxSerial = startNum - 1;
     existing.forEach((tx) => {
-      const parts = tx.invoiceNumber.split("-");
+      const parts = tx.invoiceNumber.split('-');
       const serial = parseInt(parts[parts.length - 1], 10);
       if (!isNaN(serial) && serial > maxSerial) maxSerial = serial;
     });
-    return `${prefix}${String(maxSerial + 1).padStart(4, "0")}`;
+    return `${prefix}-${String(maxSerial + 1).padStart(4, '0')}`;
   };
 
   const tableName = isSale ? "sales" : "purchases";
@@ -516,7 +514,7 @@ const SalesPage = ({ mode = "sales" }) => {
 
   const transactions = getItems(tableName)
     .filter((tx) => tx.businessId === currentBusiness?.id)
-    .filter((r) => !activeFY || !r.date || (r.date >= activeFY.start && r.date <= activeFY.end))
+    
     .filter((tx) => {
       if (filters.search) {
         const s = filters.search.toLowerCase();
@@ -577,7 +575,8 @@ const SalesPage = ({ mode = "sales" }) => {
         if (from && d < from) return false;
         if (to && d > to) return false;
         return true;
-      });
+      })
+      .filter((tx) => !bulkPrintPartyId || tx.partyId === bulkPrintPartyId);
     const byParty = {};
     allSales.forEach((tx) => {
       const key = tx.partyId;
@@ -597,6 +596,7 @@ const SalesPage = ({ mode = "sales" }) => {
     currentBusiness?.id,
     bulkPrintDateFrom,
     bulkPrintDateTo,
+    bulkPrintPartyId,
     getItems,
   ]);
 
@@ -612,12 +612,13 @@ const SalesPage = ({ mode = "sales" }) => {
     if (!bulkPrintOpen) return;
     setBulkPrintSelectedIds(new Set(bulkPrintAllBills.map((tx) => tx.id)));
     setBulkPrintFormat(paperSize);
+    setBulkPrintPartyId("");
   }, [bulkPrintOpen]); // eslint-disable-line
 
   useEffect(() => {
     if (!bulkPrintOpen) return;
     setBulkPrintSelectedIds(new Set(bulkPrintAllBills.map((tx) => tx.id)));
-  }, [bulkPrintDateFrom, bulkPrintDateTo, bulkPrintAllBills]); // eslint-disable-line
+  }, [bulkPrintDateFrom, bulkPrintDateTo, bulkPrintPartyId, bulkPrintAllBills]); // eslint-disable-line
 
   const handleBulkPrintClick = () => {
     if (bulkPrintMergedList.length === 0) return;
@@ -707,10 +708,15 @@ const SalesPage = ({ mode = "sales" }) => {
       setDiscountPercent("");
       setDiscountType("percent");
       setAdvance("");
+      setPaymentMode("Cash");
+      setSplitCash("");
+      setSplitBank("");
+      setSplitBankMode("Bank");
       setDueDate("");
       setTaxMode("inclusive");
-      setRoundOff(0);
+      setRoundOff(config.billPrintOptions?.autoRoundOff ? 1 : 0);
       setEditId(null);
+      setSelectedBilledBy(ownerName);
 
       // If a barcode scan triggered this view switch, populate that item instead of an empty row
       const pending = pendingScannedItemRef.current;
@@ -726,6 +732,40 @@ const SalesPage = ({ mode = "sales" }) => {
       }
     }
   }, [view, isSale, isSaving]); // eslint-disable-line
+
+  // Reset the form when the user navigates back to this tab while in "create" mode.
+  // Pages are CSS keep-alive (not unmounted), so view-change alone won't fire.
+  useEffect(() => {
+    const prevId = prevActiveTabIdRef.current;
+    prevActiveTabIdRef.current = activeTabId;
+    if (!activeTabId || prevId === activeTabId) return;
+    const activeTab = tabs.find(t => t.id === activeTabId);
+    if (activeTab?.path !== thisPath) return;
+    // User just switched TO this tab — if we're sitting on the create form, reset it
+    if (viewRef.current === "create" && !savingRef.current) {
+      const today = new Date().toISOString().split("T")[0];
+      setInvoiceNumber(generateInvoiceNumber(today, isSale));
+      setSelectedParty(null);
+      setInvoiceDate(today);
+      const nowT = new Date();
+      setInvoiceTime(`${String(nowT.getHours()).padStart(2, "0")}:${String(nowT.getMinutes()).padStart(2, "0")}`);
+      setDescription("");
+      setNoGST(false);
+      setDiscountPercent("");
+      setDiscountType("percent");
+      setAdvance("");
+      setPaymentMode("Cash");
+      setSplitCash("");
+      setSplitBank("");
+      setSplitBankMode("Bank");
+      setDueDate("");
+      setTaxMode("inclusive");
+      setRoundOff(config.billPrintOptions?.autoRoundOff ? 1 : 0);
+      setEditId(null);
+      setSelectedBilledBy(ownerName);
+      setItems([{ itemId: "", name: "", qty: 1, price: "", taxRate: 0, discountPercent: "", total: 0 }]);
+    }
+  }, [activeTabId]); // eslint-disable-line
 
   useEffect(() => {
     if (view === "create" && !savingRef.current && !isSaving)
@@ -796,7 +836,6 @@ const SalesPage = ({ mode = "sales" }) => {
       setView("create");
       window.history.replaceState({}, document.title);
     }
-    const thisPath = mode === "purchase" ? "/purchases" : "/sales";
     const onQuickNew = (e) => {
       if (e.detail?.path === thisPath && e.detail?.intent === "createNew") setView("create");
     };
@@ -966,6 +1005,10 @@ const SalesPage = ({ mode = "sales" }) => {
       const currentBusinessId = currentBusiness?.id;
       const currentAdvance =
         currentIsSale && !editId ? Number(advance) || 0 : 0;
+      const currentPaymentMode = paymentMode || "Cash";
+      const currentSplitCash = Number(splitCash) || 0;
+      const currentSplitBank = Number(splitBank) || 0;
+      const currentSplitBankMode = splitBankMode || "Bank";
       const currentDueDate = dueDate;
       const currentTaxMode = taxMode;
       if (!currentBusinessId) {
@@ -1049,12 +1092,23 @@ const SalesPage = ({ mode = "sales" }) => {
         return;
       }
 
+      const bizState = currentBusiness?.state || '';
+      const partyState = currentSelectedParty?.state || '';
+      const isInterState = !!(bizState && partyState && bizState !== partyState);
       const transactionData = {
         businessId: currentBusinessId,
         partyId: currentSelectedParty?.id || "",
         partyName:
           currentSelectedParty?.name ||
           (currentIsSale ? "Cash & Carry" : "Cash Purchase"),
+        partyGstNumber: currentSelectedParty?.gstNumber || "",
+        partyAddress: currentSelectedParty?.address || "",
+        partyCity: currentSelectedParty?.city || "",
+        partyState,
+        partyPhone: currentSelectedParty?.phone || "",
+        placeOfSupply: partyState || bizState,
+        isInterState,
+        reverseCharge: false,
         type: currentIsSale ? "Sales" : "Purchases",
         date: currentInvoiceDate,
         time: currentInvoiceTime,
@@ -1073,6 +1127,11 @@ const SalesPage = ({ mode = "sales" }) => {
         advance: currentAdvance,
         dueDate: currentDueDate || "",
         taxMode: currentTaxMode,
+        paymentMode: currentPaymentMode,
+        ...(currentPaymentMode === "Split" && {
+          paymentSplit: { cash: currentSplitCash, bank: currentSplitBank, bankMode: currentSplitBankMode },
+        }),
+        billedBy: selectedBilledBy || ownerName,
       };
 
       const currentData = data;
@@ -1099,6 +1158,50 @@ const SalesPage = ({ mode = "sales" }) => {
             });
           // Stock rollback is deferred — handled together with the new items
           // as a net delta below to avoid stale-snapshot double-counting.
+        }
+      }
+
+      // Stock quantity check — sales only, gated by feature flag
+      // Placed after editedOldTx is resolved so edit-mode available qty is accurate.
+      if (currentIsSale && config.features?.stockAlert) {
+        const overStockLines = cleanedItems
+          .map(ci => {
+            const si = stockItems.find(s => String(s.id) === String(ci.itemId));
+            if (!si) return null;
+            const avail = Number(si.stock) || 0;
+            const qty = Number(ci.qty) || 0;
+            // On edits: restore the qty that was previously deducted for this item
+            let effectiveAvail = avail;
+            if (currentEditId && editedOldTx) {
+              const oldLine = editedOldTx.items?.find(oi => String(oi.itemId) === String(ci.itemId));
+              effectiveAvail = avail + (Number(oldLine?.qty) || 0);
+            }
+            return qty > effectiveAvail ? { name: ci.name || si.name || 'Unknown item', qty, avail: effectiveAvail } : null;
+          })
+          .filter(Boolean);
+        if (overStockLines.length > 0) {
+          const lines = overStockLines.map(l =>
+            l.avail <= 0
+              ? `${l.name} (out of stock)`
+              : `${l.name} (need ${l.qty}, only ${l.avail} left)`
+          );
+          const proceed = await confirm({
+            title: 'Insufficient stock',
+            message: lines.join('\n') + '\n\nProceed anyway?',
+            confirmLabel: 'Proceed',
+            cancelLabel: 'Cancel',
+          });
+          if (!proceed) {
+            // Roll back the party balance update that already happened above
+            if (currentEditId && editedOldTx && editedOldParty) {
+              await updateItem("parties", editedOldTx.partyId, {
+                balance: editedOldParty.balance,
+              });
+            }
+            savingRef.current = false;
+            setIsSaving(false);
+            return;
+          }
         }
       }
 
@@ -1157,6 +1260,35 @@ const SalesPage = ({ mode = "sales" }) => {
         });
       }
 
+      // For split-payment POS / cash-and-carry sales, record each portion as a PaymentIn.
+      // Party-linked sales use the party balance flow instead, so split is a UI-only hint there.
+      if (currentIsSale && !currentEditId && currentPaymentMode === "Split" && !currentSelectedParty?.id) {
+        if (currentSplitCash > 0) {
+          await addItem("payments", {
+            businessId: currentBusinessId,
+            partyId: "", partyName: "Cash & Carry",
+            type: "PaymentIn",
+            totalAmount: currentSplitCash,
+            date: currentInvoiceDate,
+            paymentMode: "Cash",
+            referenceNo: `SPL-${currentInvoiceNumber.trim()}`,
+            notes: `Split payment (cash) for invoice ${currentInvoiceNumber.trim()}`,
+          });
+        }
+        if (currentSplitBank > 0) {
+          await addItem("payments", {
+            businessId: currentBusinessId,
+            partyId: "", partyName: "Cash & Carry",
+            type: "PaymentIn",
+            totalAmount: currentSplitBank,
+            date: currentInvoiceDate,
+            paymentMode: currentSplitBankMode,
+            referenceNo: `SPL-${currentInvoiceNumber.trim()}`,
+            notes: `Split payment (${currentSplitBankMode}) for invoice ${currentInvoiceNumber.trim()}`,
+          });
+        }
+      }
+
       if (currentEditId && editedOldTx) {
         // Compute net stock delta: rollback old items + apply new items in one pass.
         // Using a snapshot (currentStockItems) is safe because each itemId is only
@@ -1213,11 +1345,11 @@ const SalesPage = ({ mode = "sales" }) => {
         setView("create");
       } else if (saveAndPrint) {
         triggerPrint(transactionData);
-        setAdvance("");
+        setAdvance(""); setPaymentMode("Cash"); setSplitCash(""); setSplitBank(""); setSplitBankMode("Bank");
         setView("list");
         setEditId(null);
       } else {
-        setAdvance("");
+        setAdvance(""); setPaymentMode("Cash"); setSplitCash(""); setSplitBank(""); setSplitBankMode("Bank");
         setView("list");
         setEditId(null);
         // Prompt to send to customer if it's a sale and party has contact info
@@ -1289,6 +1421,10 @@ const SalesPage = ({ mode = "sales" }) => {
     setDiscountType(tx.discountType || "percent");
     setDiscountPercent(tx.discountType === "amount" ? (tx.discountValue ?? tx.discountAmount ?? 0) : (tx.discountPercent ?? 0));
     setAdvance(tx.advance ? String(tx.advance) : "");
+    setPaymentMode(tx.paymentMode || "Cash");
+    setSplitCash(tx.paymentSplit?.cash ? String(tx.paymentSplit.cash) : "");
+    setSplitBank(tx.paymentSplit?.bank ? String(tx.paymentSplit.bank) : "");
+    setSplitBankMode(tx.paymentSplit?.bankMode || "Bank");
     setDueDate(tx.dueDate || "");
     setTaxMode(tx.taxMode || "inclusive");
     setView("edit");
@@ -1353,7 +1489,8 @@ const SalesPage = ({ mode = "sales" }) => {
   };
 
   const shareAsPDF = async () => {
-    if (!pdfRef.current || !previewTx) return;
+    if (!pdfRef.current || !previewTx || _shareInFlight.current) return;
+    _shareInFlight.current = true;
     setShareLoading(true);
     try {
       const [canvas, { jsPDF }] = await Promise.all([
@@ -1381,11 +1518,12 @@ const SalesPage = ({ mode = "sales" }) => {
         URL.revokeObjectURL(url);
       }
     } catch (err) { console.error('Share as PDF failed', err); }
-    finally { setShareLoading(false); }
+    finally { setShareLoading(false); _shareInFlight.current = false; }
   };
 
   const shareAsImage = async () => {
-    if (!pdfRef.current || !previewTx) return;
+    if (!pdfRef.current || !previewTx || _shareInFlight.current) return;
+    _shareInFlight.current = true;
     setShareLoading(true);
     try {
       const canvas = await captureInvoiceCanvas();
@@ -1406,7 +1544,45 @@ const SalesPage = ({ mode = "sales" }) => {
         }, 'image/png');
       });
     } catch (err) { console.error('Share as Image failed', err); }
-    finally { setShareLoading(false); }
+    finally { setShareLoading(false); _shareInFlight.current = false; }
+  };
+
+  const shareAsBoth = async () => {
+    if (!pdfRef.current || !previewTx || _shareInFlight.current) return;
+    _shareInFlight.current = true;
+    setShareLoading(true);
+    try {
+      const [canvas, { jsPDF }] = await Promise.all([
+        captureInvoiceCanvas(),
+        import('jspdf').then(m => ({ jsPDF: m.jsPDF })),
+      ]);
+      const imgData = canvas.toDataURL('image/png');
+      const baseName = previewTx.invoiceNumber || 'invoice';
+      const isNarrow = paperSize === 'Thermal 80mm' || paperSize === 'Thermal 58mm';
+      let pdfWidthMm = paperSize === 'Thermal 58mm' ? 58 : paperSize === 'Thermal 80mm' ? 80 : paperSize === 'A5' ? 148 : 210;
+      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
+      const pdf = new jsPDF({
+        unit: 'mm',
+        format: isNarrow ? [pdfWidthMm, pdfHeightMm] : (paperSize === 'A5' ? 'a5' : paperSize === 'Legal' ? 'legal' : paperSize === 'Letter' ? 'letter' : 'a4'),
+      });
+      pdf.addImage(imgData, 'PNG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const pdfBlob = pdf.output('blob');
+      const pdfFile = new File([pdfBlob], `${baseName}.pdf`, { type: 'application/pdf' });
+      const imgBlob = await new Promise(res => canvas.toBlob(res, 'image/png'));
+      const imgFile = new File([imgBlob], `${baseName}.png`, { type: 'image/png' });
+      const files = [pdfFile, imgFile];
+      if (navigator.canShare?.({ files })) {
+        await navigator.share({ files, title: baseName });
+      } else {
+        for (const f of files) {
+          const url = URL.createObjectURL(f);
+          const a = document.createElement('a'); a.href = url; a.download = f.name;
+          document.body.appendChild(a); a.click(); document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+      }
+    } catch (err) { console.error('Share both failed', err); }
+    finally { setShareLoading(false); _shareInFlight.current = false; }
   };
 
   const addPfCustomer = () =>
@@ -1987,7 +2163,7 @@ const SalesPage = ({ mode = "sales" }) => {
                             <TableCell align="center" sx={{ py: 1.25 }}>
                               <TextField
                                 type="number" size="small" value={row.qty} placeholder="1"
-                                onChange={(e) => updatePfCustomer(row._key, "qty", e.target.value === "" ? "" : Number(e.target.value))}
+                                onChange={(e) => { if (e.target.value === "") { updatePfCustomer(row._key, "qty", ""); return; } const n = parseFloat(e.target.value); updatePfCustomer(row._key, "qty", isNaN(n) ? "" : Math.round(n * 1000) / 1000); }}
                                 onFocus={(e) => e.target.select()}
                                 slotProps={{ input: { min: 0, step: 1, style: { textAlign: "center" } } }}
                                 sx={{ width: 80, ...inputSx }}
@@ -2324,6 +2500,22 @@ const SalesPage = ({ mode = "sales" }) => {
                         sx={inputSx}
                       />
                     </Grid>
+                    {salesStaff.length > 0 && (
+                      <Grid size={{ xs: 12, sm: 3 }}>
+                        <TextField
+                          select
+                          fullWidth
+                          size="small"
+                          label="Billed by"
+                          value={selectedBilledBy || ownerName}
+                          onChange={(e) => setSelectedBilledBy(e.target.value)}
+                          sx={inputSx}
+                        >
+                          <MenuItem value={ownerName}>{ownerName} (You)</MenuItem>
+                          {salesStaff.map(s => <MenuItem key={s.id} value={s.name}>{s.name}</MenuItem>)}
+                        </TextField>
+                      </Grid>
+                    )}
                     <Grid
                       size={{ xs: 12, sm: 9 }}
                       sx={{ display: "flex", alignItems: "center", gap: 1.5 }}
@@ -2478,9 +2670,11 @@ const SalesPage = ({ mode = "sales" }) => {
                               size="small"
                               label="Qty"
                               value={item.qty}
-                              onChange={(e) =>
-                                updateItemRow(index, "qty", e.target.value === "" ? "" : Number(e.target.value))
-                              }
+                              onChange={(e) => {
+                                if (e.target.value === "") { updateItemRow(index, "qty", ""); return; }
+                                const n = parseFloat(e.target.value);
+                                updateItemRow(index, "qty", isNaN(n) ? "" : Math.round(n * 1000) / 1000);
+                              }}
                               onFocus={(e) => e.target.select()}
                               slotProps={{ input: { min: 0, step: 1 } }}
                               sx={inputSx}
@@ -2520,14 +2714,26 @@ const SalesPage = ({ mode = "sales" }) => {
                               slotProps={{ input: { min: 0, max: 100, step: 0.5 } }}
                               sx={inputSx}
                             />
-                            {config.billPrintOptions?.showCGSTSGST ? (
+                            {formIsInterState ? (
+                              <TextField
+                                type="number"
+                                size="small"
+                                label="IGST %"
+                                value={item.taxRate ?? ""}
+                                placeholder="0"
+                                onChange={(e) => updateItemRow(index, "taxRate", e.target.value === "" ? 0 : Number(e.target.value))}
+                                onFocus={(e) => e.target.select()}
+                                slotProps={{ input: { min: 0, max: 100, step: 0.5, endAdornment: <InputAdornment position="end">%</InputAdornment> } }}
+                                sx={inputSx}
+                              />
+                            ) : (
                               <Box sx={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 0.5 }}>
                                 <TextField
                                   type="number"
                                   size="small"
                                   label="CGST %"
-                                  value={item.cgstRate ?? (Number(item.taxRate) || 0) / 2}
-                                  onChange={(e) => updateItemRow(index, "cgstRate", Number(e.target.value) || 0)}
+                                  value={(Number(item.taxRate) || 0) / 2}
+                                  onChange={(e) => updateItemRow(index, "taxRate", (Number(e.target.value) || 0) * 2)}
                                   onFocus={(e) => e.target.select()}
                                   slotProps={{ input: { min: 0, max: 50, step: 0.5 } }}
                                   sx={inputSx}
@@ -2536,36 +2742,13 @@ const SalesPage = ({ mode = "sales" }) => {
                                   type="number"
                                   size="small"
                                   label="SGST %"
-                                  value={item.sgstRate ?? (Number(item.taxRate) || 0) / 2}
-                                  onChange={(e) => updateItemRow(index, "sgstRate", Number(e.target.value) || 0)}
+                                  value={(Number(item.taxRate) || 0) / 2}
+                                  onChange={(e) => updateItemRow(index, "taxRate", (Number(e.target.value) || 0) * 2)}
                                   onFocus={(e) => e.target.select()}
                                   slotProps={{ input: { min: 0, max: 50, step: 0.5 } }}
                                   sx={inputSx}
                                 />
                               </Box>
-                            ) : config.billPrintOptions?.showIGST ? (
-                              <TextField
-                                type="number"
-                                size="small"
-                                label="IGST %"
-                                value={item.igstRate ?? (Number(item.taxRate) || 0)}
-                                onChange={(e) => updateItemRow(index, "igstRate", Number(e.target.value) || 0)}
-                                onFocus={(e) => e.target.select()}
-                                slotProps={{ input: { min: 0, max: 100, step: 0.5, endAdornment: <InputAdornment position="end">%</InputAdornment> } }}
-                                sx={inputSx}
-                              />
-                            ) : (
-                              <TextField
-                                type="number"
-                                size="small"
-                                label="GST %"
-                                value={item.taxRate ?? ""}
-                                placeholder="0"
-                                onChange={(e) => updateItemRow(index, "taxRate", e.target.value === "" ? 0 : Number(e.target.value))}
-                                onFocus={(e) => e.target.select()}
-                                slotProps={{ input: { min: 0, max: 100, step: 0.5, endAdornment: <InputAdornment position="end">%</InputAdornment> } }}
-                                sx={inputSx}
-                              />
                             )}
                           </Box>
                           {/* Amount + Delete row */}
@@ -2606,7 +2789,7 @@ const SalesPage = ({ mode = "sales" }) => {
                               ["Rate (₹)", { width: 150, align: "right" }],
                               ["Disc %", { width: 100, align: "center" }],
                               ...(showGstColumn
-                                ? [[config.billPrintOptions?.showCGSTSGST ? "CGST% / SGST%" : config.billPrintOptions?.showIGST ? "IGST %" : "GST %", { width: 120, align: "center" }]]
+                                ? [[formIsInterState ? "IGST %" : "CGST / SGST %", { width: 120, align: "center" }]]
                                 : []),
                               ["Amount", { width: 130, pr: 3, align: "right" }],
                               ["", { width: 44 }],
@@ -2677,15 +2860,11 @@ const SalesPage = ({ mode = "sales" }) => {
                                   type="number"
                                   size="small"
                                   value={item.qty}
-                                  onChange={(e) =>
-                                    updateItemRow(
-                                      index,
-                                      "qty",
-                                      e.target.value === ""
-                                        ? ""
-                                        : Number(e.target.value),
-                                    )
-                                  }
+                                  onChange={(e) => {
+                                    if (e.target.value === "") { updateItemRow(index, "qty", ""); return; }
+                                    const n = parseFloat(e.target.value);
+                                    updateItemRow(index, "qty", isNaN(n) ? "" : Math.round(n * 1000) / 1000);
+                                  }}
                                   onFocus={(e) => e.target.select()}
                                   slotProps={{
                                     input: {
@@ -2757,14 +2936,26 @@ const SalesPage = ({ mode = "sales" }) => {
                               </TableCell>
                               {showGstColumn && (
                               <TableCell align="center" sx={{ py: 1.25 }}>
-                                {config.billPrintOptions?.showCGSTSGST ? (
+                                {formIsInterState ? (
+                                  <TextField
+                                    type="number"
+                                    size="small"
+                                    label="IGST %"
+                                    value={item.taxRate ?? ""}
+                                    placeholder="0"
+                                    onChange={(e) => updateItemRow(index, "taxRate", e.target.value === "" ? 0 : Number(e.target.value))}
+                                    onFocus={(e) => e.target.select()}
+                                    slotProps={{ input: { style: { textAlign: "center" }, min: 0, max: 100, step: 0.5, endAdornment: <InputAdornment position="end">%</InputAdornment> } }}
+                                    sx={{ width: 84, ...inputSx }}
+                                  />
+                                ) : (
                                   <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 0.3 }}>
                                     <TextField
                                       type="number"
                                       size="small"
                                       label="CGST %"
-                                      value={item.cgstRate ?? (Number(item.taxRate) || 0) / 2}
-                                      onChange={(e) => updateItemRow(index, "cgstRate", Number(e.target.value) || 0)}
+                                      value={(Number(item.taxRate) || 0) / 2}
+                                      onChange={(e) => updateItemRow(index, "taxRate", (Number(e.target.value) || 0) * 2)}
                                       onFocus={(e) => e.target.select()}
                                       slotProps={{ input: { min: 0, max: 50, step: 0.5, style: { textAlign: "center" } } }}
                                       sx={{ width: 84, ...inputSx }}
@@ -2773,35 +2964,13 @@ const SalesPage = ({ mode = "sales" }) => {
                                       type="number"
                                       size="small"
                                       label="SGST %"
-                                      value={item.sgstRate ?? (Number(item.taxRate) || 0) / 2}
-                                      onChange={(e) => updateItemRow(index, "sgstRate", Number(e.target.value) || 0)}
+                                      value={(Number(item.taxRate) || 0) / 2}
+                                      onChange={(e) => updateItemRow(index, "taxRate", (Number(e.target.value) || 0) * 2)}
                                       onFocus={(e) => e.target.select()}
                                       slotProps={{ input: { min: 0, max: 50, step: 0.5, style: { textAlign: "center" } } }}
                                       sx={{ width: 84, ...inputSx }}
                                     />
                                   </Box>
-                                ) : config.billPrintOptions?.showIGST ? (
-                                  <TextField
-                                    type="number"
-                                    size="small"
-                                    label="IGST %"
-                                    value={item.igstRate ?? (Number(item.taxRate) || 0)}
-                                    onChange={(e) => updateItemRow(index, "igstRate", Number(e.target.value) || 0)}
-                                    onFocus={(e) => e.target.select()}
-                                    slotProps={{ input: { style: { textAlign: "center" }, min: 0, max: 100, step: 0.5, endAdornment: <InputAdornment position="end">%</InputAdornment> } }}
-                                    sx={{ width: 84, ...inputSx }}
-                                  />
-                                ) : (
-                                  <TextField
-                                    type="number"
-                                    size="small"
-                                    value={item.taxRate ?? ""}
-                                    placeholder="0"
-                                    onChange={(e) => updateItemRow(index, "taxRate", e.target.value === "" ? 0 : Number(e.target.value))}
-                                    onFocus={(e) => e.target.select()}
-                                    slotProps={{ input: { style: { textAlign: "center" }, min: 0, max: 100, step: 0.5, endAdornment: <InputAdornment position="end">%</InputAdornment> } }}
-                                    sx={{ width: 84, ...inputSx }}
-                                  />
                                 )}
                               </TableCell>
                               )}
@@ -2903,7 +3072,7 @@ const SalesPage = ({ mode = "sales" }) => {
                     }}
                   >
                     <Grid container spacing={2} alignItems="center">
-                      <Grid size={{ xs: 12, sm: 6 }}>
+                      <Grid size={{ xs: 12, sm: 9 }}>
                         <TextField
                           fullWidth
                           size="small"
@@ -2913,48 +3082,6 @@ const SalesPage = ({ mode = "sales" }) => {
                           onChange={(e) => setDescription(e.target.value)}
                           multiline
                           rows={2}
-                          sx={inputSx}
-                        />
-                      </Grid>
-                      <Grid size={{ xs: 12, sm: 3 }}>
-                        <TextField
-                          fullWidth
-                          size="small"
-                          type="number"
-                          label={discountType === "percent" ? "Invoice Discount %" : "Invoice Discount ₹"}
-                          value={discountPercent || ""}
-                          placeholder="0"
-                          onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)}
-                          onFocus={(e) => e.target.select()}
-                          slotProps={{
-                            input: {
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  <ToggleButtonGroup
-                                    value={discountType}
-                                    exclusive
-                                    size="small"
-                                    onChange={(_, v) => {
-                                      if (!v) return;
-                                      const sub = calculateSubtotal();
-                                      if (v === "amount" && discountType === "percent") {
-                                        setDiscountPercent(sub > 0 ? parseFloat(((Number(discountPercent) || 0) / 100 * sub).toFixed(2)) : 0);
-                                      } else if (v === "percent" && discountType === "amount") {
-                                        setDiscountPercent(sub > 0 ? parseFloat(((Number(discountPercent) || 0) / sub * 100).toFixed(2)) : 0);
-                                      }
-                                      setDiscountType(v);
-                                    }}
-                                    sx={{ mr: 0.5 }}
-                                  >
-                                    <ToggleButton value="percent" sx={{ py: 0.25, px: 0.75, fontSize: '0.7rem', fontWeight: 700, minWidth: 28, lineHeight: 1 }}>%</ToggleButton>
-                                    <ToggleButton value="amount" sx={{ py: 0.25, px: 0.75, fontSize: '0.7rem', fontWeight: 700, minWidth: 28, lineHeight: 1 }}>₹</ToggleButton>
-                                  </ToggleButtonGroup>
-                                </InputAdornment>
-                              ),
-                              min: 0,
-                              step: discountType === "percent" ? 0.5 : 1,
-                            },
-                          }}
                           sx={inputSx}
                         />
                       </Grid>
@@ -3014,6 +3141,47 @@ const SalesPage = ({ mode = "sales" }) => {
                     </SectionLabel>
                   </Box>
                   <CardContent sx={{ pt: 1.75, pb: 2, px: 2.5 }}>
+                    {/* Discount field in sidebar */}
+                    <TextField
+                      fullWidth
+                      size="small"
+                      type="number"
+                      label={discountType === "percent" ? "Invoice Discount %" : "Invoice Discount ₹"}
+                      value={discountPercent || ""}
+                      placeholder="0"
+                      onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)}
+                      onFocus={(e) => e.target.select()}
+                      slotProps={{
+                        input: {
+                          startAdornment: (
+                            <InputAdornment position="start">
+                              <ToggleButtonGroup
+                                value={discountType}
+                                exclusive
+                                size="small"
+                                onChange={(_, v) => {
+                                  if (!v) return;
+                                  const sub = calculateSubtotal();
+                                  if (v === "amount" && discountType === "percent") {
+                                    setDiscountPercent(sub > 0 ? parseFloat(((Number(discountPercent) || 0) / 100 * sub).toFixed(2)) : 0);
+                                  } else if (v === "percent" && discountType === "amount") {
+                                    setDiscountPercent(sub > 0 ? parseFloat(((Number(discountPercent) || 0) / sub * 100).toFixed(2)) : 0);
+                                  }
+                                  setDiscountType(v);
+                                }}
+                                sx={{ mr: 0.5 }}
+                              >
+                                <ToggleButton value="percent" sx={{ py: 0.25, px: 0.75, fontSize: '0.7rem', fontWeight: 700, minWidth: 28, lineHeight: 1 }}>%</ToggleButton>
+                                <ToggleButton value="amount" sx={{ py: 0.25, px: 0.75, fontSize: '0.7rem', fontWeight: 700, minWidth: 28, lineHeight: 1 }}>₹</ToggleButton>
+                              </ToggleButtonGroup>
+                            </InputAdornment>
+                          ),
+                          min: 0,
+                          step: discountType === "percent" ? 0.5 : 1,
+                        },
+                      }}
+                      sx={{ ...inputSx, mb: 1.75 }}
+                    />
                     <Box
                       sx={{
                         display: "flex",
@@ -3036,18 +3204,9 @@ const SalesPage = ({ mode = "sales" }) => {
                               },
                             ]
                           : []),
-                        ...(config.billPrintOptions?.showCGSTSGST && !noGST
-                          ? [
-                              {
-                                label: `CGST (${taxMode === "inclusive" ? "Incl." : "Excl."})`,
-                                value: `₹${(calculateTax() / 2).toFixed(2)}`,
-                              },
-                              {
-                                label: `SGST (${taxMode === "inclusive" ? "Incl." : "Excl."})`,
-                                value: `₹${(calculateTax() / 2).toFixed(2)}`,
-                              },
-                            ]
-                          : config.billPrintOptions?.showIGST && !noGST
+                        ...(noGST
+                          ? [{ label: "GST (disabled)", value: `₹0.00` }]
+                          : formIsInterState
                           ? [
                               {
                                 label: `IGST (${taxMode === "inclusive" ? "Incl." : "Excl."})`,
@@ -3056,10 +3215,12 @@ const SalesPage = ({ mode = "sales" }) => {
                             ]
                           : [
                               {
-                                label: noGST
-                                  ? "GST (disabled)"
-                                  : `GST (${taxMode === "inclusive" ? "Incl." : "Excl."})`,
-                                value: `₹${calculateTax().toFixed(2)}`,
+                                label: `CGST (${taxMode === "inclusive" ? "Incl." : "Excl."})`,
+                                value: `₹${(calculateTax() / 2).toFixed(2)}`,
+                              },
+                              {
+                                label: `SGST (${taxMode === "inclusive" ? "Incl." : "Excl."})`,
+                                value: `₹${(calculateTax() / 2).toFixed(2)}`,
                               },
                             ]),
                       ].map((r) => (
@@ -3243,6 +3404,57 @@ const SalesPage = ({ mode = "sales" }) => {
                       </Box>
                     </Box>
 
+                    {/* Payment mode */}
+                    {isSale && view !== "edit" && (
+                      <Box sx={{ mb: 1.5, p: 1.5, borderRadius: tokens.radius.md, bgcolor: alpha(tokens.primary, 0.04), border: `1px solid ${alpha(tokens.primary, 0.14)}` }}>
+                        <Typography variant="caption" sx={{ fontWeight: 800, color: alpha(tokens.primary, 0.85), textTransform: "uppercase", letterSpacing: "0.06em", fontSize: "0.65rem", display: "block", mb: 1 }}>
+                          Payment Mode
+                        </Typography>
+                        <ToggleButtonGroup exclusive size="small" value={paymentMode} onChange={(_, v) => v && setPaymentMode(v)}
+                          sx={{ width: "100%", bgcolor: "white", borderRadius: tokens.radius.sm, p: 0.4, border: `1px solid ${alpha(tokens.primary, 0.14)}`,
+                            "& .MuiToggleButtonGroup-grouped": { border: 0, borderRadius: `${tokens.radius.sm} !important`, flex: 1, mx: 0.25 } }}>
+                          {["Cash", "Bank", "UPI", "Split"].map((m) => (
+                            <ToggleButton key={m} value={m} sx={{ textTransform: "none", fontWeight: 700, py: 0.6, fontSize: "0.78rem",
+                              "&.Mui-selected": { bgcolor: tokens.primary, color: "white", "&:hover": { bgcolor: tokens.primary } } }}>
+                              {m}
+                            </ToggleButton>
+                          ))}
+                        </ToggleButtonGroup>
+                        {paymentMode === "Split" && (
+                          <Box sx={{ mt: 1.25, display: "flex", flexDirection: "column", gap: 1 }}>
+                            <TextField size="small" fullWidth type="number" label="Cash portion" placeholder="0.00" value={splitCash}
+                              onChange={(e) => setSplitCash(e.target.value)} onFocus={(e) => e.target.select()}
+                              slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }}
+                              sx={{ "& .MuiOutlinedInput-root": { bgcolor: "white", borderRadius: tokens.radius.sm } }} />
+                            <Box sx={{ display: "flex", gap: 1 }}>
+                              <TextField size="small" fullWidth type="number" label={`${splitBankMode} portion`} placeholder="0.00" value={splitBank}
+                                onChange={(e) => setSplitBank(e.target.value)} onFocus={(e) => e.target.select()}
+                                slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }}
+                                sx={{ "& .MuiOutlinedInput-root": { bgcolor: "white", borderRadius: tokens.radius.sm } }} />
+                              <ToggleButtonGroup exclusive size="small" value={splitBankMode} onChange={(_, v) => v && setSplitBankMode(v)}
+                                sx={{ flexShrink: 0, "& .MuiToggleButtonGroup-grouped": { border: "1px solid", borderColor: "divider", borderRadius: `${tokens.radius.sm} !important` } }}>
+                                {["Bank", "UPI"].map((m) => (
+                                  <ToggleButton key={m} value={m} sx={{ textTransform: "none", fontWeight: 700, py: 0.5, px: 1, fontSize: "0.75rem",
+                                    "&.Mui-selected": { bgcolor: tokens.primary, color: "white", "&:hover": { bgcolor: tokens.primary } } }}>
+                                    {m}
+                                  </ToggleButton>
+                                ))}
+                              </ToggleButtonGroup>
+                            </Box>
+                            {(Number(splitCash) + Number(splitBank)) > 0 && (
+                              <Box sx={{ display: "flex", justifyContent: "space-between", pt: 0.75, borderTop: `1px dashed ${alpha(tokens.primary, 0.2)}` }}>
+                                <Typography variant="caption" color="text.secondary">Total split</Typography>
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: (Number(splitCash) + Number(splitBank)) === calculateFinalTotal() ? tokens.success : tokens.error }}>
+                                  ₹{(Number(splitCash) + Number(splitBank)).toFixed(2)}
+                                  {(Number(splitCash) + Number(splitBank)) !== calculateFinalTotal() && ` / ₹${calculateFinalTotal().toFixed(2)}`}
+                                </Typography>
+                              </Box>
+                            )}
+                          </Box>
+                        )}
+                      </Box>
+                    )}
+
                     {/* Advance — sales only, not for cash & carry */}
                     {isSale && !!selectedParty?.id && (
                       <Box
@@ -3347,7 +3559,7 @@ const SalesPage = ({ mode = "sales" }) => {
                       tokens={tokens}
                       fullWidth
                       onClick={() => handleSave()}
-                      disabled={isSaving}
+                      disabled={isSaving || !canWrite}
                       startIcon={<Save size={18} />}
                       sx={{ py: 1.3, fontSize: "0.95rem", mb: 1 }}
                     >
@@ -3365,7 +3577,7 @@ const SalesPage = ({ mode = "sales" }) => {
                         size="large"
                         startIcon={<Plus size={17} />}
                         onClick={() => handleSave({ saveAndCreateNew: true })}
-                        disabled={isSaving}
+                        disabled={isSaving || !canWrite}
                         sx={{
                           borderRadius: tokens.radius.md,
                           py: 1,
@@ -3390,7 +3602,7 @@ const SalesPage = ({ mode = "sales" }) => {
                       size="large"
                       startIcon={<Printer size={17} />}
                       onClick={() => handleSave({ saveAndPrint: true })}
-                      disabled={isSaving}
+                      disabled={isSaving || !canWrite}
                       sx={{
                         borderRadius: tokens.radius.md,
                         py: 1,
@@ -3506,7 +3718,7 @@ const SalesPage = ({ mode = "sales" }) => {
               tokens={tokens}
               fullWidth
               onClick={() => handleSave()}
-              disabled={isSaving}
+              disabled={isSaving || !canWrite}
               startIcon={<Save size={18} />}
               sx={{ py: 1.2, fontSize: "0.95rem" }}
             >
@@ -3545,8 +3757,14 @@ const SalesPage = ({ mode = "sales" }) => {
       filters.maxAmount,
     ].filter(Boolean).length + (filters.status !== "all" ? 1 : 0);
 
+  const printBusy = pdfLoading || shareLoading;
+
   return (
     <Box sx={{ maxWidth: selectedTx && !isMobile ? 1500 : 1200, mx: "auto", transition: "max-width 0.25s ease" }}>
+      <Backdrop open={printBusy} sx={{ zIndex: 9999, flexDirection: 'column', gap: 2, bgcolor: 'rgba(0,0,0,0.55)' }}>
+        <CircularProgress size={48} sx={{ color: 'white' }} />
+        <Typography sx={{ color: 'white', fontWeight: 700 }}>{shareLoading ? 'Preparing to share…' : 'Generating PDF…'}</Typography>
+      </Backdrop>
       {/* ── Page header ── */}
       <Box
         sx={{
@@ -3618,95 +3836,48 @@ const SalesPage = ({ mode = "sales" }) => {
           </Box>
         </Box>
 
-        <Box
-          sx={{
-            display: "flex",
-            gap: { xs: 0.75, sm: 1.5 },
-            alignItems: "center",
-            flexWrap: "wrap",
-            width: { xs: "100%", sm: "auto" },
-          }}
-        >
-          {isSale && (
-            <Button
-              variant="outlined"
-              startIcon={<Printer size={17} />}
-              onClick={() => setBulkPrintOpen(true)}
-              size="medium"
-              sx={{
-                borderRadius: tokens.radius.md,
-                fontWeight: 700,
-                textTransform: "none",
-                borderColor: "divider",
-                color: "text.secondary",
-                minWidth: { xs: 0, sm: "auto" },
-                px: { xs: 1, sm: 2 },
-                "& .MuiButton-startIcon": { mr: { xs: 0, sm: 1 } },
-                "&:hover": {
-                  borderColor: tokens.primaryBorder,
-                  color: tokens.primary,
-                  bgcolor: tokens.primarySoft,
-                },
-              }}
-            >
-              <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>{t('sales.bulkPrint')}</Box>
-            </Button>
-          )}
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
           <Button
             variant="outlined"
-            startIcon={<Download size={17} />}
+            endIcon={<ChevronDown size={15} />}
             size="medium"
-            onClick={() => exportToExcel(
-              transactions,
-              isSale ? SALE_COLUMNS : PURCHASE_COLUMNS,
-              isSale ? 'sales_export.xlsx' : 'purchases_export.xlsx'
+            onClick={(e) => setMoreMenuAnchor(e.currentTarget)}
+            sx={{
+              borderRadius: tokens.radius.md,
+              fontWeight: 700,
+              textTransform: 'none',
+              borderColor: 'divider',
+              color: 'text.secondary',
+              '&:hover': { borderColor: tokens.primaryBorder, color: tokens.primary, bgcolor: tokens.primarySoft },
+            }}
+          >
+            More
+          </Button>
+          <Menu
+            anchorEl={moreMenuAnchor}
+            open={Boolean(moreMenuAnchor)}
+            onClose={() => setMoreMenuAnchor(null)}
+            PaperProps={{ sx: { borderRadius: tokens.radius.md, minWidth: 180 } }}
+          >
+            {isSale && (
+              <MenuItem onClick={() => { setMoreMenuAnchor(null); setBulkPrintOpen(true); }} disabled={!canWrite}>
+                <Printer size={15} style={{ marginRight: 8 }} /> {t('sales.bulkPrint')}
+              </MenuItem>
             )}
-            sx={{
-              borderRadius: tokens.radius.md,
-              fontWeight: 700,
-              textTransform: "none",
-              borderColor: "divider",
-              color: "text.secondary",
-              minWidth: { xs: 0, sm: "auto" },
-              px: { xs: 1, sm: 2 },
-              "& .MuiButton-startIcon": { mr: { xs: 0, sm: 1 } },
-              "&:hover": { borderColor: tokens.primaryBorder, color: tokens.primary, bgcolor: tokens.primarySoft },
-            }}
-          >
-            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>Excel</Box>
-          </Button>
-          <Button
-            variant="outlined"
-            startIcon={<FileDown size={17} />}
-            size="medium"
-            onClick={() => exportToTallyXML({
-              sales: isSale ? transactions : [],
-              purchases: isSale ? [] : transactions,
-              businessName: currentBusiness?.name,
-              filename: isSale ? 'sales_tally.xml' : 'purchases_tally.xml',
-            })}
-            sx={{
-              borderRadius: tokens.radius.md,
-              fontWeight: 700,
-              textTransform: "none",
-              borderColor: "divider",
-              color: "text.secondary",
-              minWidth: { xs: 0, sm: "auto" },
-              px: { xs: 1, sm: 2 },
-              "& .MuiButton-startIcon": { mr: { xs: 0, sm: 1 } },
-              "&:hover": { borderColor: tokens.primaryBorder, color: tokens.primary, bgcolor: tokens.primarySoft },
-            }}
-          >
-            <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>Tally XML</Box>
-          </Button>
+            <MenuItem onClick={() => { setMoreMenuAnchor(null); exportToExcel(transactions, isSale ? SALE_COLUMNS : PURCHASE_COLUMNS, isSale ? 'sales_export.xlsx' : 'purchases_export.xlsx'); }} disabled={!canWrite}>
+              <Download size={15} style={{ marginRight: 8 }} /> Export Excel
+            </MenuItem>
+            <MenuItem onClick={() => { setMoreMenuAnchor(null); exportToTallyXML({ sales: isSale ? transactions : [], purchases: isSale ? [] : transactions, businessName: currentBusiness?.name, filename: isSale ? 'sales_tally.xml' : 'purchases_tally.xml' }); }} disabled={!canWrite}>
+              <FileDown size={15} style={{ marginRight: 8 }} /> Export Tally XML
+            </MenuItem>
+          </Menu>
           <GradientButton
             tokens={tokens}
-            startIcon={
-              isSale ? <Receipt size={17} /> : <ShoppingBasket size={17} />
-            }
-            onClick={() => setView("create")}
+            startIcon={isSale ? <Receipt size={17} /> : <ShoppingBasket size={17} />}
+            onClick={() => setView('create')}
+            disabled={!canWrite}
             size="medium"
-            sx={{ px: 2.5, py: 1, flex: { xs: 1, sm: "none" }, ml: { xs: "auto", sm: 0 } }}
+            sx={{ px: 2.5, py: 1 }}
           >
             {isSale ? t('sales.newInvoice') : t('sales.newBill')}
           </GradientButton>
@@ -3959,7 +4130,7 @@ const SalesPage = ({ mode = "sales" }) => {
       </Card>
 
       {/* ── Bulk action bar ── */}
-      {selectedIds.size > 0 && (
+      {selectedIds.size >= 2 && (
         <Box sx={{
           display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap',
           mb: 1.5, px: 2, py: 1.25, borderRadius: tokens.radius.md,
@@ -3977,6 +4148,17 @@ const SalesPage = ({ mode = "sales" }) => {
           >
             Bulk Send
           </Button>
+          {isSale && (
+            <Button
+              size="small"
+              variant="contained"
+              startIcon={<Printer size={15} />}
+              onClick={() => setBulkPrintOpen(true)}
+              sx={{ bgcolor: 'white', color: 'primary.main', fontWeight: 700, textTransform: 'none', '&:hover': { bgcolor: 'rgba(255,255,255,0.9)' } }}
+            >
+              Bulk Print
+            </Button>
+          )}
           <Button
             size="small"
             variant="outlined"
@@ -3985,6 +4167,11 @@ const SalesPage = ({ mode = "sales" }) => {
           >
             Clear
           </Button>
+        </Box>
+      )}
+      {selectedIds.size === 1 && (
+        <Box sx={{ mb: 1.5, px: 2, py: 1, borderRadius: tokens.radius.md, bgcolor: alpha(tokens.primary, 0.08), color: 'text.secondary' }}>
+          <Typography variant="body2">Select at least 2 invoices to enable Bulk Send / Bulk Print</Typography>
         </Box>
       )}
 
@@ -4209,11 +4396,6 @@ const SalesPage = ({ mode = "sales" }) => {
                   <Printer size={16} />
                 </IconButton>
               </Tooltip>
-              <Tooltip title="Close preview">
-                <IconButton size="small" onClick={() => setSelectedTx(null)} sx={{ color: "rgba(255,255,255,0.8)", "&:hover": { color: "white", bgcolor: "rgba(255,255,255,0.12)" } }}>
-                  <X size={16} />
-                </IconButton>
-              </Tooltip>
             </Box>
 
             {/* Scrollable invoice — auto-scaled to fit the side pane */}
@@ -4286,6 +4468,14 @@ const SalesPage = ({ mode = "sales" }) => {
                       borderRadius: tokens.radius.sm,
                     },
                   }}
+                />
+              </Grid>
+              <Grid size={12}>
+                <PartySelect
+                  options={parties}
+                  value={parties.find((p) => p.id === bulkPrintPartyId) || null}
+                  onChange={(v) => setBulkPrintPartyId(v?.id || "")}
+                  label="Filter by Customer (optional)"
                 />
               </Grid>
               <Grid size={12}>
@@ -4624,23 +4814,18 @@ const SalesPage = ({ mode = "sales" }) => {
                   </Typography>
                 </Box>
               )}
+              {previewTx?.billedBy && (
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                  <Typography
+                    variant="caption"
+                    sx={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.7rem' }}
+                  >
+                    Billed by: <strong style={{ color: 'rgba(255,255,255,0.95)' }}>{previewTx.billedBy}</strong>
+                  </Typography>
+                </Box>
+              )}
             </Box>
           </Box>
-          <IconButton
-            onClick={() => setPreviewOpen(false)}
-            size="small"
-            sx={{
-              color: "rgba(255,255,255,0.75)",
-              mt: -0.5,
-              mr: -0.5,
-              "&:hover": {
-                color: "white",
-                bgcolor: "rgba(255,255,255,0.12)",
-              },
-            }}
-          >
-            <X size={18} />
-          </IconButton>
         </Box>
 
         {/* Toolbar */}
@@ -4702,6 +4887,10 @@ const SalesPage = ({ mode = "sales" }) => {
             anchorOrigin={{ horizontal: "right", vertical: "bottom" }}
             PaperProps={{ elevation: 6, sx: { borderRadius: 2, mt: 0.5, minWidth: 180 } }}
           >
+            <MenuItem onClick={() => { shareAsBoth(); setShareMenuAnchor(null); }} sx={{ gap: 1.5, py: 1.25 }}>
+              <ListItemIcon sx={{ minWidth: "unset" }}><Share2 size={16} /></ListItemIcon>
+              <ListItemText primary="Share PDF + Image" primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 600 }} />
+            </MenuItem>
             <MenuItem onClick={() => { shareAsPDF(); setShareMenuAnchor(null); }} sx={{ gap: 1.5, py: 1.25 }}>
               <ListItemIcon sx={{ minWidth: "unset" }}><FileDown size={16} /></ListItemIcon>
               <ListItemText primary="Share as PDF" primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: 600 }} />

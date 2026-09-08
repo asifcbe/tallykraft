@@ -4,7 +4,8 @@ import {
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
   TextField, MenuItem, Select, FormControl, InputLabel, alpha,
   Tabs, Tab, Tooltip, Stack, Divider, Badge, Paper, useTheme,
-  InputAdornment, ToggleButton, ToggleButtonGroup,
+  InputAdornment, ToggleButton, ToggleButtonGroup, Switch, FormControlLabel,
+  Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
 } from '@mui/material';
 import {
   Plus, Edit2, Trash2, Users, Clock, DollarSign, ChevronLeft,
@@ -59,6 +60,10 @@ export default function StaffPage() {
 
   const [tab, setTab] = useState(0);
   const [search, setSearch] = useState('');
+  const [reportFrom, setReportFrom] = useState(() => {
+    const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-01`;
+  });
+  const [reportTo, setReportTo] = useState(() => new Date().toISOString().split('T')[0]);
 
   // ─ Members state ─
   const [memberDialog, setMemberDialog] = useState({ open: false, editing: null });
@@ -258,7 +263,7 @@ export default function StaffPage() {
         onChange={(_, v) => setTab(v)}
         sx={{ mb: 2.5, '& .MuiTabs-indicator': { borderRadius: 2 }, minHeight: 40 }}
       >
-        {['Members', 'Attendance', 'Salary'].map((label, i) => (
+        {['Members', 'Attendance', 'Salary', 'Sales Report'].map((label, i) => (
           <Tab key={label} label={label} sx={{ fontWeight: 600, fontSize: '0.8rem', minHeight: 40 }} />
         ))}
       </Tabs>
@@ -581,6 +586,65 @@ export default function StaffPage() {
         </Box>
       )}
 
+      {/* ══ SALES REPORT TAB ════════════════════════════════════════════════ */}
+      {tab === 3 && (() => {
+        const allSales = getItems('sales').filter(tx => tx.businessId === bId && tx.date >= reportFrom && tx.date <= reportTo);
+        const allPurchases = getItems('purchases').filter(tx => tx.businessId === bId && tx.date >= reportFrom && tx.date <= reportTo);
+        const staffMap = {};
+        allSales.forEach(tx => {
+          if (!tx.billedBy) return;
+          if (!staffMap[tx.billedBy]) staffMap[tx.billedBy] = { sales: 0, salesValue: 0, purchases: 0, purchasesValue: 0 };
+          staffMap[tx.billedBy].sales += 1;
+          staffMap[tx.billedBy].salesValue += Number(tx.totalAmount) || 0;
+        });
+        allPurchases.forEach(tx => {
+          if (!tx.billedBy) return;
+          if (!staffMap[tx.billedBy]) staffMap[tx.billedBy] = { sales: 0, salesValue: 0, purchases: 0, purchasesValue: 0 };
+          staffMap[tx.billedBy].purchases += 1;
+          staffMap[tx.billedBy].purchasesValue += Number(tx.totalAmount) || 0;
+        });
+        const rows = Object.entries(staffMap).map(([name, v]) => ({ name, ...v }));
+        return (
+          <Box>
+            <Box sx={{ display: 'flex', gap: 2, mb: 2.5, flexWrap: 'wrap', alignItems: 'center' }}>
+              <TextField size="small" type="date" label="From" value={reportFrom} onChange={e => setReportFrom(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+              <TextField size="small" type="date" label="To" value={reportTo} onChange={e => setReportTo(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} />
+            </Box>
+            {rows.length === 0 ? (
+              <Box sx={{ textAlign: 'center', py: 8, color: 'text.secondary' }}>
+                <TrendingUp size={40} style={{ opacity: 0.3, marginBottom: 12 }} />
+                <Typography variant="body2">No sales data with staff attribution in this period.</Typography>
+              </Box>
+            ) : (
+              <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                <Table size="small">
+                  <TableHead>
+                    <TableRow sx={{ bgcolor: 'action.hover' }}>
+                      <TableCell sx={{ fontWeight: 700 }}>Staff Name</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Invoices</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Sales Value</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Purchases</TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>Purchase Value</TableCell>
+                    </TableRow>
+                  </TableHead>
+                  <TableBody>
+                    {rows.map(r => (
+                      <TableRow key={r.name} hover>
+                        <TableCell sx={{ fontWeight: 600 }}>{r.name}</TableCell>
+                        <TableCell align="right">{r.sales}</TableCell>
+                        <TableCell align="right">₹{r.salesValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</TableCell>
+                        <TableCell align="right">{r.purchases}</TableCell>
+                        <TableCell align="right">₹{r.purchasesValue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </TableContainer>
+            )}
+          </Box>
+        );
+      })()}
+
       {/* ══ ADD / EDIT MEMBER DIALOG ══════════════════════════════════════════ */}
       <Dialog open={memberDialog.open} onClose={() => setMemberDialog({ open: false, editing: null })} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 700, pb: 0 }}>
@@ -627,6 +691,57 @@ export default function StaffPage() {
                   <MenuItem value="inactive">Inactive</MenuItem>
                 </Select>
               </FormControl>
+            </Grid>
+            <Grid item xs={12}>
+              <FormControlLabel
+                control={<Switch checked={!!memberForm.showInSalesSelector} onChange={e => setMemberForm(f => ({ ...f, showInSalesSelector: e.target.checked }))} />}
+                label="Show in Sales / POS staff selector"
+              />
+            </Grid>
+            <Grid item xs={12}>
+              <Divider sx={{ my: 0.5 }} />
+              <Typography variant="caption" fontWeight={700} color="text.secondary" sx={{ textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                Section Access (for staff login)
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mt: 1 }}>
+                {[
+                  { key: 'dashboard', label: 'Dashboard' },
+                  { key: 'parties', label: 'Parties' },
+                  { key: 'items', label: 'Items' },
+                  { key: 'pos', label: 'POS' },
+                  { key: 'sales', label: 'Sales' },
+                  { key: 'purchases', label: 'Purchases' },
+                  { key: 'expenses', label: 'Expenses' },
+                  { key: 'payments', label: 'Payments' },
+                  { key: 'cash', label: 'Cash & Bank' },
+                  { key: 'reports', label: 'Reports' },
+                  { key: 'estimates', label: 'Estimates' },
+                  { key: 'creditNotes', label: 'Credit Notes' },
+                  { key: 'debitNotes', label: 'Debit Notes' },
+                  { key: 'deliveryNotes', label: 'Delivery Notes' },
+                  { key: 'ledger', label: 'Ledger' },
+                  { key: 'membership', label: 'Membership' },
+                  { key: 'opticals', label: 'Opticals' },
+                  { key: 'viewPurchasePrice', label: 'View Purchase Price' },
+                ].map(({ key, label }) => {
+                  const on = !!(memberForm.features || {})[key];
+                  return (
+                    <Chip
+                      key={key}
+                      label={label}
+                      size="small"
+                      clickable
+                      onClick={() => setMemberForm(f => ({ ...f, features: { ...(f.features || {}), [key]: !on } }))}
+                      sx={{
+                        fontWeight: 600, fontSize: '0.72rem',
+                        bgcolor: on ? 'primary.main' : 'action.hover',
+                        color: on ? '#fff' : 'text.secondary',
+                        '&:hover': { opacity: 0.85 },
+                      }}
+                    />
+                  );
+                })}
+              </Box>
             </Grid>
             <Grid item xs={12}>
               <TextField fullWidth label="Notes (optional)" size="small" multiline rows={2} value={memberForm.notes || ''} onChange={e => setMemberForm(f => ({ ...f, notes: e.target.value }))} />

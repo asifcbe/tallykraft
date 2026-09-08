@@ -7,7 +7,6 @@ import {
 } from '@mui/material';
 import { Plus, Trash2, Printer, ChevronLeft, FileText, Edit2, Eye, X } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
-import { useFinancialYear } from './FinancialYearContext';
 import { useConfig } from './ConfigContext';
 import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
@@ -21,7 +20,6 @@ import TxListView from './TxListView';
 const Estimates = () => {
   const { currentBusiness } = useBusiness();
   const { t } = useI18n();
-  const { activeFY } = useFinancialYear();
   const { addItem, deleteItem, getItems } = useData();
   const { confirm, showAlert } = useDialog();
   const { config } = useConfig();
@@ -38,12 +36,9 @@ const Estimates = () => {
     const d = config.defaultPaperSize;
     return ['A4', 'A5', 'Letter', 'Legal'].includes(d) ? d : 'A4';
   });
-  const _psInit = React.useRef(!!config.defaultPaperSize);
   useEffect(() => {
-    if (!_psInit.current && config.defaultPaperSize) {
-      const d = config.defaultPaperSize;
-      if (['A4', 'A5', 'Letter', 'Legal'].includes(d)) setPaperSize(d);
-      _psInit.current = true;
+    if (config.defaultPaperSize && ['A4', 'A5', 'Letter', 'Legal'].includes(config.defaultPaperSize)) {
+      setPaperSize(config.defaultPaperSize);
     }
   }, [config.defaultPaperSize]);
   const [isSaving, setIsSaving] = useState(false);
@@ -53,7 +48,7 @@ const Estimates = () => {
 
   const parties = getItems('parties').filter(p => p.businessId === currentBusiness?.id && p.type === 'Customer');
   const stockItems = getItems('items').filter(i => i.businessId === currentBusiness?.id);
-  const estimates = getItems('estimates').filter(e => e.businessId === currentBusiness?.id).filter(r => !activeFY || !r.date || (r.date >= activeFY.start && r.date <= activeFY.end)).reverse();
+  const estimates = getItems('estimates').filter(e => e.businessId === currentBusiness?.id).reverse();
 
   useEffect(() => {
     if (view === 'create' && !isSaving) {
@@ -107,10 +102,19 @@ const Estimates = () => {
     }
     setIsSaving(true);
     try {
+      const bizState = currentBusiness?.state || '';
+      const partyState = selectedParty.state || '';
       const payload = {
         businessId: currentBusiness.id,
         partyId: selectedParty.id,
         partyName: selectedParty.name || '',
+        partyGstNumber: selectedParty.gstNumber || '',
+        partyAddress: selectedParty.address || '',
+        partyCity: selectedParty.city || '',
+        partyState,
+        partyPhone: selectedParty.phone || '',
+        placeOfSupply: partyState || bizState,
+        isInterState: !!(bizState && partyState && bizState !== partyState),
         date: estimateDate,
         estimateNumber: estimateNumber.trim(),
         items: cleaned,
@@ -227,7 +231,7 @@ const Estimates = () => {
                             sx={{ minWidth: 200 }}
                           />
                         </TableCell>
-                        <TableCell><TextField type="number" size="small" value={row.qty} onChange={(e) => updateItemRow(idx, 'qty', parseFloat(e.target.value) || 0)} inputProps={{ min: 0 }} sx={{ width: 70 }} /></TableCell>
+                        <TableCell><TextField type="number" size="small" value={row.qty} onChange={(e) => { const n = parseFloat(e.target.value); updateItemRow(idx, 'qty', isNaN(n) ? 0 : Math.round(n * 1000) / 1000); }} inputProps={{ min: 0 }} sx={{ width: 70 }} /></TableCell>
                         <TableCell><TextField type="number" size="small" value={row.price} onChange={(e) => updateItemRow(idx, 'price', parseFloat(e.target.value) || 0)} sx={{ width: 90 }} /></TableCell>
                         <TableCell><TextField type="number" size="small" value={row.taxRate} onChange={(e) => updateItemRow(idx, 'taxRate', parseFloat(e.target.value) || 0)} sx={{ width: 60 }} /></TableCell>
                         <TableCell align="right">₹{row.total?.toFixed(2)}</TableCell>

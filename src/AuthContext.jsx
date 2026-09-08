@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, googleProvider, firestore } from './db';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import {
-  collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where
+  collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, updateDoc
 } from 'firebase/firestore';
 import { isAlwaysAdmin } from './alwaysAdmin';
 
@@ -16,11 +16,12 @@ const generateBusinessCode = () => {
   return code;
 };
 
-const ensureUniquCode = async (attempt = 0) => {
-  const code = generateBusinessCode();
-  if (attempt > 3) return code; // Give up after a few tries — collision chance is tiny
-  const snap = await getDocs(query(collection(firestore, 'businesses'), where('businessCode', '==', code)));
-  return snap.empty ? code : ensureUniquCode(attempt + 1);
+const ensureUniquCode = async () => {
+  while (true) {
+    const code = generateBusinessCode();
+    const snap = await getDocs(query(collection(firestore, 'businesses'), where('businessCode', '==', code)));
+    if (snap.empty) return code;
+  }
 };
 
 export const AuthProvider = ({ children }) => {
@@ -32,6 +33,7 @@ export const AuthProvider = ({ children }) => {
   const [authError, setAuthError] = useState('');
   const [staffSession, setStaffSession] = useState(null);
   const [currentBusiness, setCurrentBusiness] = useState(null);
+  const [needsPasswordSetup, setNeedsPasswordSetup] = useState(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -103,7 +105,6 @@ export const AuthProvider = ({ children }) => {
           // Auto-create/load business for admin users (never blocks the app)
           if (allowed && adminFlag) {
             if (!businessId) {
-              // Silently create a business in the background so staff features are ready
               try {
                 const code = await ensureUniquCode();
                 const newBizId = `biz_${user.uid}`;
@@ -119,16 +120,18 @@ export const AuthProvider = ({ children }) => {
                 await setDoc(doc(firestore, 'businesses', newBizId), newBizData);
                 await setDoc(userConfigRef, { businessId: newBizId }, { merge: true });
                 setCurrentBusiness(newBizData);
+                setNeedsPasswordSetup(true);
               } catch (bizErr) {
                 console.warn('Could not auto-create business:', bizErr);
                 setCurrentBusiness(null);
               }
             } else {
-              // Load existing business
               try {
                 const bizSnap = await getDoc(doc(firestore, 'businesses', businessId));
                 if (bizSnap.exists()) {
-                  setCurrentBusiness({ id: bizSnap.id, ...bizSnap.data() });
+                  const bizData = { id: bizSnap.id, ...bizSnap.data() };
+                  setCurrentBusiness(bizData);
+                  if (!bizData.adminPassword) setNeedsPasswordSetup(true);
                 } else {
                   setCurrentBusiness(null);
                 }
@@ -197,6 +200,7 @@ export const AuthProvider = ({ children }) => {
     setStaffSession(null);
     setCurrentBusiness(null);
     setAuthError('');
+    setNeedsPasswordSetup(false);
   };
 
   const loginWithGoogle = async () => {
@@ -208,11 +212,66 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const loginAsAdmin = async (businessCode, password) => {
+    try {
+      const trimCode = businessCode.trim().toUpperCase();
+      const bizQuery = query(
+        collection(firestore, 'businesses'),
+        where('businessCode', '==', trimCode)
+      );
+      const bizSnap = await getDocs(bizQuery);
+      if (bizSnap.empty) {
+        return { success: false, error: 'Invalid business code.' };
+      }
+      const bizDoc = bizSnap.docs[0];
+      const business = { id: bizDoc.id, ...bizDoc.data() };
+      if (!business.adminPassword) {
+        return { success: false, error: 'No admin password set. Please sign in with Google first and set a password in Settings.' };
+      }
+      if (business.adminPassword !== password) {
+        return { success: false, error: 'Invalid business code or password.' };
+      }
+      const session = {
+        id: `admin_${business.id}`,
+        name: business.name,
+        username: '_admin',
+        features: {},
+        businessId: business.id,
+        businessName: business.name,
+        ownerUid: business.ownerId,
+        role: 'admin',
+      };
+      sessionStorage.setItem('staffSession', JSON.stringify(session));
+      setStaffSession(session);
+      setCurrentBusiness(business);
+      setIsAuthenticated(true);
+      setIsAuthorized(true);
+      setIsAdmin(true);
+      setCurrentUser(null);
+      return { success: true };
+    } catch (err) {
+      console.error('Admin login error:', err);
+      return { success: false, error: 'Login failed. Please try again.' };
+    }
+  };
+
+  const setAdminPassword = async (password) => {
+    try {
+      if (!currentBusiness?.id) return { success: false, error: 'No business found.' };
+      await updateDoc(doc(firestore, 'businesses', currentBusiness.id), { adminPassword: password });
+      setCurrentBusiness(prev => ({ ...prev, adminPassword: password }));
+      setNeedsPasswordSetup(false);
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: err.message };
+    }
+  };
+
   const loginAsStaff = async (businessCode, username, password) => {
     try {
       const trimCode = businessCode.trim().toUpperCase();
 
-      // Find business by code
+      // Find business by code (rules allow unauthenticated reads on /businesses)
       const bizQuery = query(
         collection(firestore, 'businesses'),
         where('businessCode', '==', trimCode)
@@ -226,7 +285,7 @@ export const AuthProvider = ({ children }) => {
       const bizDoc = bizSnap.docs[0];
       const business = { id: bizDoc.id, ...bizDoc.data() };
 
-      // Find staff by username (stored lowercase)
+      // Find staff by username (rules allow unauthenticated reads on /businesses/{id}/staff)
       const staffQuery = query(
         collection(firestore, 'businesses', business.id, 'staff'),
         where('username', '==', username.trim().toLowerCase())
@@ -256,7 +315,7 @@ export const AuthProvider = ({ children }) => {
         businessId: business.id,
         businessName: business.name,
         ownerUid: business.ownerId,
-        role: 'staff'
+        role: 'staff',
       };
 
       sessionStorage.setItem('staffSession', JSON.stringify(session));
@@ -299,7 +358,11 @@ export const AuthProvider = ({ children }) => {
       authError,
       staffSession,
       currentBusiness,
+      needsPasswordSetup,
+      setNeedsPasswordSetup,
       loginWithGoogle,
+      loginAsAdmin,
+      setAdminPassword,
       loginAsStaff,
       logout
     }}>

@@ -8,7 +8,7 @@ export const BusinessProvider = ({ children }) => {
   const { allBusinessData, loading, updateCurrentBusinessId } = useData();
   const { businessSubs, adminGrantedAll, subLoading } = useSubscription();
   const [currentBusinessId, setCurrentBusinessId] = useState(() => {
-    return Number(localStorage.getItem('currentBusinessId')) || 1;
+    return Number(localStorage.getItem('tallykraft_currentBusinessId')) || 1;
   });
 
   // Extract every business stored locally.
@@ -25,6 +25,7 @@ export const BusinessProvider = ({ children }) => {
     fyStartMonth: b.fyStartMonth ?? 3,
     needsSetup: b.needsSetup ?? false,
     openingCash: b.openingCash ?? 0,
+    openingBank: b.openingBank ?? 0,
   })), [allBusinessData]);
 
   // ── Verify businesses against the subscriptions database ────────────────────
@@ -51,7 +52,7 @@ export const BusinessProvider = ({ children }) => {
   useEffect(() => {
     if (currentBusiness && !loading) {
       setCurrentBusinessId(currentBusiness.id);
-      localStorage.setItem('currentBusinessId', currentBusiness.id);
+      localStorage.setItem('tallykraft_currentBusinessId', currentBusiness.id);
       if (updateCurrentBusinessId) {
         updateCurrentBusinessId(currentBusiness.id);
       }
@@ -60,7 +61,7 @@ export const BusinessProvider = ({ children }) => {
 
   const switchBusiness = (id) => {
     setCurrentBusinessId(id);
-    localStorage.setItem('currentBusinessId', id);
+    localStorage.setItem('tallykraft_currentBusinessId', id);
     if (updateCurrentBusinessId) {
       updateCurrentBusinessId(id);
     }

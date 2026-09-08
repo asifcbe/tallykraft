@@ -8,11 +8,11 @@ import {
 } from '@mui/material';
 import { Plus, Search, Edit2, Trash2, DollarSign, Printer, Share2, Filter, Calendar, FileText, Eye, X, Download, TrendingDown, Receipt, CalendarDays } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
-import { useFinancialYear } from './FinancialYearContext';
 import { useConfig } from './ConfigContext';
 import { useDialog } from './DialogContext';
 import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
+import { useSubscription } from './SubscriptionContext';
 import { FitPreview } from './TxListView';
 import { exportToExcel, EXPENSE_COLUMNS } from './exportUtils';
 import { useReactToPrint } from 'react-to-print';
@@ -27,9 +27,10 @@ const ExpensesPage = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const { currentBusiness } = useBusiness();
   const { t } = useI18n();
-  const { activeFY } = useFinancialYear();
   const { data, addItem, updateItem, deleteItem, getItems } = useData();
   const { confirm } = useDialog();
+  const { isBusinessActive } = useSubscription();
+  const canWrite = isBusinessActive(currentBusiness?.id);
   const location = useLocation();
   const [search, setSearch] = useState('');
   const [open, setOpen] = useState(false);
@@ -63,12 +64,10 @@ const ExpensesPage = () => {
     const d = config.defaultPaperSize;
     return ['A4', 'A5', 'Letter', 'Legal'].includes(d) ? d : 'A4';
   });
-  const _psInit = useRef(!!config.defaultPaperSize);
   useEffect(() => {
-    if (!_psInit.current && config.defaultPaperSize) {
+    if (config.defaultPaperSize) {
       const d = config.defaultPaperSize;
       if (['A4', 'A5', 'Letter', 'Legal'].includes(d)) setPaperSize(d);
-      _psInit.current = true;
     }
   }, [config.defaultPaperSize]);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -96,13 +95,13 @@ const ExpensesPage = () => {
 
   const expenses = getItems('expenses')
     .filter(e => e.businessId === currentBusiness?.id)
-    .filter(r => !activeFY || !r.date || (r.date >= activeFY.start && r.date <= activeFY.end))
+    
     .reverse();
 
   const filteredExpenses = expenses
     .filter(e => {
-      const matchesSearch = e.description.toLowerCase().includes(search.toLowerCase()) || 
-                            e.category.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = (e.description || '').toLowerCase().includes(search.toLowerCase()) ||
+                            (e.category || '').toLowerCase().includes(search.toLowerCase());
       
       // Additional filters
       const matchesDateFrom = !filters.dateFrom || new Date(e.date) >= new Date(filters.dateFrom);
@@ -273,11 +272,13 @@ const ExpensesPage = () => {
         </Box>
         <Box sx={{ display: 'flex', gap: { xs: 0.75, sm: 1 }, alignItems: 'center', flexWrap: 'wrap', width: { xs: '100%', sm: 'auto' } }}>
           <Button variant="outlined" startIcon={<Download size={16} />}
+            disabled={!canWrite}
             onClick={() => exportToExcel(expenses, EXPENSE_COLUMNS, 'expenses_export.xlsx')}
             sx={{ textTransform: 'none', fontWeight: 600, minWidth: { xs: 0, sm: 'auto' }, px: { xs: 1.25, sm: 2 }, '& .MuiButton-startIcon': { mr: { xs: 0, sm: 1 } } }}>
             <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>Export Excel</Box>
           </Button>
           <Button variant="contained" startIcon={<Plus size={16} />} onClick={() => handleOpen()}
+            disabled={!canWrite}
             sx={{ flex: { xs: 1, sm: 'none' }, fontWeight: 700, textTransform: 'none' }}>
             Add Expense
           </Button>
@@ -456,12 +457,12 @@ const ExpensesPage = () => {
                     </Box>
                     <Box sx={{ display: 'flex', gap: 0.5, mt: 1 }}>
                       {[
-                        { icon: <Eye size={17} />, onClick: () => { setPreviewRecord(expense); setPreviewOpen(true); }, color: '#4f46e5' },
-                        { icon: <Share2 size={17} />, onClick: () => handleShare(expense), color: '#25D366' },
+                        { icon: <Eye size={17} />, onClick: () => { setPreviewRecord(expense); setPreviewOpen(true); }, color: '#4f46e5', always: true },
+                        { icon: <Share2 size={17} />, onClick: () => handleShare(expense), color: '#25D366', always: true },
                         { icon: <Edit2 size={17} />, onClick: () => handleOpen(expense), color: '#4f46e5' },
                         { icon: <Trash2 size={17} />, onClick: () => handleDelete(expense.id), color: '#dc2626' },
                       ].map((a, i) => (
-                        <IconButton key={i} size="small" onClick={a.onClick} sx={{ flex: 1, borderRadius: 1.5, color: a.color, bgcolor: alpha(a.color, 0.08), '&:hover': { bgcolor: alpha(a.color, 0.16) } }}>
+                        <IconButton key={i} size="small" disabled={!a.always && !canWrite} onClick={a.onClick} sx={{ flex: 1, borderRadius: 1.5, color: a.color, bgcolor: alpha(a.color, 0.08), '&:hover': { bgcolor: alpha(a.color, 0.16) } }}>
                           {a.icon}
                         </IconButton>
                       ))}
@@ -509,10 +510,10 @@ const ExpensesPage = () => {
                       >
                         <Share2 size={16} />
                       </IconButton>
-                      <IconButton size="small" onClick={() => handleOpen(expense)} color="primary">
+                      <IconButton size="small" disabled={!canWrite} onClick={() => handleOpen(expense)} color="primary">
                         <Edit2 size={16} />
                       </IconButton>
-                      <IconButton size="small" onClick={() => handleDelete(expense.id)} color="error">
+                      <IconButton size="small" disabled={!canWrite} onClick={() => handleDelete(expense.id)} color="error">
                         <Trash2 size={16} />
                       </IconButton>
                     </TableCell>
@@ -693,6 +694,7 @@ const ExpensesPage = () => {
           </Box>
           <Box sx={{ flex: 1 }} />
           <Button startIcon={<Printer size={15} />} variant="contained" size="small" disableElevation
+            disabled={!canWrite}
             onClick={() => { setPrintingData(previewRecord); setPreviewOpen(false); setTimeout(() => handlePrint(), 100); }}
             sx={{ textTransform: 'none', fontWeight: 700, borderRadius: 1.5, bgcolor: '#be185d', '&:hover': { bgcolor: '#9d174d' } }}>
             Print

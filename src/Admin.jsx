@@ -495,7 +495,7 @@ const Admin = () => {
     setGlobalSettingsSaving(true);
     try {
       await setDoc(doc(firestore, 'globalConfig', 'landing'), { theme: landingTheme }, { merge: true });
-      localStorage.setItem('sb_landing_dark', landingTheme === 'dark' ? 'true' : 'false');
+      localStorage.setItem('tallykraft_landing_dark', landingTheme === 'dark' ? 'true' : 'false');
       setMessage({ type: 'success', text: 'Global settings saved.' });
     } catch (err) {
       setMessage({ type: 'error', text: 'Failed to save: ' + err.message });

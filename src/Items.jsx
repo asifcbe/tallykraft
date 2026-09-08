@@ -9,12 +9,14 @@ import { X as CloseIcon } from 'lucide-react';
 import {
   Plus, Edit2, Trash2, Box as BoxIcon, Barcode, Printer,
   Package, TrendingUp, AlertTriangle, Upload, Download, Search,
-  Palette, Ruler, Users as UsersIcon,
+  Palette, Ruler, Users as UsersIcon, LayoutList,
 } from 'lucide-react';
 import ItemFormDialog from './ItemFormDialog';
+import BulkAddDialog from './BulkAddDialog';
 import { useBusiness } from './BusinessContext';
 import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
+import { useSubscription } from './SubscriptionContext';
 import ImportDialog from './ImportDialog';
 import { exportToExcel, ITEM_COLUMNS } from './exportUtils';
 import { useConfig } from './ConfigContext';
@@ -160,10 +162,14 @@ const ItemsPage = () => {
   const { confirm } = useDialog();
   const { t } = useI18n();
   const { staffSession } = useAuth();
+  const { isBusinessActive } = useSubscription();
+  const canWrite = isBusinessActive(currentBusiness?.id);
   const canViewPurchasePrice = !staffSession || !!staffSession.features?.viewPurchasePrice;
   const barcodeEnabled = !!config.features?.barcode;
-  const UNITES = config.itemUnits?.length ? config.itemUnits : DEFAULT_UNITS;
-  const defaultUnit = UNITES[0] || 'NOS';
+  const UNITES = [...new Set([...DEFAULT_UNITS, ...(config.itemUnits || [])])];
+  const defaultUnit = config.defaultItemUnit && UNITES.includes(config.defaultItemUnit)
+    ? config.defaultItemUnit
+    : (config.defaultItemUnit || UNITES[0] || 'NOS');
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -174,6 +180,7 @@ const ItemsPage = () => {
 
   const [open, setOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [barcodeItem, setBarcodeItem] = useState(null);
   const [search, setSearch] = useState('');
@@ -232,88 +239,137 @@ const ItemsPage = () => {
         p: { xs: 2.5, md: 3.5 }, mb: 3,
         position: 'relative', overflow: 'hidden',
       }}>
-        <Box sx={{ position: 'absolute', top: -50, right: -50, width: 220, height: 220, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.05)', pointerEvents: 'none' }} />
-        <Box sx={{ position: 'absolute', bottom: -40, right: 120, width: 160, height: 160, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.03)', pointerEvents: 'none' }} />
+        {/* Decorative blobs */}
+        <Box sx={{ position: 'absolute', top: -60, right: -60, width: 260, height: 260, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.04)', pointerEvents: 'none' }} />
+        <Box sx={{ position: 'absolute', bottom: -50, right: 80, width: 200, height: 200, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.03)', pointerEvents: 'none' }} />
+        <Box sx={{ position: 'absolute', top: '50%', left: -30, width: 100, height: 100, borderRadius: '50%', bgcolor: 'rgba(255,255,255,0.025)', pointerEvents: 'none' }} />
 
-        {/* Title row */}
+        {/* Title + actions row */}
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', mb: 2.5, position: 'relative' }}>
-          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-            <Box sx={{ p: 1.25, borderRadius: 2, bgcolor: 'rgba(255,255,255,0.15)', display: 'flex', backdropFilter: 'blur(8px)' }}>
-              <Package size={22} color="white" />
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.75 }}>
+            <Box sx={{
+              p: 1.5, borderRadius: 2.5,
+              background: 'linear-gradient(135deg, rgba(255,255,255,0.22) 0%, rgba(255,255,255,0.1) 100%)',
+              border: '1px solid rgba(255,255,255,0.2)',
+              display: 'flex', backdropFilter: 'blur(12px)',
+              boxShadow: '0 4px 16px rgba(0,0,0,0.15)',
+            }}>
+              <Package size={24} color="white" />
             </Box>
             <Box>
-              <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', letterSpacing: '-0.02em', lineHeight: 1.2 }}>
+              <Typography variant="h5" sx={{ fontWeight: 800, color: 'white', letterSpacing: '-0.02em', lineHeight: 1.15 }}>
                 Items & Inventory
               </Typography>
-              <Typography sx={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8rem', mt: 0.25 }}>
-                {items.length} products · ₹{totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })} stock value
-              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mt: 0.4 }}>
+                <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#6ee7b7' }} />
+                <Typography sx={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.8rem', fontWeight: 500 }}>
+                  {items.length} products · ₹{totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })} total stock value
+                </Typography>
+              </Box>
             </Box>
           </Box>
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Tooltip title="Import">
-              <IconButton size="small" onClick={() => setImportOpen(true)}
-                sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}>
-                <Upload size={16} />
+          <Stack direction="row" spacing={0.75} alignItems="center">
+            <Tooltip title="Import from Excel">
+              <IconButton size="small" disabled={!canWrite} onClick={() => setImportOpen(true)}
+                sx={{ color: 'rgba(255,255,255,0.85)', bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.35)' } }}>
+                <Upload size={15} />
               </IconButton>
             </Tooltip>
             <Tooltip title="Export to Excel">
-              <IconButton size="small" onClick={() => exportToExcel(items, ITEM_COLUMNS, 'items_export.xlsx')}
-                sx={{ color: 'white', bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)' } }}>
-                <Download size={16} />
+              <IconButton size="small" disabled={!canWrite} onClick={() => exportToExcel(items, ITEM_COLUMNS, 'items_export.xlsx')}
+                sx={{ color: 'rgba(255,255,255,0.85)', bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.35)' } }}>
+                <Download size={15} />
               </IconButton>
             </Tooltip>
-            <Button variant="contained" size="small" startIcon={<Plus size={15} />} onClick={() => handleOpen()}
-              sx={{ bgcolor: 'white', color: '#3730a3', fontWeight: 700, borderRadius: 2, textTransform: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.25)', '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' }, whiteSpace: 'nowrap' }}>
+            <Tooltip title="Bulk add items">
+              <IconButton size="small" disabled={!canWrite} onClick={() => setBulkAddOpen(true)}
+                sx={{ color: 'rgba(255,255,255,0.85)', bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 1.5, '&:hover': { bgcolor: 'rgba(255,255,255,0.2)', borderColor: 'rgba(255,255,255,0.35)' } }}>
+                <LayoutList size={15} />
+              </IconButton>
+            </Tooltip>
+            <Button
+              variant="contained" size="small"
+              disabled={!canWrite}
+              startIcon={<Plus size={15} />}
+              onClick={() => handleOpen()}
+              sx={{
+                background: 'linear-gradient(135deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.85) 100%)',
+                color: '#3730a3', fontWeight: 800, borderRadius: 2,
+                textTransform: 'none', fontSize: '0.825rem',
+                boxShadow: '0 4px 16px rgba(0,0,0,0.25)',
+                border: '1px solid rgba(255,255,255,0.6)',
+                px: 2,
+                '&:hover': { background: 'white', boxShadow: '0 6px 20px rgba(0,0,0,0.3)' },
+                whiteSpace: 'nowrap',
+              }}>
               {isMobile ? t('common.add') : t('items.addItem')}
             </Button>
           </Stack>
         </Box>
 
         {/* Stats row */}
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, position: 'relative' }}>
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, position: 'relative', mb: 2 }}>
           {[
-            { label: t('items.totalItems'), value: items.length, icon: Package, color: '#a5b4fc' },
-            { label: t('items.stockValue'), value: `₹${totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#6ee7b7' },
-            { label: t('items.lowNoStock'), value: lowStockItems, icon: AlertTriangle, color: lowStockItems > 0 ? '#fca5a5' : '#86efac' },
-          ].map(({ label, value, icon: Icon, color }) => (
+            { label: t('items.totalItems'), value: items.length, sub: `${items.filter(i => (i.stock || 0) > 0).length} in stock`, icon: Package, color: '#a5b4fc', iconBg: 'rgba(165,180,252,0.15)' },
+            { label: t('items.stockValue'), value: `₹${totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, sub: 'total sale value', icon: TrendingUp, color: '#6ee7b7', iconBg: 'rgba(110,231,183,0.15)' },
+            { label: t('items.lowNoStock'), value: lowStockItems, sub: lowStockItems > 0 ? 'need attention' : 'all well stocked', icon: AlertTriangle, color: lowStockItems > 0 ? '#fca5a5' : '#86efac', iconBg: lowStockItems > 0 ? 'rgba(252,165,165,0.15)' : 'rgba(134,239,172,0.15)' },
+          ].map(({ label, value, sub, icon: Icon, color, iconBg }) => (
             <Box key={label} sx={{
-              bgcolor: 'rgba(255,255,255,0.07)', borderRadius: 2, p: { xs: 1.25, sm: 1.75 },
-              border: '1px solid rgba(255,255,255,0.1)', backdropFilter: 'blur(4px)',
+              bgcolor: 'rgba(255,255,255,0.07)',
+              borderRadius: 2.5, p: { xs: 1.5, sm: 2 },
+              border: '1px solid rgba(255,255,255,0.1)',
+              backdropFilter: 'blur(8px)',
+              display: 'flex', alignItems: 'center', gap: 1.5,
+              transition: 'background 0.2s',
+              '&:hover': { bgcolor: 'rgba(255,255,255,0.1)' },
             }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.75 }}>
-                <Icon size={13} color={color} />
-                <Typography sx={{ color: 'rgba(255,255,255,0.55)', fontWeight: 600, fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: iconBg, display: 'flex', flexShrink: 0 }}>
+                <Icon size={16} color={color} />
+              </Box>
+              <Box sx={{ minWidth: 0 }}>
+                <Typography sx={{ color: 'white', fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.25rem' }, lineHeight: 1.1 }}>
+                  {value}
+                </Typography>
+                <Typography sx={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.68rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', mt: 0.25 }}>
                   {label}
                 </Typography>
+                <Typography sx={{ color: color, fontSize: '0.68rem', fontWeight: 500, mt: 0.1 }}>
+                  {sub}
+                </Typography>
               </Box>
-              <Typography sx={{ color: 'white', fontWeight: 800, fontSize: { xs: '1rem', sm: '1.2rem' }, lineHeight: 1 }}>
-                {value}
-              </Typography>
             </Box>
           ))}
         </Box>
-      </Box>
 
-      {/* ── Search bar ── */}
-      <Box sx={{ mb: 2.5 }}>
-        <TextField
-          fullWidth size="small"
-          placeholder="Search by name, item code, HSN or barcode…"
-          value={search}
-          onChange={(e) => { setSearch(e.target.value); setPage(1); }}
-          InputProps={{
-            startAdornment: <InputAdornment position="start"><Search size={16} color={theme.palette.text.disabled} /></InputAdornment>,
-            endAdornment: search ? (
-              <InputAdornment position="end">
-                <IconButton size="small" onClick={() => { setSearch(''); setPage(1); }}>
-                  <CloseIcon size={15} />
-                </IconButton>
-              </InputAdornment>
-            ) : null,
-          }}
-          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: 'background.paper' } }}
-        />
+        {/* Inline search */}
+        <Box sx={{ position: 'relative' }}>
+          <Box sx={{
+            display: 'flex', alignItems: 'center', gap: 1,
+            bgcolor: 'rgba(255,255,255,0.1)',
+            border: '1px solid rgba(255,255,255,0.18)',
+            borderRadius: 2, px: 1.5, py: 0.75,
+            backdropFilter: 'blur(8px)',
+            '&:focus-within': { bgcolor: 'rgba(255,255,255,0.16)', borderColor: 'rgba(255,255,255,0.35)' },
+            transition: 'all 0.2s',
+          }}>
+            <Search size={15} color="rgba(255,255,255,0.5)" style={{ flexShrink: 0 }} />
+            <input
+              value={search}
+              onChange={(e) => { setSearch(e.target.value); setPage(1); }}
+              placeholder="Search by name, item code, HSN, barcode or category…"
+              style={{
+                flex: 1, background: 'transparent', border: 'none', outline: 'none',
+                color: 'white', fontSize: '0.85rem', fontWeight: 500,
+              }}
+            />
+            {search && (
+              <IconButton size="small" onClick={() => { setSearch(''); setPage(1); }}
+                sx={{ color: 'rgba(255,255,255,0.5)', p: 0.25, '&:hover': { color: 'white' } }}>
+                <CloseIcon size={13} />
+              </IconButton>
+            )}
+          </Box>
+        </Box>
       </Box>
 
       {/* ── Results summary ── */}
@@ -343,7 +399,7 @@ const ItemsPage = () => {
             {search ? 'Try a different search term' : 'Add your first product to start tracking inventory'}
           </Typography>
           {!search && (
-            <Button variant="contained" startIcon={<Plus size={16} />} onClick={() => handleOpen()}
+            <Button variant="contained" disabled={!canWrite} startIcon={<Plus size={16} />} onClick={() => handleOpen()}
               sx={{ borderRadius: 2, textTransform: 'none', fontWeight: 700, background: `linear-gradient(135deg, ${primary} 0%, ${primaryDark} 100%)` }}>
               Add First Item
             </Button>
@@ -390,13 +446,13 @@ const ItemsPage = () => {
                           </Tooltip>
                         )}
                         <Tooltip title="Edit item">
-                          <IconButton size="small" onClick={() => handleOpen(item)}
+                          <IconButton size="small" disabled={!canWrite} onClick={() => handleOpen(item)}
                             sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main', bgcolor: alpha(primary, 0.08) } }}>
                             <Edit2 size={14} />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Delete item">
-                          <IconButton size="small" onClick={() => handleDelete(item.id)}
+                          <IconButton size="small" disabled={!canWrite} onClick={() => handleDelete(item.id)}
                             sx={{ color: 'text.disabled', '&:hover': { color: 'error.main', bgcolor: alpha('#dc2626', 0.08) } }}>
                             <Trash2 size={14} />
                           </IconButton>
@@ -549,6 +605,8 @@ const ItemsPage = () => {
       />
 
       <BarcodeDialog item={barcodeItem} onClose={() => setBarcodeItem(null)} />
+
+      <BulkAddDialog open={bulkAddOpen} onClose={() => setBulkAddOpen(false)} type="item" />
 
       <ImportDialog
         open={importOpen} onClose={() => setImportOpen(false)}

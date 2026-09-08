@@ -30,6 +30,7 @@ export const STRINGS = {
     'nav.backup': 'Backup / Restore',
     'nav.settings': 'Settings',
     'nav.admin': 'Admin',
+    'nav.help': 'Help & Guide',
     'nav.transactions': 'Transactions',
     'nav.documents': 'Documents',
     'nav.accounting': 'Accounting',

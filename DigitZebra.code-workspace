@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../../DigitZebra"
+		},
+		{
+			"path": ".."
+		}
+	],
+	"settings": {
+		"liveServer.settings.multiRootWorkspaceName": "DigitZebra"
+	}
+}

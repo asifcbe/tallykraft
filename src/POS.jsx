@@ -3,18 +3,20 @@ import {
   Box, Paper, Typography, TextField, InputAdornment, IconButton, Button,
   ToggleButton, ToggleButtonGroup, Divider, Chip, Stack, Tooltip, useTheme,
   alpha, Dialog, DialogTitle, DialogContent, DialogActions, Autocomplete,
-  Snackbar, Alert, useMediaQuery,
+  Snackbar, Alert, useMediaQuery, MenuItem,
 } from '@mui/material';
 import {
   Search, ScanLine, Plus, Minus, Trash2, X, ShoppingCart, User,
   CreditCard, Banknote, Smartphone, CheckCircle2, Percent, RotateCcw,
   Package, Printer, Coins, AlertTriangle, GripVertical, Lock, LockOpen,
+  ArrowLeftRight,
 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
 import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
 import { useBusiness } from './BusinessContext';
 import { useConfig } from './ConfigContext';
+import { useAuth } from './AuthContext';
 import { useDialog } from './DialogContext';
 import BarcodeScanner from './BarcodeScanner';
 import ItemFormDialog from './ItemFormDialog';
@@ -74,20 +76,18 @@ const playAddSound = () => {
   } catch (_) {}
 };
 
-// Build the next sequential invoice number, mirroring Sales.jsx's scheme.
-const nextInvoiceNumber = (sales, businessId) => {
-  const d = new Date();
-  const monthNames = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
-  const prefix = `INVSB${monthNames[d.getMonth()]}${String(d.getFullYear()).slice(-2)}-`;
-  let maxSerial = 0;
+// Build the next sequential invoice number using config-based prefix.
+const nextInvoiceNumber = (sales, businessId, prefix, startNum) => {
+  const p = (prefix || 'INV') + '-';
+  let maxSerial = (startNum || 1) - 1;
   (sales || []).forEach((tx) => {
-    if (tx.businessId === businessId && tx.invoiceNumber?.startsWith(prefix)) {
+    if (tx.businessId === businessId && tx.invoiceNumber?.startsWith(p)) {
       const parts = tx.invoiceNumber.split('-');
       const serial = parseInt(parts[parts.length - 1], 10);
       if (!isNaN(serial) && serial > maxSerial) maxSerial = serial;
     }
   });
-  return `${prefix}${String(maxSerial + 1).padStart(4, '0')}`;
+  return `${p}${String(maxSerial + 1).padStart(4, '0')}`;
 };
 
 const POS = () => {
@@ -98,7 +98,8 @@ const POS = () => {
   const { getItems, addItem, updateItem } = useData();
   const { currentBusiness } = useBusiness();
   const { config, saveConfig } = useConfig();
-  const { showAlert } = useDialog();
+  const { staffSession, currentUser } = useAuth();
+  const { showAlert, confirm } = useDialog();
   const { t } = useI18n();
 
   const businessId = currentBusiness?.id;
@@ -130,14 +131,21 @@ const POS = () => {
   const [discountValue, setDiscountValue] = useState('');
   const [discountType, setDiscountType] = useState('amount'); // 'percent' | 'amount'
   // Round off level — mirrors Sales.jsx: 0=off, +1/+2/+3=round up to 1/10/100, -1/-2/-3=round down.
-  const [roundOff, setRoundOff] = useState(0);
+  const [roundOff, setRoundOff] = useState(() => config.billPrintOptions?.autoRoundOff ? 1 : 0);
   const [scannerOpen, setScannerOpen] = useState(false);
   // "+ New item" opens the shared full item-creation dialog (same as the Items page).
   const [newItemDialog, setNewItemDialog] = useState({ open: false, name: '' });
-  const [payMode, setPayMode] = useState('Cash'); // Cash | Card | UPI
+  const [payMode, setPayMode] = useState('Cash'); // Cash | Card | UPI | Split
   const [cashReceived, setCashReceived] = useState('');
+  const [splitCash, setSplitCash] = useState('');
+  const [splitBank, setSplitBank] = useState('');
+  const [splitBankMode, setSplitBankMode] = useState('UPI');
   const [toast, setToast] = useState(null); // { msg, severity }
   const [saving, setSaving] = useState(false);
+  const [selectedBilledBy, setSelectedBilledBy] = useState('');
+
+  const ownerName = staffSession ? staffSession.name : (currentUser?.displayName || currentUser?.email?.split('@')[0] || 'Admin');
+  const salesStaff = useMemo(() => getItems('staffMembers').filter(s => s.businessId === businessId && s.showInSalesSelector === true && s.status === 'active'), [getItems, businessId]);
 
   // ── Custom product-tile order + lock (persisted per business in config) ──────
   // Order is a list of item ids; lock prevents accidental dragging.
@@ -240,10 +248,24 @@ const POS = () => {
     playAddSound();
     setCart((prev) => {
       const idx = prev.findIndex((c) => c.itemId === item.id);
+      const avail = Number(item.stock) || 0;
       if (idx >= 0) {
+        const newQty = prev[idx].qty + 1;
+        if (config.features?.stockAlert && newQty > avail) {
+          setTimeout(() => setToast({
+            msg: avail <= 0
+              ? `${item.name} is out of stock.`
+              : `Only ${avail} ${item.unit || 'unit(s)'} of ${item.name} available.`,
+            severity: 'warning',
+          }), 0);
+          return prev;
+        }
         const next = [...prev];
-        next[idx] = { ...next[idx], qty: next[idx].qty + 1 };
+        next[idx] = { ...next[idx], qty: newQty };
         return next;
+      }
+      if (config.features?.stockAlert && avail <= 0) {
+        setTimeout(() => setToast({ msg: `${item.name} is out of stock.`, severity: 'warning' }), 0);
       }
       const price = Number(item.salePrice ?? item.price) || 0;
       return [
@@ -253,43 +275,78 @@ const POS = () => {
           name: item.name,
           price,
           taxRate: Number(item.taxRate) || 0,
-          // Per-line discount carried from the item's default discount.
           discount: Number(item.discount) || 0,
           qty: 1,
-          stock: Number(item.stock) || 0,
+          stock: avail,
           unit: item.unit || '',
         },
       ];
     });
-  }, []);
+  }, [config.features?.stockAlert]);
 
   const changeQty = (itemId, delta) => {
-    setCart((prev) =>
-      prev
+    setCart((prev) => {
+      const line = prev.find(c => c.itemId === itemId);
+      if (line && delta > 0 && config.features?.stockAlert) {
+        const newQty = line.qty + delta;
+        if (newQty > line.stock) {
+          setToast({
+            msg: line.stock <= 0
+              ? `${line.name} is out of stock.`
+              : `Only ${line.stock} ${line.unit || 'unit(s)'} of ${line.name} available.`,
+            severity: 'warning',
+          });
+          return prev;
+        }
+      }
+      return prev
         .map((c) => (c.itemId === itemId ? { ...c, qty: Math.max(0, c.qty + delta) } : c))
-        .filter((c) => c.qty > 0),
-    );
+        .filter((c) => c.qty > 0);
+    });
   };
 
   const setQty = (itemId, value) => {
-    const q = Math.max(0, Number(value) || 0);
-    setCart((prev) =>
-      prev.map((c) => (c.itemId === itemId ? { ...c, qty: q } : c)).filter((c) => c.qty > 0),
-    );
+    const raw = parseFloat(value);
+    const q = Math.max(0, isNaN(raw) ? 0 : Math.round(raw * 1000) / 1000);
+    setCart((prev) => {
+      const line = prev.find(c => c.itemId === itemId);
+      if (line && q > 0 && config.features?.stockAlert && q > line.stock) {
+        setToast({
+          msg: line.stock <= 0
+            ? `${line.name} is out of stock.`
+            : `Only ${line.stock} ${line.unit || 'unit(s)'} of ${line.name} available.`,
+          severity: 'warning',
+        });
+      }
+      return prev.map((c) => (c.itemId === itemId ? { ...c, qty: q } : c)).filter((c) => c.qty > 0);
+    });
   };
 
   const removeLine = (itemId) => setCart((prev) => prev.filter((c) => c.itemId !== itemId));
+
+  const setPrice = (itemId, value) => {
+    const p = Math.max(0, Number(value) || 0);
+    setCart((prev) => prev.map((c) => c.itemId === itemId ? { ...c, price: p } : c));
+  };
+
+  const setLineDiscount = (itemId, value) => {
+    const d = Math.min(100, Math.max(0, Number(value) || 0));
+    setCart((prev) => prev.map((c) => c.itemId === itemId ? { ...c, discount: d } : c));
+  };
 
   const resetSale = () => {
     setCart([]);
     setCustomer(null);
     setDiscountValue('');
     setDiscountType('amount');
-    setRoundOff(0);
+    setRoundOff(config.billPrintOptions?.autoRoundOff ? 1 : 0);
     setSearch('');
     setActiveCat('All');
     setPayMode('Cash');
     setCashReceived('');
+    setSplitCash('');
+    setSplitBank('');
+    setSplitBankMode('UPI');
     setTimeout(() => searchRef.current?.focus(), 50);
   };
 
@@ -370,6 +427,8 @@ const POS = () => {
   // ── Checkout — produces a record identical to Sales.jsx ─────────────────────
   const completeSale = async () => {
     const paymentMode = payMode;
+    const splitCashAmt  = Number(splitCash)  || 0;
+    const splitBankAmt  = Number(splitBank)  || 0;
     if (!cart.length || saving) return;
     if (!businessId) {
       await showAlert({ title: 'No business', message: 'No active business selected.', variant: 'warning' });
@@ -380,7 +439,7 @@ const POS = () => {
       const now = new Date();
       const date = now.toISOString().slice(0, 10);
       const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-      const invoiceNumber = nextInvoiceNumber(getItems('sales'), businessId);
+      const invoiceNumber = nextInvoiceNumber(getItems('sales'), businessId, config.invoiceNumberConfig?.salesPrefix, config.invoiceNumberConfig?.salesStartingNumber);
 
       const items = cart.map((c) => {
         const lineDisc = Math.min(100, Math.max(0, Number(c.discount) || 0));
@@ -421,8 +480,41 @@ const POS = () => {
         dueDate: '',
         taxMode: 'exclusive',
         paymentMode,
+        ...(paymentMode === 'Split' && {
+          paymentSplit: { cash: splitCashAmt, bank: splitBankAmt, bankMode: splitBankMode },
+        }),
         source: 'POS',
+        billedBy: selectedBilledBy || ownerName,
       };
+
+      // Stock quantity check gated by feature flag
+      if (config.features?.stockAlert) {
+        const stockSnapshot = getItems('items');
+        const overStockLines = cart
+          .map(c => {
+            const si = stockSnapshot.find(i => i.id === c.itemId);
+            const avail = si ? (Number(si.stock) || 0) : 0;
+            return { name: c.name, qty: c.qty, avail };
+          })
+          .filter(l => l.qty > l.avail);
+        if (overStockLines.length > 0) {
+          const lines = overStockLines.map(l =>
+            l.avail <= 0
+              ? `${l.name} (out of stock)`
+              : `${l.name} (need ${l.qty}, only ${l.avail} left)`
+          );
+          const proceed = await confirm({
+            title: 'Insufficient stock',
+            message: `${lines.join('\n')} — proceed anyway?`,
+            confirmLabel: 'Proceed',
+            cancelLabel: 'Cancel',
+          });
+          if (!proceed) {
+            setSaving(false);
+            return;
+          }
+        }
+      }
 
       const saved = addItem('sales', transactionData);
       if (!saved) {
@@ -472,14 +564,15 @@ const POS = () => {
       sx={{
         display: 'flex',
         flexDirection: { xs: 'column', md: 'row' },
-        // Fill the available content area; fall back to a viewport-based height
-        // so the product grid scrolls correctly even when the parent is auto-height.
-        height: { xs: 'auto', md: '100%' },
-        minHeight: { xs: 'calc(100vh - 140px)', md: 0 },
-        gap: 1.5,
-        p: { xs: 1, sm: 1.5 },
-        // Leave room for the floating mobile checkout bar so it never covers content.
-        pb: { xs: 11, sm: 1.5 },
+        height: { xs: 'auto', md: 'calc(100vh - 64px)' },
+        minHeight: { xs: 'calc(100vh - 120px)', md: 0 },
+        gap: { xs: 1.5, md: 2 },
+        // Break out of Layout's padding to use full width
+        mx: { xs: -1.5, sm: -2, md: -2.5 },
+        px: { xs: 1, sm: 1.5, md: 2 },
+        pt: { xs: 1, sm: 1.5, md: 2 },
+        pb: { xs: 11, sm: 2 },
+        overflow: { md: 'hidden' },
       }}
     >
       {/* ── LEFT: product search + grid ─────────────────────────────────────── */}
@@ -579,10 +672,12 @@ const POS = () => {
             // more columns on bigger screens instead of leaving empty side space.
             gridTemplateColumns: {
               xs: 'repeat(2, 1fr)',
-              sm: 'repeat(auto-fill, minmax(150px, 1fr))',
-              lg: 'repeat(auto-fill, minmax(168px, 1fr))',
+              sm: 'repeat(auto-fill, minmax(170px, 1fr))',
+              md: 'repeat(auto-fill, minmax(180px, 1fr))',
+              lg: 'repeat(auto-fill, minmax(200px, 1fr))',
+              xl: 'repeat(auto-fill, minmax(220px, 1fr))',
             },
-            gap: { xs: 1, sm: 1.25 },
+            gap: { xs: 1, sm: 1.5, md: 2 },
             alignContent: 'start',
             pr: 0.5,
           }}
@@ -627,7 +722,7 @@ const POS = () => {
                     borderRadius: 2.5,
                     display: 'flex',
                     flexDirection: 'column',
-                    minHeight: { xs: 104, sm: 124 },
+                    minHeight: { xs: 120, sm: 150, md: 160 },
                     position: 'relative',
                     overflow: 'hidden',
                     transition: 'transform 0.12s, box-shadow 0.12s, border-color 0.12s',
@@ -654,14 +749,14 @@ const POS = () => {
                       sx={{ position: 'absolute', top: 8, right: 8, height: 22, minWidth: 22, fontWeight: 800, '& .MuiChip-label': { px: 0.75 } }}
                     />
                   )}
-                  <Typography sx={{ fontWeight: 700, fontSize: { xs: '0.82rem', sm: '0.9rem' }, lineHeight: 1.3, mb: 0.75, pr: inCart ? 3.5 : 0, pl: canDrag ? 2.25 : 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: { xs: '0.875rem', sm: '0.925rem', md: '0.975rem' }, lineHeight: 1.3, mb: 0.75, pr: inCart ? 3.5 : 0, pl: canDrag ? 2.25 : 0, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>
                     {item.name}
                   </Typography>
                   <Box sx={{ mt: 'auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 0.5 }}>
-                    <Box sx={{ px: 1, py: 0.4, borderRadius: 1.5, bgcolor: tokens.primarySoft, color: tokens.primary, fontWeight: 800, fontSize: { xs: '0.85rem', sm: '0.95rem' }, lineHeight: 1 }}>
+                    <Box sx={{ px: 1.25, py: 0.5, borderRadius: 1.5, bgcolor: tokens.primarySoft, color: tokens.primary, fontWeight: 800, fontSize: { xs: '0.9rem', sm: '1rem', md: '1.05rem' }, lineHeight: 1 }}>
                       {money(price)}
                     </Box>
-                    <Typography variant="caption" sx={{ color: out ? tokens.error : 'text.secondary', fontWeight: out ? 700 : 500, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+                    <Typography variant="caption" sx={{ color: out ? tokens.error : 'text.secondary', fontWeight: out ? 700 : 500, fontSize: { xs: '0.7rem', sm: '0.72rem' }, whiteSpace: 'nowrap' }}>
                       {out ? 'Out of stock' : `${stock} ${item.unit || ''}`.trim()}
                     </Typography>
                   </Box>
@@ -676,7 +771,7 @@ const POS = () => {
       <Paper
         elevation={0}
         sx={{
-          width: { xs: '100%', md: 380, xl: 440 },
+          width: { xs: '100%', md: 400, lg: 440, xl: 480 },
           flexShrink: 0,
           border: '1px solid',
           borderColor: 'divider',
@@ -713,40 +808,69 @@ const POS = () => {
         </Button>
 
         {/* Lines */}
-        <Box sx={{ flex: 1, overflowY: 'auto', px: 1, minHeight: 80 }}>
+        <Box sx={{ flex: 1, overflowY: 'auto', px: 1.5, minHeight: 80 }}>
           {cart.length === 0 ? (
             <Box sx={{ textAlign: 'center', py: 5, color: 'text.disabled' }}>
               <ShoppingCart size={36} style={{ opacity: 0.3 }} />
               <Typography variant="body2" sx={{ mt: 1 }}>{t("pos.tapToAdd")}</Typography>
             </Box>
           ) : (
-            cart.map((c) => (
-              <Box key={c.itemId} sx={{ display: 'flex', alignItems: 'center', gap: 0.75, py: 0.75, borderBottom: '1px dashed', borderColor: 'divider' }}>
-                <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-                  <Typography variant="body2" sx={{ fontWeight: 600, lineHeight: 1.2 }} noWrap>{c.name}</Typography>
-                  <Typography variant="caption" color="text.secondary">
-                    {money(c.price)}{c.taxRate ? ` · ${c.taxRate}% GST` : ''}{Number(c.discount) ? ` · ${c.discount}% off` : ''} · {money(c.price * c.qty * (1 - (Math.min(100, Math.max(0, Number(c.discount) || 0))) / 100) * (1 + c.taxRate / 100))}
-                  </Typography>
+            cart.map((c) => {
+              const lineTotal = c.price * c.qty * (1 - (Math.min(100, Math.max(0, Number(c.discount) || 0))) / 100) * (1 + c.taxRate / 100);
+              const stockExceeded = config.features?.stockAlert && c.qty > c.stock;
+              return (
+                <Box key={c.itemId} sx={{ py: 1.25, borderBottom: '1px dashed', borderColor: 'divider' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.2, flexGrow: 1, minWidth: 0, fontSize: '0.9rem' }} noWrap>{c.name}</Typography>
+                    {stockExceeded && (
+                      <Tooltip title={c.stock <= 0 ? 'Out of stock' : `Only ${c.stock} available`}>
+                        <AlertTriangle size={14} color="#d97706" style={{ flexShrink: 0 }} />
+                      </Tooltip>
+                    )}
+                    <Typography variant="caption" sx={{ fontWeight: 800, color: tokens.primary, flexShrink: 0, fontSize: '0.85rem' }}>{money(lineTotal)}</Typography>
+                    <IconButton size="small" onClick={() => removeLine(c.itemId)} sx={{ p: 0.6, color: tokens.error, flexShrink: 0 }}><Trash2 size={14} /></IconButton>
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mt: 0.6 }}>
+                    {/* Rate */}
+                    <TextField
+                      value={c.price}
+                      onChange={(e) => setPrice(c.itemId, e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      size="small" variant="outlined"
+                      slotProps={{ input: { startAdornment: <Box component="span" sx={{ fontSize: '0.75rem', mr: 0.25, color: 'text.secondary' }}>₹</Box> }, htmlInput: { style: { textAlign: 'right', padding: '4px 6px', width: 64, fontSize: '0.85rem' }, inputMode: 'decimal' } }}
+                      sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.85rem' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(tokens.primary, 0.2) } }}
+                    />
+                    {/* Qty */}
+                    <Stack direction="row" alignItems="center" spacing={0.5} sx={{ flexShrink: 0 }}>
+                      <IconButton size="small" onClick={() => changeQty(c.itemId, -1)} sx={{ p: 0.6 }}><Minus size={14} /></IconButton>
+                      <TextField
+                        value={c.qty}
+                        onChange={(e) => setQty(c.itemId, e.target.value)}
+                        onFocus={(e) => e.target.select()}
+                        size="small" variant="standard"
+                        slotProps={{ input: { disableUnderline: true }, htmlInput: { style: { textAlign: 'center', width: 32, padding: 0, fontWeight: 800, fontSize: '0.95rem' }, inputMode: 'numeric' } }}
+                      />
+                      <IconButton size="small" onClick={() => changeQty(c.itemId, 1)} sx={{ p: 0.6 }}><Plus size={14} /></IconButton>
+                    </Stack>
+                    {/* Per-line discount % */}
+                    <TextField
+                      value={c.discount || ''}
+                      onChange={(e) => setLineDiscount(c.itemId, e.target.value)}
+                      onFocus={(e) => e.target.select()}
+                      placeholder="0"
+                      size="small" variant="outlined"
+                      slotProps={{ input: { endAdornment: <Box component="span" sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>%</Box> }, htmlInput: { style: { textAlign: 'right', padding: '4px 6px', width: 36, fontSize: '0.85rem' }, inputMode: 'decimal' } }}
+                      sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.85rem' }, '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(tokens.primary, 0.2) } }}
+                    />
+                  </Box>
                 </Box>
-                <Stack direction="row" alignItems="center" spacing={0.25}>
-                  <IconButton size="small" onClick={() => changeQty(c.itemId, -1)} sx={{ p: 0.5 }}><Minus size={14} /></IconButton>
-                  <TextField
-                    value={c.qty}
-                    onChange={(e) => setQty(c.itemId, e.target.value)}
-                    size="small"
-                    variant="standard"
-                    slotProps={{ input: { disableUnderline: true }, htmlInput: { style: { textAlign: 'center', width: 28, padding: 0, fontWeight: 600 }, inputMode: 'numeric' } }}
-                  />
-                  <IconButton size="small" onClick={() => changeQty(c.itemId, 1)} sx={{ p: 0.5 }}><Plus size={14} /></IconButton>
-                  <IconButton size="small" onClick={() => removeLine(c.itemId)} sx={{ p: 0.5, color: tokens.error }}><Trash2 size={14} /></IconButton>
-                </Stack>
-              </Box>
-            ))
+              );
+            })
           )}
         </Box>
 
         {/* Totals + inline payment + checkout */}
-        <Box sx={{ p: 1.5, borderTop: '1px solid', borderColor: 'divider' }}>
+        <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider' }}>
           <Stack spacing={0.5} sx={{ mb: 1 }}>
             <Row label="Subtotal" value={money(totals.subtotal)} />
             {totals.taxAmount > 0 && <Row label="Tax" value={money(totals.taxAmount)} />}
@@ -860,12 +984,63 @@ const POS = () => {
             fullWidth
             size="small"
             onChange={(_, v) => v && setPayMode(v)}
-            sx={{ mb: 1, '& .MuiToggleButton-root': { py: 0.75, textTransform: 'none', fontWeight: 600, gap: 0.5 } }}
+            sx={{ mb: 1, '& .MuiToggleButton-root': { py: 0.75, textTransform: 'none', fontWeight: 600, gap: 0.5, fontSize: '0.78rem' } }}
           >
-            <ToggleButton value="Cash"><Banknote size={16} /> Cash</ToggleButton>
-            <ToggleButton value="Card"><CreditCard size={16} /> Card</ToggleButton>
-            <ToggleButton value="UPI"><Smartphone size={16} /> UPI</ToggleButton>
+            <ToggleButton value="Cash"><Banknote size={15} /> Cash</ToggleButton>
+            <ToggleButton value="Card"><CreditCard size={15} /> Card</ToggleButton>
+            <ToggleButton value="UPI"><Smartphone size={15} /> UPI</ToggleButton>
+            <ToggleButton value="Split"><ArrowLeftRight size={15} /> Split</ToggleButton>
           </ToggleButtonGroup>
+
+          {/* Split payment fields */}
+          {payMode === 'Split' && (
+            <Box sx={{ mb: 1.25, p: 1.25, borderRadius: 1.5, border: '1px solid', borderColor: alpha(tokens.primary, 0.2), bgcolor: alpha(tokens.primary, 0.03) }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: tokens.primary, display: 'block', mb: 1 }}>Split Payment</Typography>
+              <Stack spacing={0.75}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Banknote size={14} style={{ color: tokens.success, flexShrink: 0 }} />
+                  <Typography variant="caption" sx={{ minWidth: 36 }}>Cash</Typography>
+                  <TextField
+                    fullWidth size="small" value={splitCash} placeholder="0"
+                    onChange={(e) => setSplitCash(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    slotProps={{ input: { startAdornment: <Box component="span" sx={{ fontSize: '0.75rem', mr: 0.25 }}>₹</Box> }, htmlInput: { inputMode: 'decimal', style: { textAlign: 'right', padding: '3px 6px', fontWeight: 600 } } }}
+                    sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.82rem' } }}
+                  />
+                </Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <CreditCard size={14} style={{ color: tokens.primary, flexShrink: 0 }} />
+                  <Box sx={{ display: 'flex', gap: 0.5, minWidth: 36 }}>
+                    {['UPI', 'Card', 'Bank'].map(m => (
+                      <Box key={m} onClick={() => setSplitBankMode(m)}
+                        sx={{ px: 0.75, py: 0.2, borderRadius: 1, cursor: 'pointer', fontSize: '0.65rem', fontWeight: 700,
+                          bgcolor: splitBankMode === m ? alpha(tokens.primary, 0.15) : 'transparent',
+                          color: splitBankMode === m ? tokens.primary : 'text.secondary',
+                          border: '1px solid', borderColor: splitBankMode === m ? alpha(tokens.primary, 0.3) : 'transparent',
+                        }}>{m}</Box>
+                    ))}
+                  </Box>
+                  <TextField
+                    fullWidth size="small" value={splitBank} placeholder="0"
+                    onChange={(e) => setSplitBank(e.target.value)}
+                    onFocus={(e) => e.target.select()}
+                    slotProps={{ input: { startAdornment: <Box component="span" sx={{ fontSize: '0.75rem', mr: 0.25 }}>₹</Box> }, htmlInput: { inputMode: 'decimal', style: { textAlign: 'right', padding: '3px 6px', fontWeight: 600 } } }}
+                    sx={{ '& .MuiOutlinedInput-root': { fontSize: '0.82rem' } }}
+                  />
+                </Box>
+                {/* Running total check */}
+                {(Number(splitCash) || Number(splitBank)) > 0 && (() => {
+                  const entered = (Number(splitCash) || 0) + (Number(splitBank) || 0);
+                  const diff = entered - totals.grandTotal;
+                  return (
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: Math.abs(diff) < 0.01 ? tokens.success : tokens.error, textAlign: 'right' }}>
+                      {Math.abs(diff) < 0.01 ? '✓ Split balances' : diff > 0 ? `Over by ${money(diff)}` : `Short by ${money(-diff)}`}
+                    </Typography>
+                  );
+                })()}
+              </Stack>
+            </Box>
+          )}
 
           {/* Cash received + change — only for Cash */}
           {payMode === 'Cash' && (
@@ -952,6 +1127,17 @@ const POS = () => {
           )}
 
           {/* Inline Complete button — desktop only; mobile uses the floating bar */}
+          {salesStaff.length > 0 && (
+            <TextField
+              select size="small" fullWidth label="Billed by"
+              value={selectedBilledBy || ownerName}
+              onChange={e => setSelectedBilledBy(e.target.value)}
+              sx={{ mb: 1 }}
+            >
+              <MenuItem value={ownerName}>{ownerName} (You)</MenuItem>
+              {salesStaff.map(s => <MenuItem key={s.id} value={s.name}>{s.name}</MenuItem>)}
+            </TextField>
+          )}
           {!isMobile && (
             <Button
               fullWidth
@@ -959,10 +1145,13 @@ const POS = () => {
               size="large"
               disabled={cart.length === 0 || saving}
               onClick={completeSale}
-              startIcon={<CheckCircle2 size={20} />}
-              sx={{ py: 1.25, fontWeight: 700, textTransform: 'none', fontSize: '1rem' }}
+              startIcon={<CheckCircle2 size={22} />}
+              sx={{ py: 1.75, fontWeight: 800, textTransform: 'none', fontSize: '1.05rem', borderRadius: '14px',
+                boxShadow: cart.length > 0 ? `0 6px 20px ${alpha(tokens.primary, 0.35)}` : 'none',
+                '&:hover': { boxShadow: cart.length > 0 ? `0 8px 24px ${alpha(tokens.primary, 0.42)}` : 'none' },
+              }}
             >
-              {saving ? t('common.loading') : `${t('pos.complete')} ${money(totals.grandTotal)}`}
+              {saving ? t('common.loading') : `${t('pos.complete')} · ${money(totals.grandTotal)}`}
             </Button>
           )}
         </Box>

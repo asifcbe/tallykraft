@@ -173,7 +173,7 @@ function useCounter(target, inView, duration = 1400) {
 export default function LandingPage({ onLoginClick }) {
   const [scrolled, setScrolled]           = useState(false);
   const [activeExample, setActiveExample] = useState(0);
-  const [isDark, setIsDark]               = useState(() => localStorage.getItem('sb_landing_dark') === 'true');
+  const [isDark, setIsDark]               = useState(() => localStorage.getItem('tallykraft_landing_dark') === 'true');
   const [expandedFeat, setExpandedFeat]   = useState(null);
   const featRef    = useRef(null);
   const carouselId = useRef(null);
@@ -199,7 +199,7 @@ export default function LandingPage({ onLoginClick }) {
         if (snap.exists()) {
           const dark = snap.data().theme === 'dark';
           setIsDark(dark);
-          localStorage.setItem('sb_landing_dark', dark ? 'true' : 'false');
+          localStorage.setItem('tallykraft_landing_dark', dark ? 'true' : 'false');
         }
       })
       .catch(() => {});

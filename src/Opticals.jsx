@@ -138,12 +138,10 @@ const OpticalsPage = () => {
     const d = config.defaultPaperSize;
     return ['A4', 'A5', 'Letter', 'Legal'].includes(d) ? d : 'A4';
   });
-  const _psInit = useRef(!!config.defaultPaperSize);
   useEffect(() => {
-    if (!_psInit.current && config.defaultPaperSize) {
+    if (config.defaultPaperSize) {
       const d = config.defaultPaperSize;
       if (['A4', 'A5', 'Letter', 'Legal'].includes(d)) setPaperSize(d);
-      _psInit.current = true;
     }
   }, [config.defaultPaperSize]);
   const printRef = useRef();
@@ -900,7 +898,7 @@ const OpticalsPage = () => {
                           <TableCell align="center" sx={{ py: 1 }}>
                             <TextField variant="standard" type="number"
                               inputProps={{ min: 1, style: { textAlign: 'center' } }}
-                              value={item.quantity} onChange={(e) => handleOrderItemChange(idx, 'quantity', e.target.value)}
+                              value={item.quantity} onChange={(e) => { const n = parseFloat(e.target.value); handleOrderItemChange(idx, 'quantity', isNaN(n) ? '' : Math.round(n * 1000) / 1000); }}
                               sx={{ width: 60 }} />
                           </TableCell>
                           <TableCell align="right" sx={{ py: 1 }}>

@@ -40,15 +40,15 @@ const Backup = () => {
   const [loading, setLoading] = useState(false);
   const [onlineLoading, setOnlineLoading] = useState(false);
   const [message, setMessage] = useState({ type: '', text: '' });
-  const [autoBackup, setAutoBackup] = useState(() => localStorage.getItem('autoBackup') === 'true');
-  const [backupFolder, setBackupFolder] = useState(() => localStorage.getItem('backupFolder') || '');
+  const [autoBackup, setAutoBackup] = useState(() => localStorage.getItem('tallykraft_autoBackup') === 'true');
+  const [backupFolder, setBackupFolder] = useState(() => localStorage.getItem('tallykraft_backupFolder') || '');
 
   useEffect(() => {
-    localStorage.setItem('autoBackup', autoBackup);
+    localStorage.setItem('tallykraft_autoBackup', autoBackup);
   }, [autoBackup]);
 
   useEffect(() => {
-    localStorage.setItem('backupFolder', backupFolder);
+    localStorage.setItem('tallykraft_backupFolder', backupFolder);
   }, [backupFolder]);
 
   useEffect(() => {

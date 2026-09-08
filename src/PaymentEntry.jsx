@@ -12,7 +12,7 @@ import {
   FileClock, ArrowDownRight, ArrowUpRight, Printer, Share2, Edit2, Trash2, Eye, X
 } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
-import { useFinancialYear } from './FinancialYearContext';
+import { useSubscription } from './SubscriptionContext';
 import PartySelect from './PartySelect';
 import { useConfig } from './ConfigContext';
 import { useData } from './DataContext';
@@ -29,11 +29,14 @@ const formatDate = (dateStr) => {
   return `${day}/${month}/${year}`;
 };
 
+const SPLIT_BANK_MODES = ['Bank', 'UPI', 'Cheque'];
+
 const MODE_COLORS = {
-  Cash: { bg: alpha('#16a34a', 0.1), color: '#16a34a' },
-  Bank: { bg: alpha('#1d4ed8', 0.1), color: '#1d4ed8' },
-  UPI:  { bg: alpha('#7c3aed', 0.1), color: '#7c3aed' },
+  Cash:   { bg: alpha('#16a34a', 0.1), color: '#16a34a' },
+  Bank:   { bg: alpha('#1d4ed8', 0.1), color: '#1d4ed8' },
+  UPI:    { bg: alpha('#7c3aed', 0.1), color: '#7c3aed' },
   Cheque: { bg: alpha('#b45309', 0.1), color: '#b45309' },
+  Split:  { bg: alpha('#db2777', 0.1), color: '#db2777' },
 };
 
 const PaymentEntry = ({ mode = 'payment-in' }) => {
@@ -42,14 +45,18 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
   const { currentBusiness } = useBusiness();
   const { confirm, showAlert } = useDialog();
   const { t } = useI18n();
-  const { activeFY } = useFinancialYear();
   const { addItem, updateItem, deleteItem, getItems } = useData();
+  const { isBusinessActive } = useSubscription();
+  const canWrite = isBusinessActive(currentBusiness?.id);
 
   const [tabValue, setTabValue] = useState(mode === 'payment-out' ? 1 : 0);
   const [formData, setFormData] = useState({
     partyId: '', amount: '', date: new Date().toISOString().split('T')[0],
     paymentMode: 'Cash', referenceNo: '', notes: ''
   });
+  const [splitCash, setSplitCash] = useState('');
+  const [splitBank, setSplitBank] = useState('');
+  const [splitBankMode, setSplitBankMode] = useState('Bank');
   const [searchQuery, setSearchQuery] = useState('');
   const [dateRange, setDateRange] = useState({
     start: new Date(new Date().setDate(new Date().getDate() - 30)).toISOString().split('T')[0],
@@ -62,12 +69,10 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
     const d = config.defaultPaperSize;
     return ['A4', 'A5', 'Letter', 'Legal'].includes(d) ? d : 'A4';
   });
-  const _psInit = useRef(!!config.defaultPaperSize);
   useEffect(() => {
-    if (!_psInit.current && config.defaultPaperSize) {
+    if (config.defaultPaperSize) {
       const d = config.defaultPaperSize;
       if (['A4', 'A5', 'Letter', 'Legal'].includes(d)) setPaperSize(d);
-      _psInit.current = true;
     }
   }, [config.defaultPaperSize]);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -97,7 +102,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
     return isPaymentIn ? p.type === 'Customer' : p.type === 'Vendor';
   });
 
-  const allPayments = getItems('payments').filter(t => t.businessId === currentBusiness?.id).filter(r => !activeFY || !r.date || (r.date >= activeFY.start && r.date <= activeFY.end));
+  const allPayments = getItems('payments').filter(t => t.businessId === currentBusiness?.id);
   const totalIn  = allPayments.filter(t => t.type === 'PaymentIn').reduce((s, t) => s + (t.totalAmount || 0), 0);
   const totalOut = allPayments.filter(t => t.type === 'PaymentOut').reduce((s, t) => s + (t.totalAmount || 0), 0);
 
@@ -130,10 +135,22 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
 
   const handleSave = async () => {
     if (!currentBusiness?.id) { await showAlert({ title: 'Business not selected', message: 'Please select a business before saving.', variant: 'warning' }); return; }
-    if (!formData.partyId || !formData.amount) { await showAlert({ title: 'Missing fields', message: 'Please select a party and enter an amount.', variant: 'warning' }); return; }
     if (!selectedParty) { await showAlert({ title: 'Invalid party', message: 'Please select a valid party.', variant: 'warning' }); return; }
-    const amountNum = parseFloat(formData.amount);
-    if (isNaN(amountNum) || amountNum <= 0) { await showAlert({ title: 'Invalid amount', message: 'Please enter a valid amount greater than zero.', variant: 'warning' }); return; }
+
+    let amountNum;
+    let paymentSplit = null;
+
+    if (formData.paymentMode === 'Split') {
+      const cashNum = parseFloat(splitCash) || 0;
+      const bankNum = parseFloat(splitBank) || 0;
+      if (cashNum <= 0 && bankNum <= 0) { await showAlert({ title: 'Missing amounts', message: 'Enter at least one split amount.', variant: 'warning' }); return; }
+      amountNum = cashNum + bankNum;
+      paymentSplit = { cash: cashNum, bank: bankNum, bankMode: splitBankMode };
+    } else {
+      if (!formData.amount) { await showAlert({ title: 'Missing fields', message: 'Please select a party and enter an amount.', variant: 'warning' }); return; }
+      amountNum = parseFloat(formData.amount);
+      if (isNaN(amountNum) || amountNum <= 0) { await showAlert({ title: 'Invalid amount', message: 'Please enter a valid amount greater than zero.', variant: 'warning' }); return; }
+    }
 
     try {
       const paymentData = {
@@ -144,6 +161,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         totalAmount: amountNum,
         date: formData.date || new Date().toISOString().split('T')[0],
         paymentMode: formData.paymentMode || 'Cash',
+        ...(paymentSplit ? { paymentSplit } : {}),
         referenceNo: formData.referenceNo || `REF-${Date.now().toString().slice(-6)}`,
         notes: formData.notes || ''
       };
@@ -164,6 +182,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         await updateItem('payments', editingId, paymentData);
         setEditingId(null);
         setFormData({ ...formData, amount: '', referenceNo: '', notes: '' });
+        setSplitCash(''); setSplitBank(''); setSplitBankMode('Bank');
         return;
       }
 
@@ -177,6 +196,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
       }
       await updateItem('parties', formData.partyId, { balance: (selectedParty.balance || 0) + (isPaymentIn ? -amountNum : amountNum) });
       setFormData({ ...formData, amount: '', referenceNo: '', notes: '' });
+      setSplitCash(''); setSplitBank(''); setSplitBankMode('Bank');
     } catch (error) {
       console.error('Error saving payment:', error);
       await showAlert({ title: 'Save error', message: 'An error occurred while saving. Please try again.', variant: 'danger' });
@@ -187,17 +207,25 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
     setEditingId(row.id);
     setFormData({
       partyId: row.partyId,
-      amount: String(row.totalAmount ?? ''),
+      amount: row.paymentMode === 'Split' ? '' : String(row.totalAmount ?? ''),
       date: row.date || new Date().toISOString().split('T')[0],
       paymentMode: row.paymentMode || 'Cash',
       referenceNo: row.referenceNo || '',
       notes: row.notes || ''
     });
+    if (row.paymentMode === 'Split' && row.paymentSplit) {
+      setSplitCash(String(row.paymentSplit.cash || ''));
+      setSplitBank(String(row.paymentSplit.bank || ''));
+      setSplitBankMode(row.paymentSplit.bankMode || 'Bank');
+    } else {
+      setSplitCash(''); setSplitBank(''); setSplitBankMode('Bank');
+    }
   };
 
   const cancelEdit = () => {
     setEditingId(null);
     setFormData({ partyId: formData.partyId, amount: '', date: new Date().toISOString().split('T')[0], paymentMode: 'Cash', referenceNo: '', notes: '' });
+    setSplitCash(''); setSplitBank(''); setSplitBankMode('Bank');
   };
 
   const handleDelete = async (row) => {
@@ -221,11 +249,15 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
   };
 
   const handleShare = (row) => {
+    const isSplit = row.paymentMode === 'Split' && row.paymentSplit;
+    const modeText = isSplit
+      ? `Mode: ⚡ Split Payment\n  💵 Cash: ₹${Number(row.paymentSplit.cash).toLocaleString()}\n  ${row.paymentSplit.bankMode === 'UPI' ? '📲' : '🏦'} ${row.paymentSplit.bankMode}: ₹${Number(row.paymentSplit.bank).toLocaleString()}`
+      : `Mode: ${row.paymentMode}`;
     const text = `*Payment Receipt from ${currentBusiness?.name || 'TallyKraft'}*\n\n` +
       `Amount: ₹${row.totalAmount.toLocaleString()}\n` +
       `Date: ${row.date}\n` +
       `Party: ${row.partyName}\n` +
-      `Mode: ${row.paymentMode}\n` +
+      `${modeText}\n` +
       `Ref: ${row.referenceNo}\n\n` +
       `Shared via TallyKraft`;
     if (navigator.share) {
@@ -343,41 +375,61 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
 
             {/* BIG amount field */}
             <Grid size={{ xs: 12, sm: 6 }}>
-              <Box sx={{
-                border: '2px solid',
-                borderColor: formData.amount ? accentColor : alpha(accentColor, 0.3),
-                borderRadius: 2,
-                px: 2, py: 1.25,
-                bgcolor: formData.amount ? alpha(accentColor, 0.04) : 'transparent',
-                transition: 'all 0.2s',
-                '&:focus-within': { borderColor: accentColor, bgcolor: alpha(accentColor, 0.05) },
-              }}>
-                <Typography variant="caption" sx={{ color: accentColor, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', fontSize: '0.68rem' }}>
-                  Amount
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-                  <Typography sx={{ fontSize: '1.6rem', fontWeight: 700, color: accentColor, lineHeight: 1.2, mt: 0.25 }}>₹</Typography>
-                  <InputBase
-                    fullWidth
-                    type="number"
-                    placeholder="0"
-                    value={formData.amount}
-                    onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                    onFocus={(e) => e.target.select()}
-                    inputProps={{ min: 0, step: 0.01, style: { padding: 0 } }}
-                    sx={{
-                      '& input': {
-                        fontSize: '1.75rem',
-                        fontWeight: 800,
-                        color: accentColor,
-                        lineHeight: 1.2,
-                        letterSpacing: '-0.02em',
-                        '&::placeholder': { color: alpha(accentColor, 0.35), fontWeight: 700 },
-                      },
-                    }}
-                  />
+              {formData.paymentMode === 'Split' ? (
+                <Box sx={{
+                  border: '2px solid',
+                  borderColor: alpha('#db2777', 0.5),
+                  borderRadius: 2,
+                  px: 2, py: 1.25,
+                  bgcolor: alpha('#db2777', 0.04),
+                }}>
+                  <Typography variant="caption" sx={{ color: '#db2777', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', fontSize: '0.68rem' }}>
+                    Total (Split)
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography sx={{ fontSize: '1.6rem', fontWeight: 700, color: '#db2777', lineHeight: 1.2, mt: 0.25 }}>₹</Typography>
+                    <Typography sx={{ fontSize: '1.75rem', fontWeight: 800, color: '#db2777', lineHeight: 1.2, letterSpacing: '-0.02em' }}>
+                      {((parseFloat(splitCash) || 0) + (parseFloat(splitBank) || 0)) || 0}
+                    </Typography>
+                  </Box>
                 </Box>
-              </Box>
+              ) : (
+                <Box sx={{
+                  border: '2px solid',
+                  borderColor: formData.amount ? accentColor : alpha(accentColor, 0.3),
+                  borderRadius: 2,
+                  px: 2, py: 1.25,
+                  bgcolor: formData.amount ? alpha(accentColor, 0.04) : 'transparent',
+                  transition: 'all 0.2s',
+                  '&:focus-within': { borderColor: accentColor, bgcolor: alpha(accentColor, 0.05) },
+                }}>
+                  <Typography variant="caption" sx={{ color: accentColor, fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', fontSize: '0.68rem' }}>
+                    Amount
+                  </Typography>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+                    <Typography sx={{ fontSize: '1.6rem', fontWeight: 700, color: accentColor, lineHeight: 1.2, mt: 0.25 }}>₹</Typography>
+                    <InputBase
+                      fullWidth
+                      type="number"
+                      placeholder="0"
+                      value={formData.amount}
+                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
+                      onFocus={(e) => e.target.select()}
+                      inputProps={{ min: 0, step: 0.01, style: { padding: 0 } }}
+                      sx={{
+                        '& input': {
+                          fontSize: '1.75rem',
+                          fontWeight: 800,
+                          color: accentColor,
+                          lineHeight: 1.2,
+                          letterSpacing: '-0.02em',
+                          '&::placeholder': { color: alpha(accentColor, 0.35), fontWeight: 700 },
+                        },
+                      }}
+                    />
+                  </Box>
+                </Box>
+              )}
             </Grid>
 
             {/* ── Row 2: Payment method tiles ── */}
@@ -387,10 +439,11 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
               </Typography>
               <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
                 {[
-                  { value: 'Cash', icon: <Banknote size={16} />, color: '#16a34a' },
-                  { value: 'Bank', icon: <Landmark size={16} />, color: '#1d4ed8' },
-                  { value: 'UPI',  icon: <CreditCard size={16} />, color: '#7c3aed' },
-                  { value: 'Cheque', icon: <FileClock size={16} />, color: '#b45309' },
+                  { value: 'Cash',   icon: <Banknote size={16} />,   color: '#16a34a' },
+                  { value: 'Bank',   icon: <Landmark size={16} />,   color: '#1d4ed8' },
+                  { value: 'UPI',    icon: <CreditCard size={16} />, color: '#7c3aed' },
+                  { value: 'Cheque', icon: <FileClock size={16} />,  color: '#b45309' },
+                  { value: 'Split',  icon: <ArrowLeft size={16} style={{ transform: 'rotate(135deg)' }} />, color: '#db2777' },
                 ].map(opt => {
                   const selected = formData.paymentMode === opt.value;
                   return (
@@ -421,6 +474,55 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
               </Box>
             </Grid>
 
+            {/* ── Split amount fields ── */}
+            {formData.paymentMode === 'Split' && (
+              <Grid size={{ xs: 12 }}>
+                <Box sx={{
+                  p: 2, borderRadius: 2,
+                  border: `1.5px dashed ${alpha('#db2777', 0.4)}`,
+                  bgcolor: alpha('#db2777', 0.03),
+                }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: '#db2777', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.68rem', display: 'block', mb: 1.5 }}>
+                    Split Amounts
+                    {(parseFloat(splitCash) || 0) + (parseFloat(splitBank) || 0) > 0 && (
+                      <Box component="span" sx={{ ml: 1.5, color: accentColor }}>
+                        Total: ₹{((parseFloat(splitCash) || 0) + (parseFloat(splitBank) || 0)).toLocaleString('en-IN')}
+                      </Box>
+                    )}
+                  </Typography>
+                  <Grid container spacing={1.5}>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField
+                        fullWidth size="small" label="Cash" type="number"
+                        value={splitCash}
+                        onChange={e => setSplitCash(e.target.value)}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><Banknote size={14} color="#16a34a" /></InputAdornment> } }}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField
+                        fullWidth size="small" label={splitBankMode} type="number"
+                        value={splitBank}
+                        onChange={e => setSplitBank(e.target.value)}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start"><Landmark size={14} color="#1d4ed8" /></InputAdornment> } }}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 4 }}>
+                      <TextField select fullWidth size="small" label="Via"
+                        value={splitBankMode}
+                        onChange={e => setSplitBankMode(e.target.value)}
+                        sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5 } }}
+                      >
+                        {SPLIT_BANK_MODES.map(m => <MenuItem key={m} value={m}>{m}</MenuItem>)}
+                      </TextField>
+                    </Grid>
+                  </Grid>
+                </Box>
+              </Grid>
+            )}
+
             {/* ── Row 3: Date + Reference + Notes ── */}
             <Grid size={{ xs: 6, sm: 3 }}>
               <TextField
@@ -446,35 +548,40 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
 
             {/* ── Row 4: Action button ── */}
             <Grid size={{ xs: 12 }}>
-              {editingId ? (
-                <Stack direction="row" spacing={1.5}>
+              {(() => {
+                const isSplit = formData.paymentMode === 'Split';
+                const splitTotal = (parseFloat(splitCash) || 0) + (parseFloat(splitBank) || 0);
+                const isDisabled = !formData.partyId || !canWrite || (isSplit ? splitTotal <= 0 : !formData.amount);
+                return editingId ? (
+                  <Stack direction="row" spacing={1.5}>
+                    <Button
+                      variant="contained" size="large" onClick={handleSave}
+                      disabled={isDisabled}
+                      startIcon={<CheckCircle2 size={18} />}
+                      sx={{ fontWeight: 700, flex: 1, borderRadius: 2, py: 1.25, bgcolor: accentColor, '&:hover': { bgcolor: accentColor, filter: 'brightness(0.9)' } }}
+                    >
+                      Update Payment
+                    </Button>
+                    <Button variant="outlined" size="large" onClick={cancelEdit}
+                      sx={{ fontWeight: 600, borderRadius: 2, px: 2.5 }}>
+                      Cancel
+                    </Button>
+                  </Stack>
+                ) : (
                   <Button
-                    variant="contained" size="large" onClick={handleSave}
-                    disabled={!formData.partyId || !formData.amount}
+                    fullWidth variant="contained" size="large" onClick={handleSave}
+                    disabled={isDisabled}
                     startIcon={<CheckCircle2 size={18} />}
-                    sx={{ fontWeight: 700, flex: 1, borderRadius: 2, py: 1.25, bgcolor: accentColor, '&:hover': { bgcolor: accentColor, filter: 'brightness(0.9)' } }}
+                    sx={{
+                      fontWeight: 700, borderRadius: 2, py: 1.375, fontSize: '0.95rem',
+                      bgcolor: accentColor, '&:hover': { bgcolor: accentColor, filter: 'brightness(0.9)' },
+                      '&.Mui-disabled': { bgcolor: alpha(accentColor, 0.25), color: alpha(accentColor, 0.5) },
+                    }}
                   >
-                    Update Payment
+                    {isPaymentIn ? 'Record Payment Received' : 'Record Payment Made'}
                   </Button>
-                  <Button variant="outlined" size="large" onClick={cancelEdit}
-                    sx={{ fontWeight: 600, borderRadius: 2, px: 2.5 }}>
-                    Cancel
-                  </Button>
-                </Stack>
-              ) : (
-                <Button
-                  fullWidth variant="contained" size="large" onClick={handleSave}
-                  disabled={!formData.partyId || !formData.amount}
-                  startIcon={<CheckCircle2 size={18} />}
-                  sx={{
-                    fontWeight: 700, borderRadius: 2, py: 1.375, fontSize: '0.95rem',
-                    bgcolor: accentColor, '&:hover': { bgcolor: accentColor, filter: 'brightness(0.9)' },
-                    '&.Mui-disabled': { bgcolor: alpha(accentColor, 0.25), color: alpha(accentColor, 0.5) },
-                  }}
-                >
-                  {isPaymentIn ? 'Record Payment Received' : 'Record Payment Made'}
-                </Button>
-              )}
+                );
+              })()}
             </Grid>
           </Grid>
         </CardContent>
@@ -528,6 +635,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                       <MenuItem value="Bank">Bank</MenuItem>
                       <MenuItem value="Cheque">Cheque</MenuItem>
                       <MenuItem value="UPI">UPI</MenuItem>
+                      <MenuItem value="Split">Split</MenuItem>
                     </TextField>
                   </Grid>
                   <Grid size={{ xs: 6, sm: 3 }}>
@@ -574,15 +682,21 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                         {row.referenceNo || '—'}
                       </TableCell>
                       <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>
-                        <Chip
-                          label={row.paymentMode}
-                          size="small"
-                          sx={{
-                            fontWeight: 700, fontSize: '0.7rem', border: 'none',
-                            bgcolor: MODE_COLORS[row.paymentMode]?.bg || alpha('#666', 0.1),
-                            color: MODE_COLORS[row.paymentMode]?.color || 'text.secondary',
-                          }}
-                        />
+                        <Tooltip title={
+                          row.paymentMode === 'Split' && row.paymentSplit
+                            ? `Cash ₹${(row.paymentSplit.cash || 0).toLocaleString('en-IN')} + ${row.paymentSplit.bankMode || 'Bank'} ₹${(row.paymentSplit.bank || 0).toLocaleString('en-IN')}`
+                            : row.paymentMode
+                        }>
+                          <Chip
+                            label={row.paymentMode}
+                            size="small"
+                            sx={{
+                              fontWeight: 700, fontSize: '0.7rem', border: 'none',
+                              bgcolor: MODE_COLORS[row.paymentMode]?.bg || alpha('#666', 0.1),
+                              color: MODE_COLORS[row.paymentMode]?.color || 'text.secondary',
+                            }}
+                          />
+                        </Tooltip>
                       </TableCell>
                       <TableCell align="right" sx={{ fontWeight: 800, color: accentColor, whiteSpace: 'nowrap', fontSize: '0.9rem' }}>
                         ₹{row.totalAmount?.toLocaleString('en-IN')}
@@ -671,18 +785,23 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                     </Typography>
                   </Box>
 
-                  {formData.amount && Number(formData.amount) > 0 && (
-                    <Box sx={{ mt: 2.5, pt: 2, borderTop: '1px dashed', borderColor: 'divider' }}>
-                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
-                        Balance after this payment
-                      </Typography>
-                      <Typography variant="h5" sx={{ fontWeight: 700 }}>
-                        ₹{Math.abs(
-                          (selectedParty.balance || 0) + (isPaymentIn ? -Number(formData.amount) : Number(formData.amount))
-                        ).toLocaleString('en-IN')}
-                      </Typography>
-                    </Box>
-                  )}
+                  {(() => {
+                    const effectiveAmount = formData.paymentMode === 'Split'
+                      ? (parseFloat(splitCash) || 0) + (parseFloat(splitBank) || 0)
+                      : Number(formData.amount);
+                    return effectiveAmount > 0 ? (
+                      <Box sx={{ mt: 2.5, pt: 2, borderTop: '1px dashed', borderColor: 'divider' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>
+                          Balance after this payment
+                        </Typography>
+                        <Typography variant="h5" sx={{ fontWeight: 700 }}>
+                          ₹{Math.abs(
+                            (selectedParty.balance || 0) + (isPaymentIn ? -effectiveAmount : effectiveAmount)
+                          ).toLocaleString('en-IN')}
+                        </Typography>
+                      </Box>
+                    ) : null;
+                  })()}
                 </>
               ) : (
                 <Box sx={{ py: 4 }}>
@@ -716,7 +835,13 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
             <Box sx={{ display: 'flex', gap: 2, mt: 0.75, flexWrap: 'wrap', alignItems: 'center' }}>
               {previewRecord?.partyName && <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>{previewRecord.partyName}</Typography>}
               {previewRecord?.date && <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>{formatDate(previewRecord.date)}</Typography>}
-              {previewRecord?.paymentMode && <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>{previewRecord.paymentMode}</Typography>}
+              {previewRecord?.paymentMode && (
+                <Typography variant="caption" sx={{ color: 'rgba(255,255,255,0.85)', fontWeight: 600 }}>
+                  {previewRecord.paymentMode === 'Split' && previewRecord.paymentSplit
+                    ? `Cash ₹${(previewRecord.paymentSplit.cash || 0).toLocaleString('en-IN')} + ${previewRecord.paymentSplit.bankMode || 'Bank'} ₹${(previewRecord.paymentSplit.bank || 0).toLocaleString('en-IN')}`
+                    : previewRecord.paymentMode}
+                </Typography>
+              )}
               {previewRecord?.totalAmount != null && (
                 <Box sx={{ px: 1.25, py: 0.25, bgcolor: 'rgba(255,255,255,0.18)', borderRadius: '100px', border: '1px solid rgba(255,255,255,0.25)' }}>
                   <Typography variant="caption" sx={{ color: 'white', fontWeight: 800, fontSize: '0.8rem' }}>₹{previewRecord.totalAmount.toLocaleString('en-IN')}</Typography>

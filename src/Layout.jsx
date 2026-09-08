@@ -15,7 +15,6 @@ import Estimates from './Estimates';
 import CreditNotes from './CreditNotes';
 import DebitNotes from './DebitNotes';
 import DeliveryNotes from './DeliveryNotes';
-import Journal from './Journal';
 import CustomSection from './CustomSection';
 import StaffPage from './StaffPage';
 import PaymentEntry from './PaymentEntry';
@@ -25,6 +24,7 @@ import SettingsPage from './Settings';
 import Admin from './Admin';
 import LedgerPage from './Ledger';
 import MembershipPage from './Membership';
+import Help from './Help';
 import {
   Box, Drawer, AppBar, Toolbar, List, Typography, Divider, IconButton,
   ListItem, ListItemButton, ListItemIcon, ListItemText, Avatar, Menu, MenuItem,
@@ -52,7 +52,6 @@ import {
   CornerUpLeft,
   Truck,
   BookOpen,
-  CalendarRange,
   LogOut,
   DollarSign,
   ChevronDown,
@@ -64,13 +63,13 @@ import {
   Wallet,
   Calculator as CalculatorIcon,
   X as TabClose,
+  HelpCircle,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useBusiness } from './BusinessContext';
 import { useAuth } from './AuthContext';
 import { useConfig } from './ConfigContext';
 import { useSubscription } from './SubscriptionContext';
-import { useFinancialYear } from './FinancialYearContext';
 import SectionIcon from './SectionIcon';
 import { useDialog } from './DialogContext';
 import BusinessSetupDialog from './BusinessSetupDialog';
@@ -81,8 +80,54 @@ const drawerWidth = 240;
 const miniWidth = 64; // collapsed sidebar — icons only
 const APP_BAR_H = 52; // single unified bar height
 
+// Routes accessible to staff and the feature key required in staffSession.features.
+// Routes not listed here are admin-only and will be blocked for all staff sessions.
+const STAFF_ROUTE_FEATURES = {
+  '/': 'dashboard',
+  '/parties': 'parties',
+  '/items': 'items',
+  '/pos': 'pos',
+  '/sales': 'sales',
+  '/purchases': 'purchases',
+  '/expenses': 'expenses',
+  '/payment-in': 'payments',
+  '/payment-out': 'payments',
+  '/cash': 'cash',
+  '/calculator': null, // always allowed
+  '/help': null, // always allowed
+  '/reports': 'reports',
+  '/estimates': 'estimates',
+  '/credit-notes': 'creditNotes',
+  '/debit-notes': 'debitNotes',
+  '/delivery-notes': 'deliveryNotes',
+  '/ledger': 'ledger',
+  '/membership': 'membership',
+  '/opticals': 'opticals',
+};
+
 // ── Tab content renderer — maps a path to its page component ────────────────
 const TabPageRenderer = ({ path }) => {
+  const { staffSession } = useAuth();
+
+  if (staffSession) {
+    const isCustomSection = path?.startsWith('/section/');
+    const featureKey = isCustomSection ? null : STAFF_ROUTE_FEATURES[path];
+    const isListed = isCustomSection || Object.prototype.hasOwnProperty.call(STAFF_ROUTE_FEATURES, path);
+    // Block if: route is admin-only (not listed) OR required feature not granted
+    const blocked = !isListed || (featureKey !== null && !staffSession.features?.[featureKey]);
+    if (blocked) {
+      return (
+        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 320, gap: 2, color: 'text.secondary' }}>
+          <ShieldCheck size={48} strokeWidth={1.2} />
+          <Typography variant="h6" fontWeight={700} color="text.primary">Access Restricted</Typography>
+          <Typography variant="body2" textAlign="center" maxWidth={320}>
+            You don&apos;t have permission to view this section. Contact your admin to request access.
+          </Typography>
+        </Box>
+      );
+    }
+  }
+
   if (path === '/') return <Dashboard />;
   if (path === '/parties') return <Parties />;
   if (path === '/items') return <Items />;
@@ -99,12 +144,12 @@ const TabPageRenderer = ({ path }) => {
   if (path === '/credit-notes') return <CreditNotes />;
   if (path === '/debit-notes') return <DebitNotes />;
   if (path === '/delivery-notes') return <DeliveryNotes />;
-  if (path === '/journal') return <Journal />;
   if (path === '/staff') return <StaffPage />;
   if (path === '/ledger') return <LedgerPage />;
   if (path === '/membership') return <MembershipPage />;
   if (path === '/reports') return <Reports />;
   if (path === '/backup') return <Backup />;
+  if (path === '/help') return <Help />;
   if (path === '/settings') return <SettingsPage />;
   if (path === '/admin') return <Admin />;
   if (path?.startsWith('/section/')) return <CustomSection sectionId={path.replace('/section/', '')} />;
@@ -332,14 +377,11 @@ const Layout = () => {
   const daysLeft = currentBizId ? daysLeftForBusiness(currentBizId) : null;
   const isActiveTrial = bizState === 'trial';
   const isExpired = bizState === 'expired' || bizState === 'trial_expired';
-  const showTrialBanner = isActiveTrial && daysLeft !== null && daysLeft <= 3 && daysLeft > 0;
-  const showExpiredBanner = isExpired;
+  const showSubscribePill = isActiveTrial || isExpired;
   const { confirm } = useDialog();
   const { getItems, backupNow } = useData();
   const [signOutOpen, setSignOutOpen] = useState(false);
   const [backingUp, setBackingUp] = useState(false);
-  const { activeFYLabel, availableFYs, setActiveFY, currentFY } = useFinancialYear();
-  const [fyMenuAnchor, setFyMenuAnchor] = useState(null);
   const calculatorEnabled = config.features?.calculator !== false;
   const [calcOpen, setCalcOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -423,44 +465,47 @@ const Layout = () => {
 
   const handleDrawerToggle = () => setOpen(!open);
 
+  // For staff sessions: only show nav items the staff member has access to
+  const sf = staffSession?.features || null;
+  const canStaff = (key) => !sf || !!sf[key];
+
   // Navigation groups — all existing items preserved
   const navGroups = [
     {
       items: [
-        ...(config.features?.dashboard ? [{ text: t('nav.dashboard'), icon: <LayoutDashboard size={18} />, path: '/' }] : []),
-        ...(config.features?.parties ? [{ text: t('nav.parties'), icon: <Users size={18} />, path: '/parties' }] : []),
-        ...(config.features?.items ? [{ text: t('nav.items'), icon: <Package size={18} />, path: '/items' }] : []),
+        ...(config.features?.dashboard && canStaff('dashboard') ? [{ text: t('nav.dashboard'), icon: <LayoutDashboard size={18} />, path: '/' }] : []),
+        ...(config.features?.parties && canStaff('parties') ? [{ text: t('nav.parties'), icon: <Users size={18} />, path: '/parties' }] : []),
+        ...(config.features?.items && canStaff('items') ? [{ text: t('nav.items'), icon: <Package size={18} />, path: '/items' }] : []),
       ],
     },
     {
       label: t('nav.transactions'),
       items: [
-        ...(config.features?.pos ? [{ text: t('nav.pos'), icon: <Store size={18} />, path: '/pos' }] : []),
-        ...(config.features?.sales ? [{ text: t('nav.sales'), icon: <ReceiptText size={18} />, path: '/sales' }] : []),
-        ...(config.features?.purchases ? [{ text: t('nav.purchases'), icon: <ShoppingBag size={18} />, path: '/purchases' }] : []),
-        ...(config.features?.expenses ? [{ text: t('nav.expenses'), icon: <DollarSign size={18} />, path: '/expenses' }] : []),
-        ...(config.features?.payments ? [{ text: t('nav.payments'), icon: <Download size={18} />, path: '/payment-in' }] : []),
-        ...(config.features?.staff ? [{ text: t('nav.staff'), icon: <Users size={18} />, path: '/staff' }] : []),
+        ...(config.features?.pos && canStaff('pos') ? [{ text: t('nav.pos'), icon: <Store size={18} />, path: '/pos' }] : []),
+        ...(config.features?.sales && canStaff('sales') ? [{ text: t('nav.sales'), icon: <ReceiptText size={18} />, path: '/sales' }] : []),
+        ...(config.features?.purchases && canStaff('purchases') ? [{ text: t('nav.purchases'), icon: <ShoppingBag size={18} />, path: '/purchases' }] : []),
+        ...(config.features?.expenses && canStaff('expenses') ? [{ text: t('nav.expenses'), icon: <DollarSign size={18} />, path: '/expenses' }] : []),
+        ...(config.features?.payments && canStaff('payments') ? [{ text: t('nav.payments'), icon: <Download size={18} />, path: '/payment-in' }] : []),
+        ...(!sf && config.features?.staff ? [{ text: t('nav.staff'), icon: <Users size={18} />, path: '/staff' }] : []),
       ],
     },
     {
       label: t('nav.documents'),
       items: [
-        ...(config.features?.estimates ? [{ text: t('nav.estimates'), icon: <FileSearch size={18} />, path: '/estimates' }] : []),
-        ...(config.features?.creditNotes ? [{ text: t('nav.creditNotes'), icon: <RotateCcw size={18} />, path: '/credit-notes' }] : []),
-        ...(config.features?.debitNotes ? [{ text: t('nav.debitNotes'), icon: <CornerUpLeft size={18} />, path: '/debit-notes' }] : []),
-        ...(config.features?.deliveryNotes ? [{ text: t('nav.deliveryNotes'), icon: <Truck size={18} />, path: '/delivery-notes' }] : []),
+        ...(config.features?.estimates && canStaff('estimates') ? [{ text: t('nav.estimates'), icon: <FileSearch size={18} />, path: '/estimates' }] : []),
+        ...(config.features?.creditNotes && canStaff('creditNotes') ? [{ text: t('nav.creditNotes'), icon: <RotateCcw size={18} />, path: '/credit-notes' }] : []),
+        ...(config.features?.debitNotes && canStaff('debitNotes') ? [{ text: t('nav.debitNotes'), icon: <CornerUpLeft size={18} />, path: '/debit-notes' }] : []),
+        ...(config.features?.deliveryNotes && canStaff('deliveryNotes') ? [{ text: t('nav.deliveryNotes'), icon: <Truck size={18} />, path: '/delivery-notes' }] : []),
       ],
     },
     {
       label: t('nav.accounting'),
       items: [
-        ...(config.features?.cash !== false ? [{ text: t('nav.cash'), icon: <Wallet size={18} />, path: '/cash' }] : []),
+        ...(config.features?.cash !== false && canStaff('cash') ? [{ text: 'Cash & Bank', icon: <Wallet size={18} />, path: '/cash' }] : []),
         ...(config.features?.calculator !== false ? [{ text: t('nav.calculator'), icon: <CalculatorIcon size={18} />, path: '/calculator' }] : []),
-        ...(config.features?.journal ? [{ text: t('nav.journal'), icon: <BookOpen size={18} />, path: '/journal' }] : []),
-        ...(config.features?.ledger ? [{ text: t('nav.ledger'), icon: <BookOpen size={18} />, path: '/ledger' }] : []),
-        ...(config.features?.membership ? [{ text: t('nav.membership'), icon: <CreditCard size={18} />, path: '/membership' }] : []),
-        ...(config.features?.opticals && config.businessType === 'opticals' ? [{ text: t('nav.opticals'), icon: <Eye size={18} />, path: '/opticals' }] : []),
+        ...(config.features?.ledger && canStaff('ledger') ? [{ text: t('nav.ledger'), icon: <BookOpen size={18} />, path: '/ledger' }] : []),
+        ...(config.features?.membership && canStaff('membership') ? [{ text: t('nav.membership'), icon: <CreditCard size={18} />, path: '/membership' }] : []),
+        ...(config.features?.opticals && config.businessType === 'opticals' && canStaff('opticals') ? [{ text: t('nav.opticals'), icon: <Eye size={18} />, path: '/opticals' }] : []),
         ...(config.customSections || []).map(section => ({
           text: section.name,
           icon: <SectionIcon name={section.icon} size={18} />,
@@ -471,14 +516,15 @@ const Layout = () => {
     {
       label: t('nav.analytics'),
       items: [
-        ...(config.features?.reports ? [{ text: t('nav.reports'), icon: <FileText size={18} />, path: '/reports' }] : []),
+        ...(config.features?.reports && canStaff('reports') ? [{ text: t('nav.reports'), icon: <FileText size={18} />, path: '/reports' }] : []),
       ],
     },
     {
       label: t('nav.system'),
       items: [
-        { text: t('nav.backup'), icon: <Database size={18} />, path: '/backup' },
-        ...(config.features?.settings ? [{ text: t('nav.settings'), icon: <Settings size={18} />, path: '/settings' }] : []),
+        ...(!sf ? [{ text: t('nav.backup'), icon: <Database size={18} />, path: '/backup' }] : []),
+        { text: t('nav.help'), icon: <HelpCircle size={18} />, path: '/help' },
+        ...(!sf && config.features?.settings ? [{ text: t('nav.settings'), icon: <Settings size={18} />, path: '/settings' }] : []),
         ...(currentUser && isAdmin ? [{ text: t('nav.admin'), icon: <Settings size={18} />, path: '/admin' }] : []),
       ],
     },
@@ -605,8 +651,8 @@ const Layout = () => {
                       </ListItemButton>
                     </Tooltip>
 
-                    {/* + button — only for Sales and Purchases (hidden when collapsed) */}
-                    {isDuplicate && !collapsed && (
+                    {/* + button — only for Sales and Purchases (hidden when collapsed or on mobile) */}
+                    {isDuplicate && !collapsed && !isMobile && (
                       <Tooltip title={newLabel} placement="right">
                         <IconButton
                           size="small"
@@ -787,184 +833,7 @@ const Layout = () => {
             <AutoSaveChip />
           </Box>
 
-          {/* Financial Year selector */}
-          {(() => {
-            const isAll = activeFYLabel === 'all';
-            const isCurrentFY = !isAll && activeFYLabel === currentFY.label;
-            return (
-              <>
-                <Box
-                  onClick={(e) => setFyMenuAnchor(e.currentTarget)}
-                  sx={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: { xs: 0, sm: 0.75 },
-                    mr: 1,
-                    pl: { xs: 0.875, sm: 1.25 },
-                    pr: { xs: 0.75, sm: 1 },
-                    py: 0.5,
-                    borderRadius: 1.5,
-                    cursor: 'pointer',
-                    userSelect: 'none',
-                    border: '1.5px solid',
-                    transition: 'all 0.15s ease',
-                    ...(isAll ? {
-                      bgcolor: 'action.hover',
-                      borderColor: 'divider',
-                      '&:hover': { bgcolor: 'action.selected', borderColor: 'text.disabled' },
-                    } : {
-                      bgcolor: alpha(theme.palette.primary.main, 0.08),
-                      borderColor: alpha(theme.palette.primary.main, 0.3),
-                      '&:hover': { bgcolor: alpha(theme.palette.primary.main, 0.14), borderColor: alpha(theme.palette.primary.main, 0.5) },
-                    }),
-                  }}
-                >
-                  <CalendarRange
-                    size={14}
-                    style={{ color: isAll ? theme.palette.text.secondary : theme.palette.primary.main, flexShrink: 0 }}
-                  />
-                  {/* Label hidden on xs — icon only on mobile */}
-                  <Typography
-                    variant="caption"
-                    sx={{
-                      fontWeight: 700,
-                      fontSize: '0.72rem',
-                      whiteSpace: 'nowrap',
-                      color: isAll ? 'text.secondary' : 'primary.main',
-                      letterSpacing: '0.01em',
-                      display: { xs: 'none', sm: 'inline' },
-                      ml: 0.75,
-                    }}
-                  >
-                    {isAll ? 'All Time' : activeFYLabel}
-                  </Typography>
-                  <ChevronDown size={11} style={{ color: isAll ? theme.palette.text.disabled : theme.palette.primary.main, flexShrink: 0, marginLeft: 2 }} />
-                </Box>
 
-                <Popover
-                  anchorEl={fyMenuAnchor}
-                  open={Boolean(fyMenuAnchor)}
-                  onClose={() => setFyMenuAnchor(null)}
-                  anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-                  transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-                  PaperProps={{
-                    elevation: 6,
-                    sx: {
-                      mt: 0.75,
-                      minWidth: 220,
-                      maxWidth: 'calc(100vw - 24px)',
-                      borderRadius: 2,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      overflow: 'hidden',
-                    }
-                  }}
-                >
-                  {/* Header */}
-                  <Box sx={{ px: 2, pt: 1.75, pb: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <CalendarRange size={14} style={{ color: theme.palette.primary.main }} />
-                      <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.7rem', letterSpacing: '0.08em', color: 'text.secondary', textTransform: 'uppercase' }}>
-                        Financial Year
-                      </Typography>
-                    </Box>
-                  </Box>
-
-                  {/* FY list */}
-                  <Box sx={{ py: 0.5, maxHeight: 260, overflowY: 'auto' }}>
-                    {availableFYs.map((fy) => {
-                      const isActive = activeFYLabel === fy.label;
-                      const isCurr = fy.label === currentFY.label;
-                      return (
-                        <Box
-                          key={fy.label}
-                          onClick={() => { setActiveFY(fy.label); setFyMenuAnchor(null); }}
-                          sx={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            px: 2,
-                            py: 0.875,
-                            cursor: 'pointer',
-                            transition: 'background 0.1s',
-                            bgcolor: isActive ? alpha(theme.palette.primary.main, 0.08) : 'transparent',
-                            '&:hover': {
-                              bgcolor: isActive
-                                ? alpha(theme.palette.primary.main, 0.12)
-                                : alpha(theme.palette.text.primary, 0.04),
-                            },
-                          }}
-                        >
-                          <Box>
-                            <Typography
-                              variant="body2"
-                              sx={{
-                                fontWeight: isActive ? 700 : 500,
-                                fontSize: '0.8125rem',
-                                color: isActive ? 'primary.main' : 'text.primary',
-                                lineHeight: 1.3,
-                              }}
-                            >
-                              {fy.label}
-                            </Typography>
-                            <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.68rem' }}>
-                              {fy.start} → {fy.end}
-                            </Typography>
-                          </Box>
-                          <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, ml: 1.5 }}>
-                            {isCurr && (
-                              <Box sx={{
-                                px: 0.75, py: 0.2,
-                                borderRadius: 0.75,
-                                bgcolor: alpha(theme.palette.success.main, 0.12),
-                                border: '1px solid',
-                                borderColor: alpha(theme.palette.success.main, 0.3),
-                              }}>
-                                <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: 'success.main', lineHeight: 1 }}>
-                                  Current
-                                </Typography>
-                              </Box>
-                            )}
-                            {isActive && <Check size={14} style={{ color: theme.palette.primary.main, flexShrink: 0 }} />}
-                          </Box>
-                        </Box>
-                      );
-                    })}
-                  </Box>
-
-                  {/* All Time */}
-                  <Box sx={{ borderTop: '1px solid', borderColor: 'divider', py: 0.5 }}>
-                    <Box
-                      onClick={() => { setActiveFY('all'); setFyMenuAnchor(null); }}
-                      sx={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'space-between',
-                        px: 2,
-                        py: 0.875,
-                        cursor: 'pointer',
-                        bgcolor: isAll ? alpha(theme.palette.text.primary, 0.06) : 'transparent',
-                        '&:hover': { bgcolor: alpha(theme.palette.text.primary, 0.04) },
-                      }}
-                    >
-                      <Box>
-                        <Typography
-                          variant="body2"
-                          sx={{ fontWeight: isAll ? 700 : 500, fontSize: '0.8125rem', color: isAll ? 'text.primary' : 'text.secondary' }}
-                        >
-                          All Time
-                        </Typography>
-                        <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.68rem' }}>
-                          No date filter applied
-                        </Typography>
-                      </Box>
-                      {isAll && <Check size={14} style={{ color: theme.palette.text.secondary, flexShrink: 0 }} />}
-                    </Box>
-                  </Box>
-                </Popover>
-              </>
-            );
-          })()}
 
           {/* Install app button — icon only on mobile */}
           {showInstallButton && (
@@ -1010,56 +879,54 @@ const Layout = () => {
             </IconButton>
           </Tooltip>
 
-          {/* Subscribe button — shown during active trial or when business is expired */}
-          {(isActiveTrial || isExpired) && (
-            <>
-              {/* Mobile: icon-only pill */}
-              <Tooltip title={isExpired ? 'Renew subscription' : daysLeft !== null ? `${daysLeft} days left — Subscribe` : 'Subscribe'}>
-                <IconButton
-                  size="small"
-                  onClick={() => navigate(`/subscribe?bId=${currentBizId || 1}`)}
-                  sx={{
-                    mr: 1,
-                    display: { xs: 'inline-flex', sm: 'none' },
-                    background: isExpired
-                      ? `linear-gradient(135deg, #ef4444 0%, #dc2626 100%)`
-                      : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
-                    color: 'white',
-                    width: 30,
-                    height: 30,
-                    boxShadow: `0 2px 6px ${alpha(isExpired ? '#ef4444' : theme.palette.primary.main, 0.4)}`,
-                    '&:hover': { opacity: 0.88 },
-                  }}
-                >
-                  <Crown size={15} />
-                </IconButton>
-              </Tooltip>
-
-              {/* Desktop: full text button */}
-              <Button
-                size="small"
-                onClick={() => navigate(`/subscribe?bId=${currentBizId || 1}`)}
-                startIcon={<Crown size={13} />}
-                sx={{
-                  mr: 1,
-                  display: { xs: 'none', sm: 'inline-flex' },
-                  borderRadius: 2,
-                  fontWeight: 700,
-                  textTransform: 'none',
-                  fontSize: '0.75rem',
-                  px: 1.5,
-                  py: 0.5,
-                  background: isExpired
-                    ? `linear-gradient(135deg, #ef4444 0%, #dc2626 100%)`
-                    : `linear-gradient(135deg, ${theme.palette.primary.main} 0%, ${theme.palette.primary.dark || theme.palette.primary.main} 100%)`,
-                  color: 'white',
-                  boxShadow: `0 2px 8px ${alpha(isExpired ? '#ef4444' : theme.palette.primary.main, 0.35)}`,
-                  '&:hover': { opacity: 0.9 },
-                }}
-              >
-                {isExpired ? 'Renew' : daysLeft !== null ? `${daysLeft}d left · Subscribe` : 'Subscribe'}
-              </Button>
-            </>
+          {/* Subscription status pill — trial or expired */}
+          {showSubscribePill && (
+            <Box
+              onClick={() => navigate(`/subscribe?bId=${currentBizId || 1}`)}
+              sx={{
+                mr: 1, display: 'flex', alignItems: 'center', gap: 0.6,
+                px: { xs: 1, sm: 1.25 }, height: 28, borderRadius: '100px',
+                cursor: 'pointer', userSelect: 'none',
+                border: '1px solid',
+                transition: 'all 0.15s ease',
+                ...(isExpired ? {
+                  bgcolor: alpha('#ef4444', 0.08),
+                  borderColor: alpha('#ef4444', 0.3),
+                  color: '#dc2626',
+                  '&:hover': { bgcolor: alpha('#ef4444', 0.14), borderColor: alpha('#ef4444', 0.5) },
+                } : {
+                  bgcolor: alpha('#f59e0b', 0.08),
+                  borderColor: alpha('#f59e0b', 0.3),
+                  color: '#b45309',
+                  '&:hover': { bgcolor: alpha('#f59e0b', 0.14), borderColor: alpha('#f59e0b', 0.5) },
+                }),
+              }}
+            >
+              {/* Pulsing dot */}
+              <Box sx={{
+                width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
+                bgcolor: isExpired ? '#ef4444' : '#f59e0b',
+                boxShadow: `0 0 0 0 ${isExpired ? '#ef444466' : '#f59e0b66'}`,
+                animation: 'pulse-ring 1.8s ease-out infinite',
+                '@keyframes pulse-ring': {
+                  '0%':   { boxShadow: `0 0 0 0 ${isExpired ? '#ef444455' : '#f59e0b55'}` },
+                  '70%':  { boxShadow: `0 0 0 5px transparent` },
+                  '100%': { boxShadow: `0 0 0 0 transparent` },
+                },
+              }} />
+              <Typography sx={{
+                fontWeight: 700, fontSize: '0.72rem', lineHeight: 1,
+                whiteSpace: 'nowrap',
+                display: { xs: 'none', sm: 'block' },
+              }}>
+                {isExpired
+                  ? 'Expired · Renew'
+                  : daysLeft !== null
+                    ? `${daysLeft}d left · Upgrade`
+                    : 'Trial · Upgrade'}
+              </Typography>
+              <Crown size={12} style={{ flexShrink: 0 }} />
+            </Box>
           )}
 
           {/* User avatar + menu */}
@@ -1165,60 +1032,20 @@ const Layout = () => {
           display: 'flex', flexDirection: 'column', minHeight: `calc(100vh - ${APP_BAR_H}px)`,
         }}
       >
-        {showTrialBanner && (
-          <Box
-            sx={{
-              mb: 2, p: 1.5, borderRadius: 2,
-              bgcolor: alpha('#f59e0b', 0.1),
-              border: '1px solid', borderColor: alpha('#f59e0b', 0.3),
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              gap: 1, flexWrap: 'wrap',
-            }}
-          >
-            <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: '#92400e' }}>
-              ⏳ Free trial ends in {daysLeft} day{daysLeft !== 1 ? 's' : ''} for this business. Subscribe to keep full access.
+        {/* Read-only banner — shown when subscription is expired */}
+        {isExpired && (
+          <Box sx={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 1.5,
+            px: 2, py: 0.75, bgcolor: alpha('#ef4444', 0.08),
+            borderBottom: `1px solid ${alpha('#ef4444', 0.2)}`,
+          }}>
+            <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: '#ef4444', flexShrink: 0 }} />
+            <Typography sx={{ fontSize: '0.775rem', fontWeight: 600, color: '#dc2626' }}>
+              Your subscription has expired. Data is read-only — renew to create, edit, print, or export.
             </Typography>
-            <Button
-              size="small"
-              variant="contained"
-              onClick={() => navigate(`/subscribe?bId=${currentBizId || 1}`)}
-              sx={{
-                fontWeight: 700, textTransform: 'none', fontSize: '0.75rem',
-                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
-                boxShadow: 'none',
-                '&:hover': { opacity: 0.9, background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)' },
-              }}
-            >
-              Subscribe now
-            </Button>
-          </Box>
-        )}
-
-        {showExpiredBanner && (
-          <Box
-            sx={{
-              mb: 2, p: 1.5, borderRadius: 2,
-              bgcolor: alpha('#ef4444', 0.08),
-              border: '1px solid', borderColor: alpha('#ef4444', 0.28),
-              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              gap: 1, flexWrap: 'wrap',
-            }}
-          >
-            <Typography sx={{ fontWeight: 600, fontSize: '0.82rem', color: '#b91c1c' }}>
-              🔒 Subscription expired for this business — view-only mode. Creating and editing is disabled.
-            </Typography>
-            <Button
-              size="small"
-              variant="contained"
-              onClick={() => navigate(`/subscribe?bId=${currentBizId || 1}`)}
-              sx={{
-                fontWeight: 700, textTransform: 'none', fontSize: '0.75rem',
-                background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
-                boxShadow: 'none',
-                '&:hover': { opacity: 0.9, background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' },
-              }}
-            >
-              Renew subscription
+            <Button size="small" variant="outlined" onClick={() => navigate(`/subscribe?bId=${currentBizId || 1}`)}
+              sx={{ flexShrink: 0, fontWeight: 700, fontSize: '0.7rem', textTransform: 'none', borderColor: alpha('#ef4444', 0.5), color: '#dc2626', borderRadius: 1.5, py: 0.25, px: 1, '&:hover': { bgcolor: alpha('#ef4444', 0.08), borderColor: '#dc2626' } }}>
+              Renew Now
             </Button>
           </Box>
         )}

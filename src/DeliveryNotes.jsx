@@ -2,11 +2,11 @@ import React, { useState, useEffect } from 'react';
 import {
   Box, Button, Card, CardContent, Typography, TextField, Grid,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-  Paper, IconButton, Autocomplete, TablePagination, Dialog, MenuItem
+  Paper, IconButton, Autocomplete, TablePagination, Dialog, MenuItem,
+  Backdrop, CircularProgress
 } from '@mui/material';
 import { Plus, Trash2, Printer, Edit2, Eye, X, Truck } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
-import { useFinancialYear } from './FinancialYearContext';
 import { useConfig } from './ConfigContext';
 import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
@@ -20,7 +20,6 @@ import TxListView from './TxListView';
 const DeliveryNotes = () => {
   const { currentBusiness } = useBusiness();
   const { t } = useI18n();
-  const { activeFY } = useFinancialYear();
   const { addItem, deleteItem, getItems } = useData();
   const { confirm, showAlert } = useDialog();
   const { config } = useConfig();
@@ -36,22 +35,24 @@ const DeliveryNotes = () => {
     const d = config.defaultPaperSize;
     return ['A4', 'A5', 'Letter', 'Legal'].includes(d) ? d : 'A4';
   });
-  const _psInit = React.useRef(!!config.defaultPaperSize);
   useEffect(() => {
-    if (!_psInit.current && config.defaultPaperSize) {
-      const d = config.defaultPaperSize;
-      if (['A4', 'A5', 'Letter', 'Legal'].includes(d)) setPaperSize(d);
-      _psInit.current = true;
+    if (config.defaultPaperSize && ['A4', 'A5', 'Letter', 'Legal'].includes(config.defaultPaperSize)) {
+      setPaperSize(config.defaultPaperSize);
     }
   }, [config.defaultPaperSize]);
   const [isSaving, setIsSaving] = useState(false);
+  const [isPrinting, setIsPrinting] = useState(false);
   const printRef = React.useRef();
 
-  const handlePrint = useReactToPrint({ contentRef: printRef });
+  const handlePrint = useReactToPrint({
+    contentRef: printRef,
+    onBeforePrint: () => setIsPrinting(true),
+    onAfterPrint: () => setIsPrinting(false),
+  });
 
   const parties = getItems('parties').filter(p => p.businessId === currentBusiness?.id && p.type === 'Customer');
   const stockItems = getItems('items').filter(i => i.businessId === currentBusiness?.id);
-  const deliveryNotes = getItems('deliveryNotes').filter(d => d.businessId === currentBusiness?.id).filter(r => !activeFY || !r.date || (r.date >= activeFY.start && r.date <= activeFY.end)).reverse();
+  const deliveryNotes = getItems('deliveryNotes').filter(d => d.businessId === currentBusiness?.id).reverse();
 
   useEffect(() => {
     if (view === 'create' && !isSaving) {
@@ -90,10 +91,18 @@ const DeliveryNotes = () => {
     if (!cleaned.length) { await showAlert({ title: 'No items', message: 'Add at least one item with a valid quantity.', variant: 'warning' }); return; }
     setIsSaving(true);
     try {
+      const partyState = selectedParty.state || '';
       const payload = {
         businessId: currentBusiness.id,
         partyId: selectedParty.id,
         partyName: selectedParty.name || '',
+        partyGstNumber: selectedParty.gstNumber || '',
+        partyAddress: selectedParty.address || '',
+        partyCity: selectedParty.city || '',
+        partyState,
+        partyPhone: selectedParty.phone || '',
+        placeOfSupply: partyState || currentBusiness?.state || '',
+        isInterState: !!(currentBusiness?.state && partyState && currentBusiness.state !== partyState),
         date: noteDate,
         noteNumber: noteNumber.trim(),
         items: cleaned,
@@ -129,6 +138,10 @@ const DeliveryNotes = () => {
 
   return (
     <Box sx={{ maxWidth: 1440, mx: 'auto' }}>
+      <Backdrop open={isPrinting} sx={{ zIndex: 9999, flexDirection: 'column', gap: 2, bgcolor: 'rgba(0,0,0,0.55)' }}>
+        <CircularProgress size={48} sx={{ color: 'white' }} />
+        <Typography sx={{ color: 'white', fontWeight: 700 }}>Preparing to print…</Typography>
+      </Backdrop>
       {/* Hidden print ref */}
       <Box sx={{ position: 'absolute', left: -9999 }}>
         <InvoiceTemplate ref={printRef} transaction={printingTx} business={currentBusiness} paperSize={paperSize} title="Delivery Note" />
@@ -181,7 +194,7 @@ const DeliveryNotes = () => {
                     {items.map((row, idx) => (
                       <TableRow key={idx}>
                         <TableCell><ItemSelect options={stockItems} value={stockItems.find(i => i.id === row.itemId) || null} onChange={(v) => updateItemRow(idx, 'itemId', typeof v === 'string' ? '' : v?.id || '')} placeholder="Item…" sx={{ minWidth: 200 }} /></TableCell>
-                        <TableCell><TextField type="number" size="small" value={row.qty} onChange={(e) => updateItemRow(idx, 'qty', parseFloat(e.target.value) || 0)} inputProps={{ min: 0 }} sx={{ width: 70 }} /></TableCell>
+                        <TableCell><TextField type="number" size="small" value={row.qty} onChange={(e) => { const n = parseFloat(e.target.value); updateItemRow(idx, 'qty', isNaN(n) ? 0 : Math.round(n * 1000) / 1000); }} inputProps={{ min: 0 }} sx={{ width: 70 }} /></TableCell>
                         <TableCell><TextField type="number" size="small" value={row.price} onChange={(e) => updateItemRow(idx, 'price', parseFloat(e.target.value) || 0)} sx={{ width: 90 }} /></TableCell>
                         <TableCell align="right">₹{row.total?.toFixed(2)}</TableCell>
                         <TableCell><IconButton size="small" onClick={() => removeItemRow(idx)}><Trash2 size={14} /></IconButton></TableCell>

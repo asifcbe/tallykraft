@@ -7,8 +7,6 @@ const DEFAULT_PRINT_OPTIONS = {
   showDate: true,
   showGSTColumn: true,
   showDiscountColumn: true,
-  showCGSTSGST: false,
-  showIGST: false,
   showTerms: true,
   showSignature: true,
   showOldBalance: false,
@@ -127,7 +125,12 @@ const ThermalTemplate = ({ transaction, business, paperSize, printOptions = DEFA
         <span>Subtotal</span>
         <span>₹{Number(transaction.subtotal).toFixed(2)}</span>
       </div>
-      {opts.showCGSTSGST ? (
+      {transaction.isInterState === true ? (
+        <div style={lineStyle}>
+          <span>IGST</span>
+          <span>₹{Number(transaction.taxAmount).toFixed(2)}</span>
+        </div>
+      ) : (
         <>
           <div style={lineStyle}>
             <span>CGST</span>
@@ -138,16 +141,6 @@ const ThermalTemplate = ({ transaction, business, paperSize, printOptions = DEFA
             <span>₹{(Number(transaction.taxAmount) / 2).toFixed(2)}</span>
           </div>
         </>
-      ) : opts.showIGST ? (
-        <div style={lineStyle}>
-          <span>IGST</span>
-          <span>₹{Number(transaction.taxAmount).toFixed(2)}</span>
-        </div>
-      ) : (
-        <div style={lineStyle}>
-          <span>Tax</span>
-          <span>₹{Number(transaction.taxAmount).toFixed(2)}</span>
-        </div>
       )}
       {transaction.roundOffAmount != null && transaction.roundOffAmount !== 0 && (
         <div style={lineStyle}>
@@ -216,10 +209,15 @@ const InvoiceTemplate = forwardRef(({ transaction, business, paperSize = 'A4', t
 
   // Determine which table columns to show
   const showDisc = opts.showDiscountColumn && transaction.items?.some(i => Number(i.discountPercent) > 0);
-  const showGST = opts.showGSTColumn;
+  const showGST = opts.showGSTColumn && !transaction.noGST;
+  const showHSN = transaction.items?.some(i => i.hsnCode);
+
+  // Auto-detect GST type from transaction: inter-state → IGST, intra-state → CGST+SGST
+  const useIGST = showGST && transaction.isInterState === true;
+  const useCGSTSGST = showGST && !useIGST;
 
   // Col count for colSpan on empty states
-  const colCount = 4 + (showDisc ? 1 : 0) + (showGST ? 1 : 0);
+  const colCount = 4 + (showHSN ? 1 : 0) + (showDisc ? 1 : 0) + (useCGSTSGST ? 2 : showGST ? 1 : 0);
 
   return (
     <div ref={ref} className="invoice-for-print" style={{
@@ -274,11 +272,28 @@ const InvoiceTemplate = forwardRef(({ transaction, business, paperSize = 'A4', t
       <hr style={{ border: 'none', borderTop: '1px solid #999', marginBottom: '24px' }} />
 
       {/* Bill To / From */}
-      <div style={{ marginBottom: '24px' }}>
-        <h3 style={{ fontSize: '13px', fontWeight: 'bold', margin: '0 0 6px 0', textTransform: 'uppercase', color: '#555', letterSpacing: '0.06em' }}>
-          {isSale ? 'Bill To:' : 'Vendor Details:'}
-        </h3>
-        <h4 style={{ fontSize: '17px', fontWeight: 'bold', margin: '0', color: '#000' }}>{transaction.partyName}</h4>
+      <div style={{ marginBottom: '24px', display: 'flex', justifyContent: 'space-between', gap: '16px' }}>
+        <div>
+          <h3 style={{ fontSize: '13px', fontWeight: 'bold', margin: '0 0 6px 0', textTransform: 'uppercase', color: '#555', letterSpacing: '0.06em' }}>
+            {isSale ? 'Bill To:' : 'Bill From:'}
+          </h3>
+          <h4 style={{ fontSize: '17px', fontWeight: 'bold', margin: '0 0 4px 0', color: '#000' }}>{transaction.partyName}</h4>
+          {transaction.partyAddress && <p style={{ margin: '2px 0', color: '#333', fontSize: '13px' }}>{transaction.partyAddress}</p>}
+          {(transaction.partyCity || transaction.partyState) && (
+            <p style={{ margin: '2px 0', color: '#333', fontSize: '13px' }}>
+              {[transaction.partyCity, transaction.partyState].filter(Boolean).join(', ')}
+            </p>
+          )}
+          {transaction.partyPhone && <p style={{ margin: '2px 0', color: '#333', fontSize: '13px' }}>Ph: {transaction.partyPhone}</p>}
+          {transaction.partyGstNumber && <p style={{ margin: '2px 0', color: '#333', fontSize: '13px' }}>GSTIN: {transaction.partyGstNumber}</p>}
+        </div>
+        {(transaction.placeOfSupply || transaction.isInterState != null) && (
+          <div style={{ textAlign: 'right', fontSize: '13px', color: '#555' }}>
+            {transaction.placeOfSupply && <p style={{ margin: '2px 0' }}>Place of Supply: <strong style={{ color: '#000' }}>{transaction.placeOfSupply}</strong></p>}
+            {transaction.isInterState != null && <p style={{ margin: '2px 0' }}>Supply Type: <strong style={{ color: '#000' }}>{transaction.isInterState ? 'Inter-State (IGST)' : 'Intra-State (CGST+SGST)'}</strong></p>}
+            {transaction.reverseCharge && <p style={{ margin: '2px 0', color: '#b91c1c', fontWeight: 'bold' }}>Reverse Charge: Yes</p>}
+          </div>
+        )}
       </div>
 
       {/* Items Table */}
@@ -287,10 +302,20 @@ const InvoiceTemplate = forwardRef(({ transaction, business, paperSize = 'A4', t
           <tr style={{ backgroundColor: '#f0f0f0' }}>
             <th style={thStyle}>#</th>
             <th style={{ ...thStyle, textAlign: 'left' }}>Item Description</th>
+            {showHSN && <th style={{ ...thStyle, textAlign: 'left' }}>HSN/SAC</th>}
             <th style={{ ...thStyle, textAlign: 'right' }}>Qty</th>
             <th style={{ ...thStyle, textAlign: 'right' }}>Rate</th>
             {showDisc && <th style={{ ...thStyle, textAlign: 'right' }}>Disc %</th>}
-            {showGST && <th style={{ ...thStyle, textAlign: 'right' }}>GST %</th>}
+            {useCGSTSGST ? (
+              <>
+                <th style={{ ...thStyle, textAlign: 'right' }}>CGST %</th>
+                <th style={{ ...thStyle, textAlign: 'right' }}>SGST %</th>
+              </>
+            ) : useIGST ? (
+              <th style={{ ...thStyle, textAlign: 'right' }}>IGST %</th>
+            ) : showGST ? (
+              <th style={{ ...thStyle, textAlign: 'right' }}>GST %</th>
+            ) : null}
             <th style={{ ...thStyle, textAlign: 'right' }}>Amount</th>
           </tr>
         </thead>
@@ -306,16 +331,98 @@ const InvoiceTemplate = forwardRef(({ transaction, business, paperSize = 'A4', t
               <tr key={index}>
                 <td style={tdStyle}>{index + 1}</td>
                 <td style={{ ...tdStyle, fontWeight: '500' }}>{item.name}</td>
-                <td style={{ ...tdStyle, textAlign: 'right' }}>{qty}</td>
+                {showHSN && <td style={{ ...tdStyle, fontSize: '12px', color: '#555' }}>{item.hsnCode || '-'}</td>}
+                <td style={{ ...tdStyle, textAlign: 'right' }}>{qty} {item.unit || ''}</td>
                 <td style={{ ...tdStyle, textAlign: 'right' }}>₹{price.toFixed(2)}</td>
                 {showDisc && <td style={{ ...tdStyle, textAlign: 'right' }}>{discPct ? `${discPct}%` : '-'}</td>}
-                {showGST && <td style={{ ...tdStyle, textAlign: 'right' }}>{taxRate}%</td>}
+                {useCGSTSGST ? (
+                  <>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>{taxRate ? `${(taxRate / 2).toFixed(taxRate % 2 === 0 ? 0 : 1)}%` : '-'}</td>
+                    <td style={{ ...tdStyle, textAlign: 'right' }}>{taxRate ? `${(taxRate / 2).toFixed(taxRate % 2 === 0 ? 0 : 1)}%` : '-'}</td>
+                  </>
+                ) : useIGST ? (
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{taxRate}%</td>
+                ) : showGST ? (
+                  <td style={{ ...tdStyle, textAlign: 'right' }}>{taxRate}%</td>
+                ) : null}
                 <td style={{ ...tdStyle, textAlign: 'right' }}>₹{lineTotal.toFixed(2)}</td>
               </tr>
             );
           })}
         </tbody>
       </table>
+
+      {/* HSN Tax Summary */}
+      {showGST && showHSN && !transaction.noGST && (() => {
+        const groups = {};
+        (transaction.items || []).forEach(item => {
+          const hsn = item.hsnCode || '';
+          const rate = Number(item.taxRate) || 0;
+          const key = `${hsn}||${rate}`;
+          const qty = Number(item.qty) || 0;
+          const price = Number(item.price) || 0;
+          const discPct = Number(item.discountPercent) || 0;
+          const taxable = qty * price * (1 - discPct / 100);
+          if (!groups[key]) groups[key] = { hsn, rate, taxable: 0 };
+          groups[key].taxable += taxable;
+        });
+        const rows = Object.values(groups);
+        if (rows.length === 0) return null;
+        return (
+          <div style={{ marginBottom: '24px' }}>
+            <p style={{ margin: '0 0 6px 0', fontWeight: 'bold', fontSize: '13px', color: '#333' }}>HSN / Tax Summary</p>
+            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '12px' }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f5f5f5' }}>
+                  <th style={{ ...thStyle, textAlign: 'left', fontSize: '11px' }}>HSN/SAC</th>
+                  <th style={{ ...thStyle, textAlign: 'right', fontSize: '11px' }}>Taxable Value</th>
+                  {useIGST ? (
+                    <>
+                      <th style={{ ...thStyle, textAlign: 'right', fontSize: '11px' }}>IGST %</th>
+                      <th style={{ ...thStyle, textAlign: 'right', fontSize: '11px' }}>IGST Amt</th>
+                    </>
+                  ) : (
+                    <>
+                      <th style={{ ...thStyle, textAlign: 'right', fontSize: '11px' }}>CGST %</th>
+                      <th style={{ ...thStyle, textAlign: 'right', fontSize: '11px' }}>CGST Amt</th>
+                      <th style={{ ...thStyle, textAlign: 'right', fontSize: '11px' }}>SGST %</th>
+                      <th style={{ ...thStyle, textAlign: 'right', fontSize: '11px' }}>SGST Amt</th>
+                    </>
+                  )}
+                  <th style={{ ...thStyle, textAlign: 'right', fontSize: '11px' }}>Total Tax</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((g, i) => {
+                  const taxAmt = g.taxable * (g.rate / 100);
+                  const halfTax = taxAmt / 2;
+                  const halfRate = g.rate / 2;
+                  return (
+                    <tr key={i}>
+                      <td style={{ ...tdStyle, fontSize: '11px' }}>{g.hsn || '-'}</td>
+                      <td style={{ ...tdStyle, textAlign: 'right', fontSize: '11px' }}>₹{g.taxable.toFixed(2)}</td>
+                      {useIGST ? (
+                        <>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontSize: '11px' }}>{g.rate}%</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontSize: '11px' }}>₹{taxAmt.toFixed(2)}</td>
+                        </>
+                      ) : (
+                        <>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontSize: '11px' }}>{halfRate}%</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontSize: '11px' }}>₹{halfTax.toFixed(2)}</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontSize: '11px' }}>{halfRate}%</td>
+                          <td style={{ ...tdStyle, textAlign: 'right', fontSize: '11px' }}>₹{halfTax.toFixed(2)}</td>
+                        </>
+                      )}
+                      <td style={{ ...tdStyle, textAlign: 'right', fontSize: '11px', fontWeight: 'bold' }}>₹{taxAmt.toFixed(2)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        );
+      })()}
 
       {/* Totals */}
       <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
@@ -330,7 +437,12 @@ const InvoiceTemplate = forwardRef(({ transaction, business, paperSize = 'A4', t
               <span style={{ color: '#000' }}>-₹{discountAmount.toFixed(2)}</span>
             </div>
           )}
-          {opts.showCGSTSGST ? (
+          {useIGST ? (
+            <div style={rowStyle}>
+              <span style={{ color: '#555' }}>IGST</span>
+              <span style={{ color: '#000' }}>₹{(transaction.taxAmount ?? 0).toFixed(2)}</span>
+            </div>
+          ) : useCGSTSGST ? (
             <>
               <div style={rowStyle}>
                 <span style={{ color: '#555' }}>CGST</span>
@@ -341,17 +453,12 @@ const InvoiceTemplate = forwardRef(({ transaction, business, paperSize = 'A4', t
                 <span style={{ color: '#000' }}>₹{((transaction.taxAmount ?? 0) / 2).toFixed(2)}</span>
               </div>
             </>
-          ) : opts.showIGST ? (
-            <div style={rowStyle}>
-              <span style={{ color: '#555' }}>IGST</span>
-              <span style={{ color: '#000' }}>₹{(transaction.taxAmount ?? 0).toFixed(2)}</span>
-            </div>
-          ) : (
+          ) : showGST ? (
             <div style={rowStyle}>
               <span style={{ color: '#555' }}>Tax Amount</span>
-              <span style={{ color: '#000' }}>₹{transaction.taxAmount?.toFixed(2)}</span>
+              <span style={{ color: '#000' }}>₹{(transaction.taxAmount ?? 0).toFixed(2)}</span>
             </div>
-          )}
+          ) : null}
           {transaction.roundOffAmount != null && transaction.roundOffAmount !== 0 && (
             <div style={rowStyle}>
               <span style={{ color: '#555' }}>Round Off</span>
@@ -415,6 +522,11 @@ const InvoiceTemplate = forwardRef(({ transaction, business, paperSize = 'A4', t
                 <div style={{ height: '40px' }}></div>
                 <p style={{ margin: '0 0 4px 0', fontSize: '14px', fontWeight: 'bold', color: '#000' }}>For {business.name}</p>
                 <p style={{ margin: '0', fontSize: '12px', color: '#555' }}>Authorized Signatory</p>
+                {transaction.billedBy && (
+                  <p style={{ margin: '4px 0', fontSize: '12px', color: '#555' }}>
+                    Billed by: <strong style={{ color: '#000' }}>{transaction.billedBy}</strong>
+                  </p>
+                )}
               </div>
             )}
           </div>

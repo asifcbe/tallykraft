@@ -20,6 +20,23 @@ import { useAuth } from './AuthContext';
 import BarcodeScanner from './BarcodeScanner';
 
 const DEFAULT_UNITS = ['NOS', 'BAGS', 'BOX', 'KGS', 'Ltr', 'Mtr', 'Pcs'];
+const GST_UNIT_LABELS = {
+  BAG:'BAG – Bags', BAL:'BAL – Bales', BDL:'BDL – Bundles', BKL:'BKL – Buckles',
+  BOU:'BOU – Billions of Units', BOX:'BOX – Box', BTL:'BTL – Bottles',
+  BUN:'BUN – Bunches', CAN:'CAN – Cans', CCM:'CCM – Cubic Centimetres',
+  CMS:'CMS – Centimetres', CTN:'CTN – Cartons', DOZ:'DOZ – Dozens',
+  DRM:'DRM – Drums', GGK:'GGK – Great Gross (144 doz)', GMS:'GMS – Grams',
+  GRS:'GRS – Gross', GYD:'GYD – Gross Yards', KGS:'KGS – Kilograms',
+  KLR:'KLR – Kilolitres', KME:'KME – Kilometres', LTR:'LTR – Litres',
+  MLT:'MLT – Millilitres', MTR:'MTR – Metres', NOS:'NOS – Numbers',
+  PAC:'PAC – Packs', PCS:'PCS – Pieces', PRS:'PRS – Pairs',
+  QTL:'QTL – Quintals', ROL:'ROL – Rolls', SET:'SET – Sets',
+  SQF:'SQF – Square Feet', SQM:'SQM – Square Metres', SQY:'SQY – Square Yards',
+  TBS:'TBS – Tablets', TGM:'TGM – Ten Gross', THD:'THD – Thousands',
+  TON:'TON – Tonnes', TUB:'TUB – Tubes', UGS:'UGS – US Gallons',
+  UNT:'UNT – Units', YDS:'YDS – Yards',
+  BAGS:'BAGS – Bags', Ltr:'Ltr – Litres', Mtr:'Mtr – Metres', Pcs:'Pcs – Pieces',
+};
 const TAX_SLABS = [0, 5, 12, 18, 28];
 const ITEM_CATEGORIES = [
   'Clothing', 'Footwear', 'Accessories', 'Electronics', 'Mobile & Tablets',
@@ -60,8 +77,10 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
   const { staffSession } = useAuth();
   const canViewPurchasePrice = !staffSession || !!staffSession.features?.viewPurchasePrice;
   const barcodeEnabled = !!config.features?.barcode;
-  const UNITES = config.itemUnits?.length ? config.itemUnits : DEFAULT_UNITS;
-  const defaultUnit = UNITES[0] || 'NOS';
+  const UNITES = [...new Set([...DEFAULT_UNITS, ...(config.itemUnits || [])])];
+  const defaultUnit = config.defaultItemUnit && UNITES.includes(config.defaultItemUnit)
+    ? config.defaultItemUnit
+    : (config.defaultItemUnit || UNITES[0] || 'NOS');
 
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
@@ -210,7 +229,7 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                     value={formData.unit}
                     onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
                     sx={fieldSx}>
-                    {UNITES.map(u => <MenuItem key={u} value={u}>{u}</MenuItem>)}
+                    {UNITES.map(u => <MenuItem key={u} value={u}>{GST_UNIT_LABELS[u] || u}</MenuItem>)}
                   </TextField>
                 </Grid>
                 <Grid size={{ xs: 6 }}>

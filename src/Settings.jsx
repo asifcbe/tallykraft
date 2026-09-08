@@ -85,7 +85,7 @@ const SettingsPage = () => {
   const { config, saveConfig } = useConfig();
   const { data, addBusiness, updateBusiness, deleteBusiness: deleteBusinessFromData, deleteItem, getItems, createLocalBackup, listLocalBackups, restoreFromLocalBackup, deleteLocalBackup, backupToFirestore, allBusinessData, clearAllLocalData } = useData();
   const { confirm, showAlert } = useDialog();
-  const { currentBusiness: authBusiness, isAdmin, staffSession, currentUser } = useAuth();
+  const { currentBusiness: authBusiness, isAdmin, staffSession, currentUser, setAdminPassword } = useAuth();
   const { activateSubscription } = useSubscription();
   const [uploading, setUploading] = useState({ logo: false, qrCode: false });
   const [activeTab, setActiveTab] = useState('profile'); // Settings tab key
@@ -112,6 +112,12 @@ const SettingsPage = () => {
   const [showStaffPwd, setShowStaffPwd] = useState(false);
   const [copiedCode, setCopiedCode] = useState(false);
   const [staffMsg, setStaffMsg] = useState({ type: '', text: '' });
+
+  // Admin password state
+  const [adminPwdForm, setAdminPwdForm] = useState({ password: '', confirm: '' });
+  const [showAdminPwd, setShowAdminPwd] = useState(false);
+  const [adminPwdMsg, setAdminPwdMsg] = useState({ type: '', text: '' });
+  const [savingAdminPwd, setSavingAdminPwd] = useState(false);
 
   // Local backup state
   const [localBackups, setLocalBackups] = useState([]);
@@ -182,6 +188,22 @@ const SettingsPage = () => {
       features: { ...defaultStaffFeatures(), ...(staff.features || {}) }
     });
     setShowStaffPwd(false);
+  };
+
+  const handleSaveAdminPassword = async () => {
+    if (!adminPwdForm.password) { setAdminPwdMsg({ type: 'error', text: 'Password cannot be empty.' }); return; }
+    if (adminPwdForm.password.length < 6) { setAdminPwdMsg({ type: 'error', text: 'Password must be at least 6 characters.' }); return; }
+    if (adminPwdForm.password !== adminPwdForm.confirm) { setAdminPwdMsg({ type: 'error', text: 'Passwords do not match.' }); return; }
+    setSavingAdminPwd(true);
+    const result = await setAdminPassword(adminPwdForm.password);
+    setSavingAdminPwd(false);
+    if (result.success) {
+      setAdminPwdMsg({ type: 'success', text: 'Admin password saved.' });
+      setAdminPwdForm({ password: '', confirm: '' });
+      setTimeout(() => setAdminPwdMsg({ type: '', text: '' }), 3000);
+    } else {
+      setAdminPwdMsg({ type: 'error', text: result.error });
+    }
   };
 
   const handleSaveStaff = async () => {
@@ -268,7 +290,8 @@ const SettingsPage = () => {
         password: '',
         confirmPassword: '',
         fyStartMonth: currentBusiness.fyStartMonth ?? 3,
-        openingCash: currentBusiness.openingCash ?? 0
+        openingCash: currentBusiness.openingCash ?? 0,
+        openingBank: currentBusiness.openingBank ?? 0,
       });
       setShowLock(!!currentBusiness.password);
     }
@@ -375,6 +398,7 @@ const SettingsPage = () => {
           state: formData.state || 'Unknown',
           fyStartMonth: Number(formData.fyStartMonth ?? 3),
           openingCash: Number(formData.openingCash) || 0,
+          openingBank: Number(formData.openingBank) || 0,
           username: formData.username?.trim() || '',
           password: formData.password || currentBusiness.password || '',
         };
@@ -704,6 +728,16 @@ const SettingsPage = () => {
                         helperText="Cash on hand when you start tracking"
                         sx={fieldSx} />
                     </Grid>
+                    <Grid item xs={12} sm={6}>
+                      <TextField
+                        size="small" fullWidth type="number"
+                        label="Opening Bank Balance"
+                        value={formData.openingBank ?? 0}
+                        onChange={(e) => setFormData({ ...formData, openingBank: e.target.value })}
+                        slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }}
+                        helperText="Bank / digital balance when you start tracking"
+                        sx={fieldSx} />
+                    </Grid>
 
                     {(
                       <>
@@ -900,6 +934,7 @@ const SettingsPage = () => {
                 { key: 'journal',       icon: BookOpen,     label: 'Journal',        desc: 'Double-entry journal entries' },
                 { key: 'barcode',       icon: Barcode,      label: 'Barcodes',       desc: 'Barcode generation & scanning' },
                 { key: 'staff',         icon: Users,        label: 'Staff Management', desc: 'Track staff, attendance & salary' },
+                { key: 'stockAlert',    icon: Package,      label: 'Out-of-Stock Alert', desc: 'Warn before saving a sale with zero-stock items' },
               ].map(({ key, icon: Icon, label, desc }) => {
                 const on = !!config.features?.[key];
                 return (
@@ -949,50 +984,176 @@ const SettingsPage = () => {
       <Box sx={{ mb: 5, display: activeTab === 'invoice' ? 'block' : 'none' }}>
         <SH icon={BookOpen} title="Lists & Categories" subtitle="Customize dropdown options used across the app" />
         <Grid container spacing={2.5}>
-          {[
-            {
-              label: 'Expense Categories', placeholder: 'New category…',
-              items: config.expenseCategories || [], val: newExpenseCat, setVal: setNewExpenseCat,
-              onAdd: async (v) => { const cats = config.expenseCategories || []; if (!cats.includes(v)) await saveConfig({ ...config, expenseCategories: [...cats, v] }); },
-              onDelete: async (v) => { await saveConfig({ ...config, expenseCategories: (config.expenseCategories || []).filter(c => c !== v) }); },
-            },
-            {
-              label: 'Item Units', placeholder: 'New unit… (e.g. Ream)',
-              items: config.itemUnits || [], val: newItemUnit, setVal: setNewItemUnit,
-              onAdd: async (v) => { const units = config.itemUnits || []; if (!units.includes(v)) await saveConfig({ ...config, itemUnits: [...units, v] }); },
-              onDelete: async (v) => { await saveConfig({ ...config, itemUnits: (config.itemUnits || []).filter(u => u !== v) }); },
-            },
-          ].map(({ label, placeholder, items, val, setVal, onAdd, onDelete }) => (
-            <Grid item xs={12} md={6} key={label}>
-              <Card elevation={0} sx={{ ...cardSx.sx, height: '100%' }}>
-                <Box sx={{ px: 2.5, pt: 2.5, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>{label}</Typography>
+
+          {/* Expense Categories */}
+          <Grid item xs={12} md={6}>
+            <Card elevation={0} sx={{ ...cardSx.sx, height: '100%' }}>
+              <Box sx={{ px: 2.5, pt: 2.5, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Expense Categories</Typography>
+              </Box>
+              <CardContent sx={{ p: 2.5 }}>
+                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                  <TextField size="small" fullWidth placeholder="New category…"
+                    value={newExpenseCat}
+                    onChange={e => setNewExpenseCat(e.target.value)}
+                    onKeyDown={async e => { if (e.key === 'Enter' && newExpenseCat.trim()) { const cats = config.expenseCategories || []; if (!cats.includes(newExpenseCat.trim())) await saveConfig({ ...config, expenseCategories: [...cats, newExpenseCat.trim()] }); setNewExpenseCat(''); } }}
+                    sx={fieldSx} />
+                  <Button variant="contained" disableElevation size="small" startIcon={<Plus size={14} />}
+                    sx={{ borderRadius: `${baseRadius + 2}px`, px: 1.5, flexShrink: 0 }}
+                    onClick={async () => { if (!newExpenseCat.trim()) return; const cats = config.expenseCategories || []; if (!cats.includes(newExpenseCat.trim())) await saveConfig({ ...config, expenseCategories: [...cats, newExpenseCat.trim()] }); setNewExpenseCat(''); }}>
+                    Add
+                  </Button>
                 </Box>
-                <CardContent sx={{ p: 2.5 }}>
-                  <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
-                    <TextField size="small" fullWidth placeholder={placeholder}
-                      value={val}
-                      onChange={e => setVal(e.target.value)}
-                      onKeyDown={async e => { if (e.key === 'Enter' && val.trim()) { await onAdd(val.trim()); setVal(''); } }}
-                      sx={fieldSx} />
-                    <Button variant="contained" disableElevation size="small" startIcon={<Plus size={14} />}
-                      sx={{ borderRadius: `${baseRadius + 2}px`, px: 1.5, flexShrink: 0 }}
-                      onClick={async () => { if (!val.trim()) return; await onAdd(val.trim()); setVal(''); }}>
-                      Add
-                    </Button>
-                  </Box>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
+                  {(config.expenseCategories || []).map(item => (
+                    <Chip key={item} label={item} size="small"
+                      sx={{ borderRadius: `${baseRadius}px`, border: `1px solid ${alpha(primary, 0.25)}`, bgcolor: alpha(primary, 0.05), color: primary, fontWeight: 600, fontSize: '0.72rem' }}
+                      onDelete={async () => saveConfig({ ...config, expenseCategories: (config.expenseCategories || []).filter(c => c !== item) })} />
+                  ))}
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+
+          {/* Item Units */}
+          <Grid item xs={12} md={6}>
+            <Card elevation={0} sx={{ ...cardSx.sx, height: '100%' }}>
+              <Box sx={{ px: 2.5, pt: 2.5, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Item Units</Typography>
+                <Typography variant="caption" color="text.secondary">Custom units appear in all item dropdowns. Set a default so new items pre-select it.</Typography>
+              </Box>
+              <CardContent sx={{ p: 2.5 }}>
+                {/* Default unit picker */}
+                {(() => {
+                  const DEFAULT_UNITS_BASE = ['NOS', 'BAGS', 'BOX', 'KGS', 'Ltr', 'Mtr', 'Pcs'];
+                  const allUnits = [...DEFAULT_UNITS_BASE, ...(config.itemUnits || [])];
+                  const currentDefault = config.defaultItemUnit || allUnits[0] || 'NOS';
+                  return (
+                    <Box sx={{ mb: 2.5, p: 1.5, borderRadius: `${baseRadius}px`, bgcolor: alpha(primary, 0.04), border: `1px solid ${alpha(primary, 0.12)}` }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 1 }}>
+                        Default Unit for New Items
+                      </Typography>
+                      <FormControl fullWidth size="small" sx={fieldSx}>
+                        <Select
+                          value={allUnits.includes(currentDefault) ? currentDefault : allUnits[0]}
+                          onChange={async (e) => saveConfig({ ...config, defaultItemUnit: e.target.value })}
+                        >
+                          {allUnits.map(u => <MenuItem key={u} value={u}>{u}</MenuItem>)}
+                        </Select>
+                      </FormControl>
+                    </Box>
+                  );
+                })()}
+                {/* Add custom unit */}
+                <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+                  <TextField size="small" fullWidth placeholder="Add custom unit… (e.g. Ream, Dozen)"
+                    value={newItemUnit}
+                    onChange={e => setNewItemUnit(e.target.value)}
+                    onKeyDown={async e => { if (e.key === 'Enter' && newItemUnit.trim()) { const units = config.itemUnits || []; if (!units.includes(newItemUnit.trim())) await saveConfig({ ...config, itemUnits: [...units, newItemUnit.trim()] }); setNewItemUnit(''); } }}
+                    sx={fieldSx} />
+                  <Button variant="contained" disableElevation size="small" startIcon={<Plus size={14} />}
+                    sx={{ borderRadius: `${baseRadius + 2}px`, px: 1.5, flexShrink: 0 }}
+                    onClick={async () => { if (!newItemUnit.trim()) return; const units = config.itemUnits || []; if (!units.includes(newItemUnit.trim())) await saveConfig({ ...config, itemUnits: [...units, newItemUnit.trim()] }); setNewItemUnit(''); }}>
+                    Add
+                  </Button>
+                </Box>
+                {/* Custom unit chips */}
+                {(config.itemUnits || []).length === 0 ? (
+                  <Typography variant="caption" color="text.disabled">No custom units yet. Built-in: NOS, BAGS, BOX, KGS, Ltr, Mtr, Pcs</Typography>
+                ) : (
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75 }}>
-                    {items.map(item => (
-                      <Chip key={item} label={item} size="small"
+                    {(config.itemUnits || []).map(unit => (
+                      <Chip key={unit} label={unit} size="small"
                         sx={{ borderRadius: `${baseRadius}px`, border: `1px solid ${alpha(primary, 0.25)}`, bgcolor: alpha(primary, 0.05), color: primary, fontWeight: 600, fontSize: '0.72rem' }}
-                        onDelete={async () => onDelete(item)} />
+                        onDelete={async () => {
+                          const next = (config.itemUnits || []).filter(u => u !== unit);
+                          const patch = { ...config, itemUnits: next };
+                          if (config.defaultItemUnit === unit) patch.defaultItemUnit = '';
+                          await saveConfig(patch);
+                        }} />
                     ))}
                   </Box>
-                </CardContent>
-              </Card>
-            </Grid>
-          ))}
+                )}
+              </CardContent>
+            </Card>
+          </Grid>
+
         </Grid>
+      </Box>
+
+      {/* ── Invoice Numbering ── */}
+      <Box sx={{ mb: 5, display: activeTab === 'invoice' ? 'block' : 'none' }}>
+        <SH icon={ReceiptText} title="Invoice Numbering" subtitle="Configure invoice and purchase bill number format, prefix, and starting number" />
+        <Card elevation={0} sx={{ ...cardSx.sx }}>
+          <CardContent sx={{ p: 2.5 }}>
+            <Grid container spacing={3}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', mb: 2 }}>Sales Invoices</Typography>
+                <Grid container spacing={2}>
+                  <Grid size={12}>
+                    <FormControl fullWidth size="small" sx={fieldSx}>
+                      <InputLabel>Number Type</InputLabel>
+                      <Select label="Number Type"
+                        value={config.invoiceNumberConfig?.salesType || 'auto'}
+                        onChange={async (e) => await saveConfig({ ...config, invoiceNumberConfig: { ...(config.invoiceNumberConfig || {}), salesType: e.target.value } })}>
+                        <MenuItem value="auto">Auto-increment (e.g. INV-001, INV-002…)</MenuItem>
+                        <MenuItem value="date">Date-based (e.g. INV-20250615-001)</MenuItem>
+                        <MenuItem value="manual">Manual — enter number each time</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <TextField fullWidth size="small" label="Prefix" sx={fieldSx}
+                      value={config.invoiceNumberConfig?.salesPrefix ?? 'INV'}
+                      onChange={async (e) => await saveConfig({ ...config, invoiceNumberConfig: { ...(config.invoiceNumberConfig || {}), salesPrefix: e.target.value } })} />
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <TextField fullWidth size="small" label="Starting Number" type="number" sx={fieldSx}
+                      value={config.invoiceNumberConfig?.salesStartingNumber ?? 1}
+                      onChange={async (e) => await saveConfig({ ...config, invoiceNumberConfig: { ...(config.invoiceNumberConfig || {}), salesStartingNumber: parseInt(e.target.value) || 1 } })} />
+                  </Grid>
+                  <Grid size={12}>
+                    <Typography variant="caption" color="text.secondary">
+                      Preview: <strong>{(config.invoiceNumberConfig?.salesPrefix ?? 'INV')}-{String(config.invoiceNumberConfig?.salesStartingNumber ?? 1).padStart(3, '0')}</strong>
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', mb: 2 }}>Purchase Bills</Typography>
+                <Grid container spacing={2}>
+                  <Grid size={12}>
+                    <FormControl fullWidth size="small" sx={fieldSx}>
+                      <InputLabel>Number Type</InputLabel>
+                      <Select label="Number Type"
+                        value={config.invoiceNumberConfig?.purchaseType || 'auto'}
+                        onChange={async (e) => await saveConfig({ ...config, invoiceNumberConfig: { ...(config.invoiceNumberConfig || {}), purchaseType: e.target.value } })}>
+                        <MenuItem value="auto">Auto-increment (e.g. BILL-001, BILL-002…)</MenuItem>
+                        <MenuItem value="date">Date-based (e.g. BILL-20250615-001)</MenuItem>
+                        <MenuItem value="manual">Manual — enter number each time</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <TextField fullWidth size="small" label="Prefix" sx={fieldSx}
+                      value={config.invoiceNumberConfig?.purchasePrefix ?? 'BILL'}
+                      onChange={async (e) => await saveConfig({ ...config, invoiceNumberConfig: { ...(config.invoiceNumberConfig || {}), purchasePrefix: e.target.value } })} />
+                  </Grid>
+                  <Grid size={{ xs: 6 }}>
+                    <TextField fullWidth size="small" label="Starting Number" type="number" sx={fieldSx}
+                      value={config.invoiceNumberConfig?.purchaseStartingNumber ?? 1}
+                      onChange={async (e) => await saveConfig({ ...config, invoiceNumberConfig: { ...(config.invoiceNumberConfig || {}), purchaseStartingNumber: parseInt(e.target.value) || 1 } })} />
+                  </Grid>
+                  <Grid size={12}>
+                    <Typography variant="caption" color="text.secondary">
+                      Preview: <strong>{(config.invoiceNumberConfig?.purchasePrefix ?? 'BILL')}-{String(config.invoiceNumberConfig?.purchaseStartingNumber ?? 1).padStart(3, '0')}</strong>
+                    </Typography>
+                  </Grid>
+                </Grid>
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
       </Box>
 
       {/* ── Print & Invoice ── */}
@@ -1032,12 +1193,12 @@ const SettingsPage = () => {
               { key: 'showDate',           label: 'Date',                 desc: 'Print the bill date' },
               { key: 'showGSTColumn',      label: 'GST % Column',         desc: 'GST% column in items table' },
               { key: 'showDiscountColumn', label: 'Discount % Column',    desc: 'Disc% column in items table' },
-              { key: 'showCGSTSGST',       label: 'CGST & SGST Split',    desc: 'Separate CGST + SGST lines (intra-state)' },
-              { key: 'showIGST',           label: 'IGST',                 desc: 'Show IGST line (inter-state)' },
               { key: 'showOldBalance',     label: 'Opening Balance',      desc: 'Include pending / opening balance' },
               { key: 'showTerms',          label: 'Terms & Conditions',   desc: 'Print terms at the bottom' },
               { key: 'showSignature',      label: 'Signature Block',      desc: 'Authorized signatory section' },
+              { key: 'autoRoundOff',       label: 'Auto Round-off',       desc: 'Automatically round total to nearest rupee' },
             ];
+            const isDefaultFalseKeys = new Set(['showOldBalance', 'autoRoundOff']);
             return (
               <Box sx={{ p: 2.5 }}>
                 <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 1.5 }}>
@@ -1045,7 +1206,7 @@ const SettingsPage = () => {
                 </Typography>
                 <Grid container spacing={1.25}>
                   {options.map(({ key, label, desc }) => {
-                    const isDefaultFalse = key === 'showOldBalance' || key === 'showCGSTSGST' || key === 'showIGST';
+                    const isDefaultFalse = isDefaultFalseKeys.has(key);
                     const isChecked = isDefaultFalse ? (bpo[key] === true) : (bpo[key] !== false);
                     return (
                       <Grid item xs={12} sm={6} key={key}>
@@ -1115,6 +1276,65 @@ const SettingsPage = () => {
               Your business profile is not linked yet. Sign out and sign back in to complete setup.
             </Alert>
           )}
+
+          {/* Admin Password */}
+          <Card elevation={0} sx={{ ...cardSx.sx, mb: 3 }}>
+            <Box sx={{ px: 2.5, pt: 2.5, pb: 1.5, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1 }}>
+              <KeyRound size={14} color={primary} />
+              <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Admin Login Password</Typography>
+            </Box>
+            <Box sx={{ p: 2.5 }}>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, lineHeight: 1.6 }}>
+                Set a password so you can log in using your Business Code + password instead of Google. Your business code is <strong>{authBusiness?.businessCode}</strong>.
+              </Typography>
+              {adminPwdMsg.text && (
+                <Alert severity={adminPwdMsg.type} sx={{ mb: 2, borderRadius: `${baseRadius + 4}px` }} onClose={() => setAdminPwdMsg({ type: '', text: '' })}>
+                  {adminPwdMsg.text}
+                </Alert>
+              )}
+              <Grid container spacing={2}>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth label="New Password" size="small"
+                    type={showAdminPwd ? 'text' : 'password'}
+                    value={adminPwdForm.password}
+                    onChange={e => setAdminPwdForm(f => ({ ...f, password: e.target.value }))}
+                    sx={fieldSx}
+                    slotProps={{ input: { endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton size="small" onClick={() => setShowAdminPwd(v => !v)} tabIndex={-1}>
+                          {showAdminPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    ) } }}
+                  />
+                </Grid>
+                <Grid item xs={12} sm={6}>
+                  <TextField
+                    fullWidth label="Confirm Password" size="small"
+                    type={showAdminPwd ? 'text' : 'password'}
+                    value={adminPwdForm.confirm}
+                    onChange={e => setAdminPwdForm(f => ({ ...f, confirm: e.target.value }))}
+                    sx={fieldSx}
+                  />
+                </Grid>
+                <Grid item xs={12}>
+                  <Button
+                    variant="contained" disableElevation size="small"
+                    startIcon={<KeyRound size={14} />}
+                    onClick={handleSaveAdminPassword}
+                    disabled={savingAdminPwd}
+                    sx={{ ...gradBtnSx, px: 2.5 }}
+                  >
+                    {savingAdminPwd ? 'Saving…' : authBusiness?.adminPassword ? 'Update Password' : 'Set Password'}
+                  </Button>
+                  {authBusiness?.adminPassword && (
+                    <Typography variant="caption" color="success.main" sx={{ ml: 2 }}>Password is set</Typography>
+                  )}
+                </Grid>
+              </Grid>
+            </Box>
+          </Card>
 
           {staffMsg.text && (
             <Alert severity={staffMsg.type} sx={{ mb: 2, borderRadius: `${baseRadius + 4}px` }} onClose={() => setStaffMsg({ type: '', text: '' })}>

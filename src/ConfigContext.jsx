@@ -46,7 +46,15 @@ const defaultConfig = {
   completeOffline: false,
   defaultPaperSize: 'A4',
   expenseCategories: ['Office Supplies', 'Travel', 'Utilities', 'Rent', 'Marketing', 'Equipment', 'Miscellaneous'],
-  itemUnits: ['NOS', 'BAGS', 'BOX', 'KGS', 'Ltr', 'Mtr', 'Pcs'],
+  itemUnits: ['BAG','BAL','BDL','BKL','BOU','BOX','BTL','BUN','CAN','CCM','CMS','CTN','DOZ','DRM','GGK','GMS','GRS','GYD','KGS','KLR','KME','LTR','MLT','MTR','NOS','PAC','PCS','PRS','QTL','ROL','SET','SQF','SQM','SQY','TBS','TGM','THD','TON','TUB','UGS','UNT','YDS'],
+  invoiceNumberConfig: {
+    salesType: 'auto',
+    salesPrefix: 'INV',
+    salesStartingNumber: 1,
+    purchaseType: 'auto',
+    purchasePrefix: 'BILL',
+    purchaseStartingNumber: 1,
+  },
   billPrintOptions: {
     showLogo: true,
     showGSTIN: true,
@@ -54,12 +62,11 @@ const defaultConfig = {
     showDate: true,
     showGSTColumn: true,
     showDiscountColumn: true,
-    showCGSTSGST: false,
-    showIGST: false,
     showTerms: true,
     showSignature: true,
     showOldBalance: false,
     dateFormat: 'DD/MM/YYYY',
+    autoRoundOff: false,
   },
 };
 
@@ -132,12 +139,12 @@ export const ConfigProvider = ({ children }) => {
           forceOffline = !!merged.completeOffline; // not set — backward-compat behaviour
         }
         if (forceOffline) {
-          localStorage.setItem('sb_offline_mode', 'true');
+          localStorage.setItem('tallykraft_offline_mode', 'true');
         } else {
-          localStorage.removeItem('sb_offline_mode');
+          localStorage.removeItem('tallykraft_offline_mode');
         }
         // Expose for components that need to read it synchronously
-        localStorage.setItem('sb_backup_online_enabled', backupOnlineEnabled === true ? 'true' : backupOnlineEnabled === false ? 'false' : '');
+        localStorage.setItem('tallykraft_backup_online_enabled', backupOnlineEnabled === true ? 'true' : backupOnlineEnabled === false ? 'false' : '');
         merged.backupOnlineEnabled = backupOnlineEnabled; // pass through to consumers
 
         // VITE_ALWAYSADMIN super-admin: force every feature on, ignoring any

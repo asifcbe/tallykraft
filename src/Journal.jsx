@@ -6,7 +6,6 @@ import {
 } from '@mui/material';
 import { Plus, Trash2, ChevronLeft } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
-import { useFinancialYear } from './FinancialYearContext';
 import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
 import { useDialog } from './DialogContext';
@@ -14,7 +13,6 @@ import { useDialog } from './DialogContext';
 const Journal = () => {
   const { currentBusiness } = useBusiness();
   const { t } = useI18n();
-  const { activeFY } = useFinancialYear();
   const { addItem, deleteItem, getItems } = useData();
   const { confirm, showAlert } = useDialog();
   const [view, setView] = useState('list');
@@ -26,7 +24,7 @@ const Journal = () => {
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
 
-  const entries = getItems('journalEntries').filter(e => e.businessId === currentBusiness?.id).filter(r => !activeFY || !r.date || (r.date >= activeFY.start && r.date <= activeFY.end)).reverse();
+  const entries = getItems('journalEntries').filter(e => e.businessId === currentBusiness?.id).reverse();
 
   useEffect(() => {
     if (view === 'create' && !isSaving) {

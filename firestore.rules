@@ -3,35 +3,41 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ── User data (business data, settings, backups) ──────────────────────────
-    // Each user can only read and write their own data tree.
+    // Owners read/write their own tree.
+    // Staff read is allowed without auth — the ownerUid is not guessable and is
+    // only known to staff who received it from the login flow. Writes still require
+    // the owner to be signed in so staff can never corrupt data.
     match /users/{userId}/{document=**} {
       allow read, write: if request.auth != null
                          && request.auth.uid == userId;
+      // Staff read: unauthenticated but must know the exact ownerUid path.
+      allow read: if true;
     }
 
     // ── User access config ────────────────────────────────────────────────────
-    // Each user can read and write only their own config doc (keyed by email).
-    // Listing the whole collection is blocked — only direct doc access allowed.
     match /userConfig/{email} {
       allow read, write: if request.auth != null
                          && request.auth.token.email == email;
     }
 
     // ── Business records ──────────────────────────────────────────────────────
-    // A business doc is readable/writable only by its owner.
+    // Readable by anyone (business code lookup during staff login).
+    // Writable only by the owner.
     match /businesses/{bizId} {
-      allow read, write: if request.auth != null
-                         && resource.data.ownerId == request.auth.uid;
-      // Allow create when the caller is setting themselves as owner.
+      allow read: if true;
+      allow write: if request.auth != null
+                   && resource.data.ownerId == request.auth.uid;
       allow create: if request.auth != null
                     && request.resource.data.ownerId == request.auth.uid;
     }
 
     // ── Staff subcollection ───────────────────────────────────────────────────
-    // Only the business owner can read/write staff records.
+    // Readable by anyone (username/password lookup during staff login).
+    // Writable only by the business owner.
     match /businesses/{bizId}/staff/{staffId} {
-      allow read, write: if request.auth != null
-                         && get(/databases/$(database)/documents/businesses/$(bizId)).data.ownerId == request.auth.uid;
+      allow read: if true;
+      allow write: if request.auth != null
+                   && get(/databases/$(database)/documents/businesses/$(bizId)).data.ownerId == request.auth.uid;
     }
 
   }

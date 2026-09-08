@@ -32,15 +32,19 @@ const ORB_CONFIGS = [
 ];
 
 const Login = ({ onBack }) => {
-  const { loginWithGoogle, loginAsStaff } = useAuth();
+  const { loginWithGoogle, loginAsStaff, loginAsAdmin } = useAuth();
   const [tab, setTab]                   = useState('owner');
   const [error, setError]               = useState('');
   const [loading, setLoading]           = useState(false);
-  const [isDark, setIsDark]             = useState(() => localStorage.getItem('sb_landing_dark') === 'true');
+  const [isDark, setIsDark]             = useState(() => localStorage.getItem('tallykraft_landing_dark') === 'true');
   const [businessCode, setBusinessCode] = useState('');
   const [username, setUsername]         = useState('');
   const [password, setPassword]         = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [useAdminPwd, setUseAdminPwd]   = useState(false);
+  const [adminCode, setAdminCode]       = useState('');
+  const [adminPwd, setAdminPwd]         = useState('');
+  const [showAdminPwd, setShowAdminPwd] = useState(false);
 
   useEffect(() => {
     getDoc(doc(firestore, 'globalConfig', 'landing'))
@@ -48,7 +52,7 @@ const Login = ({ onBack }) => {
         if (snap.exists()) {
           const dark = snap.data().theme === 'dark';
           setIsDark(dark);
-          localStorage.setItem('sb_landing_dark', dark ? 'true' : 'false');
+          localStorage.setItem('tallykraft_landing_dark', dark ? 'true' : 'false');
         }
       })
       .catch(() => {});
@@ -57,6 +61,16 @@ const Login = ({ onBack }) => {
   const handleGoogleSignIn = async () => {
     setLoading(true); setError('');
     const result = await loginWithGoogle();
+    if (!result.success) setError(result.error);
+    setLoading(false);
+  };
+
+  const handleAdminPasswordLogin = async (e) => {
+    e?.preventDefault();
+    if (!adminCode.trim()) { setError('Business code is required.'); return; }
+    if (!adminPwd)         { setError('Password is required.'); return; }
+    setLoading(true); setError('');
+    const result = await loginAsAdmin(adminCode, adminPwd);
     if (!result.success) setError(result.error);
     setLoading(false);
   };
@@ -361,7 +375,9 @@ const Login = ({ onBack }) => {
           </Typography>
           <Typography sx={{ color: T.sub, fontSize: '0.82rem', mb: 2.8, lineHeight: 1.5 }}>
             {tab === 'owner'
-              ? 'Sign in with your Google account to access your workspace.'
+              ? useAdminPwd
+                ? 'Sign in with your Business Code and admin password.'
+                : 'Sign in with your Google account to access your workspace.'
               : 'Enter your staff credentials provided by your employer.'}
           </Typography>
 
@@ -401,33 +417,111 @@ const Login = ({ onBack }) => {
           )}
 
           {/* ── Owner tab ── */}
-          {tab === 'owner' && (
-            <Button
-              onClick={handleGoogleSignIn}
-              disabled={loading}
-              fullWidth
-              disableElevation
-              sx={{
-                py: 1.65, borderRadius: '12px',
-                bgcolor: T.googleBg,
-                color: T.googleText,
-                border: `1.5px solid ${T.googleBorder}`,
-                textTransform: 'none', fontSize: '0.95rem', fontWeight: 600,
-                boxShadow: isDark ? '0 4px 18px rgba(0,0,0,0.35)' : '0 2px 10px rgba(0,0,0,0.07)',
-                transition: 'all 0.22s',
-                gap: 1.5,
-                '&:hover': {
-                  bgcolor: T.googleHov,
-                  transform: 'translateY(-1px)',
-                  boxShadow: isDark ? '0 8px 28px rgba(0,0,0,0.5)' : '0 6px 20px rgba(0,0,0,0.1)',
-                },
-                '&:active': { transform: 'translateY(0)' },
-                '&.Mui-disabled': { opacity: 0.55 },
-              }}
-              startIcon={!loading && <GoogleIcon />}
-            >
-              {loading ? 'Signing in…' : 'Continue with Google'}
-            </Button>
+          {tab === 'owner' && !useAdminPwd && (
+            <>
+              <Button
+                onClick={handleGoogleSignIn}
+                disabled={loading}
+                fullWidth
+                disableElevation
+                sx={{
+                  py: 1.65, borderRadius: '12px',
+                  bgcolor: T.googleBg,
+                  color: T.googleText,
+                  border: `1.5px solid ${T.googleBorder}`,
+                  textTransform: 'none', fontSize: '0.95rem', fontWeight: 600,
+                  boxShadow: isDark ? '0 4px 18px rgba(0,0,0,0.35)' : '0 2px 10px rgba(0,0,0,0.07)',
+                  transition: 'all 0.22s',
+                  gap: 1.5,
+                  '&:hover': {
+                    bgcolor: T.googleHov,
+                    transform: 'translateY(-1px)',
+                    boxShadow: isDark ? '0 8px 28px rgba(0,0,0,0.5)' : '0 6px 20px rgba(0,0,0,0.1)',
+                  },
+                  '&:active': { transform: 'translateY(0)' },
+                  '&.Mui-disabled': { opacity: 0.55 },
+                }}
+                startIcon={!loading && <GoogleIcon />}
+              >
+                {loading ? 'Signing in…' : 'Continue with Google'}
+              </Button>
+              <Divider sx={{ borderColor: T.divider, my: 2 }} />
+              <Button
+                fullWidth disableElevation
+                onClick={() => { setUseAdminPwd(true); setError(''); }}
+                sx={{
+                  py: 1.2, borderRadius: '12px', textTransform: 'none',
+                  fontSize: '0.88rem', fontWeight: 600,
+                  color: T.tabActiveText,
+                  border: `1.5px solid ${isDark ? 'rgba(129,140,248,0.22)' : 'rgba(99,102,241,0.25)'}`,
+                  bgcolor: 'transparent',
+                  '&:hover': { bgcolor: isDark ? 'rgba(129,140,248,0.07)' : 'rgba(99,102,241,0.05)' },
+                }}
+              >
+                Use Business Code + Password instead
+              </Button>
+            </>
+          )}
+
+          {tab === 'owner' && useAdminPwd && (
+            <Box component="form" onSubmit={handleAdminPasswordLogin} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+              <Box>
+                <Typography sx={labelSx}>Business Code</Typography>
+                <TextField
+                  fullWidth
+                  value={adminCode}
+                  onChange={e => setAdminCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                  slotProps={{ htmlInput: { maxLength: 6, style: { letterSpacing: 5, fontWeight: 700, fontSize: '1.05rem' } } }}
+                  placeholder="ABC123"
+                  sx={inputSx}
+                />
+              </Box>
+              <Box>
+                <Typography sx={labelSx}>Admin Password</Typography>
+                <TextField
+                  fullWidth
+                  type={showAdminPwd ? 'text' : 'password'}
+                  value={adminPwd}
+                  onChange={e => setAdminPwd(e.target.value)}
+                  placeholder="Your admin password"
+                  autoComplete="current-password"
+                  slotProps={{ input: {
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton onClick={() => setShowAdminPwd(v => !v)} edge="end" tabIndex={-1}
+                          sx={{ color: T.eyeColor, '&:hover': { color: T.inputText } }}>
+                          {showAdminPwd ? <VisibilityOff fontSize="small" /> : <Visibility fontSize="small" />}
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  } }}
+                  sx={inputSx}
+                />
+              </Box>
+              <Button
+                type="submit" disabled={loading} fullWidth disableElevation
+                sx={{
+                  mt: 0.5, py: 1.6, borderRadius: '12px',
+                  background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+                  color: 'white', textTransform: 'none',
+                  fontSize: '0.95rem', fontWeight: 700,
+                  boxShadow: '0 4px 20px rgba(99,102,241,0.38)',
+                  transition: 'all 0.22s',
+                  '&:hover': { transform: 'translateY(-1px)', boxShadow: '0 8px 28px rgba(99,102,241,0.48)', filter: 'brightness(1.06)' },
+                  '&:active': { transform: 'translateY(0)' },
+                  '&.Mui-disabled': { opacity: 0.55, color: 'rgba(255,255,255,0.7)' },
+                }}
+              >
+                {loading ? 'Signing in…' : 'Sign In as Admin'}
+              </Button>
+              <Button
+                fullWidth disableElevation
+                onClick={() => { setUseAdminPwd(false); setError(''); setAdminCode(''); setAdminPwd(''); }}
+                sx={{ textTransform: 'none', fontSize: '0.82rem', color: T.caption }}
+              >
+                Back to Google Sign-In
+              </Button>
+            </Box>
           )}
 
           {/* ── Staff tab ── */}

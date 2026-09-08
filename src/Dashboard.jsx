@@ -5,16 +5,15 @@ import {
   Chip, Avatar, Dialog, DialogContent, IconButton, Tooltip,
 } from '@mui/material';
 import {
-  ArrowUpRight, ArrowDownRight,
   Plus, FileText, ReceiptText, ShoppingBag, Download, Upload, DollarSign, TrendingUp,
-  Bell, Clock, QrCode, X, Keyboard, Crown, Cloud, Lock, Wallet,
+  Bell, Clock, QrCode, X, Keyboard, Crown, Cloud, Lock,
 } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
 import { useData } from './DataContext';
 import { useConfig } from './ConfigContext';
 import { useSubscription } from './SubscriptionContext';
 import { useI18n } from './i18n/I18nContext';
-import { computeCashInHand } from './cashUtils';
+import { computeCashInHand, computeBankBalance } from './cashUtils';
 import InvoicePreviewDialog from './InvoicePreviewDialog';
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip as ReTooltip,
@@ -22,70 +21,234 @@ import {
 } from 'recharts';
 import { useNavigate } from 'react-router-dom';
 import { useTabs } from './TabsContext';
+import TallyKraftLogo from './TallyKraftLogo';
+
+// ─── Clock + Calendar + Stats Hero Widget ────────────────────────────────────
+const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', stats: heroStats, cash, bank, trendLabel, accentColorHex, onQuickNew }) => {
+  const [calBase, setCalBase] = React.useState(() => ({ y: now.getFullYear(), m: now.getMonth() }));
+  const [blink, setBlink] = React.useState(true);
+  React.useEffect(() => { const id = setInterval(() => setBlink(b => !b), 500); return () => clearInterval(id); }, []);
+
+  const h = now.getHours();
+  const m = now.getMinutes();
+  const s = now.getSeconds();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const hh = String(h % 12 || 12).padStart(2, '0');
+  const mm = String(m).padStart(2, '0');
+  const ss = String(s).padStart(2, '0');
+  const secPct = (s / 59) * 100;
+
+  const today = { y: now.getFullYear(), m: now.getMonth(), d: now.getDate() };
+  const { y: cy, m: cm } = calBase;
+  const firstDay = new Date(cy, cm, 1).getDay();
+  const daysInMonth = new Date(cy, cm + 1, 0).getDate();
+  const cells = Array.from({ length: firstDay }, () => null).concat(Array.from({ length: daysInMonth }, (_, i) => i + 1));
+  while (cells.length % 7 !== 0) cells.push(null);
+  const weeks = [];
+  for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+  const isToday = (d) => d !== null && cy === today.y && cm === today.m && d === today.d;
+  const isCurrentMonth = cy === today.y && cm === today.m;
+  const prevMonth = () => setCalBase(b => b.m === 0 ? { y: b.y - 1, m: 11 } : { y: b.y, m: b.m - 1 });
+  const nextMonth = () => setCalBase(b => b.m === 11 ? { y: b.y + 1, m: 0 } : { y: b.y, m: b.m + 1 });
+  const goToday = () => setCalBase({ y: today.y, m: today.m });
+
+  const radius = 22;
+  const circ = 2 * Math.PI * radius;
+  const dash = (secPct / 100) * circ;
+
+  const statRows = heroStats ? [
+    { label: 'Sales',        value: heroStats.totalSales,     color: accentColorHex, trend: heroStats.salesTrend,    actions: onQuickNew ? [{ label: 'New Invoice',     fn: () => onQuickNew('/sales', 'New Invoice', 'createNew') }] : [] },
+    { label: 'Purchases',    value: heroStats.totalPurchases, color: '#a78bfa',      trend: heroStats.purchaseTrend, actions: onQuickNew ? [{ label: 'Add Purchase',    fn: () => onQuickNew('/purchases', 'New Purchase', 'createNew') }] : [] },
+    { label: 'Receivable',   value: heroStats.toGet,          color: '#34d399',      trend: null,                   actions: onQuickNew ? [{ label: 'Receive Payment', fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }] : [] },
+    { label: 'Payable',      value: heroStats.toGive,         color: '#fbbf24',      trend: null,                   actions: onQuickNew ? [{ label: 'Make Payment',    fn: () => onQuickNew('/payment-out', 'Payment Out', 'openAdd') }] : [] },
+    { label: 'Expenses',     value: heroStats.totalExpenses,  color: '#fb7185',      trend: null,                   actions: onQuickNew ? [{ label: 'Add Expense',     fn: () => onQuickNew('/expenses', 'Expenses', 'openAdd') }] : [] },
+    { label: 'Cash in Hand', value: cash?.balance ?? 0,       color: '#22d3ee',      cashIn: cash?.cashIn ?? 0, cashOut: cash?.cashOut ?? 0,
+      actions: onQuickNew ? [{ label: 'Cash In', fn: () => onQuickNew('/cash', 'Cash Book', 'cash_in') }, { label: 'Cash Out', fn: () => onQuickNew('/cash', 'Cash Book', 'cash_out') }] : [] },
+    { label: 'Bank Balance', value: bank?.balance ?? 0,       color: '#60a5fa',      cashIn: bank?.bankIn ?? 0, cashOut: bank?.bankOut ?? 0,
+      actions: onQuickNew ? [{ label: 'Credit', fn: () => onQuickNew('/cash', 'Cash Book', 'bank_in') }, { label: 'Debit', fn: () => onQuickNew('/cash', 'Cash Book', 'bank_out') }] : [] },
+  ] : [];
+
+  return (
+    <Box sx={{
+      borderRadius: 3, overflow: 'hidden',
+      border: `1.5px solid ${alpha(accentColor, 0.2)}`,
+      boxShadow: `0 4px 24px ${alpha(accentColor, 0.12)}`,
+      bgcolor: 'background.paper',
+      width: '100%',
+      display: 'flex', flexDirection: { xs: 'column', lg: 'row' },
+    }}>
+      {/* ── Left: KPI cards grid ── */}
+      {statRows.length > 0 && (
+        <Box sx={{
+          flex: 1, display: 'grid',
+          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
+          gridAutoRows: '1fr',
+          borderRight: { lg: `1px solid ${alpha(accentColor, 0.1)}` },
+          borderBottom: { xs: `1px solid ${alpha(accentColor, 0.1)}`, lg: 'none' },
+        }}>
+          {statRows.map((r, i) => {
+            const hasCashFlow = r.cashIn !== undefined;
+            return (
+              <Box key={r.label} sx={{
+                px: 1.75, pt: 1.5, pb: 1.5,
+                borderRight: { xs: (i % 2 === 0) ? `1px solid ${alpha(accentColor, 0.07)}` : 'none', sm: (i % 3 !== 2) ? `1px solid ${alpha(accentColor, 0.07)}` : 'none', lg: (i % 4 !== 3) ? `1px solid ${alpha(accentColor, 0.07)}` : 'none' },
+                borderBottom: `1px solid ${alpha(accentColor, 0.07)}`,
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                overflow: 'hidden',
+                bgcolor: alpha(r.color, 0.025),
+                transition: 'background-color 0.18s',
+                '&:hover': { bgcolor: alpha(r.color, 0.06) },
+              }}>
+                <Box sx={{ height: 1.5, mb: 1.5, flexShrink: 0 }} />
+
+                {/* Label */}
+                <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.1em', lineHeight: 1, textAlign: 'center', mb: 1 }}>
+                  {r.label}
+                </Typography>
+
+                {/* Value */}
+                <Typography sx={{ fontSize: '2rem', fontWeight: 900, color: (r.value ?? 0) < 0 ? '#dc2626' : 'text.primary', letterSpacing: '-0.04em', lineHeight: 1, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'center', width: '100%', mb: 1.25 }}>
+                  ₹{Math.abs(r.value ?? 0).toLocaleString('en-IN')}
+                </Typography>
+
+                {/* Trend / cash flow */}
+                {hasCashFlow ? (
+                  <Box sx={{ display: 'flex', gap: 0.75, justifyContent: 'center' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, px: 1, py: 0.5, borderRadius: '20px', bgcolor: alpha('#16a34a', 0.12), border: `1px solid ${alpha('#16a34a', 0.2)}` }}>
+                      <Box component="span" sx={{ fontSize: '0.6rem', color: '#16a34a', lineHeight: 1, fontWeight: 800 }}>▲</Box>
+                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#16a34a', lineHeight: 1 }}>₹{r.cashIn.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</Typography>
+                    </Box>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.4, px: 1, py: 0.5, borderRadius: '20px', bgcolor: alpha('#dc2626', 0.1), border: `1px solid ${alpha('#dc2626', 0.2)}` }}>
+                      <Box component="span" sx={{ fontSize: '0.6rem', color: '#dc2626', lineHeight: 1, fontWeight: 800 }}>▼</Box>
+                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#dc2626', lineHeight: 1 }}>₹{r.cashOut.toLocaleString('en-IN', { maximumFractionDigits: 0 })}</Typography>
+                    </Box>
+                  </Box>
+                ) : r.trend !== undefined && r.trend !== null ? (
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, justifyContent: 'center' }}>
+                    <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.4, px: 1, py: 0.5, borderRadius: '20px', bgcolor: r.trend >= 0 ? alpha('#16a34a', 0.12) : alpha('#dc2626', 0.1), border: `1px solid ${r.trend >= 0 ? alpha('#16a34a', 0.2) : alpha('#dc2626', 0.2)}` }}>
+                      <Box component="span" sx={{ fontSize: '0.6rem', color: r.trend >= 0 ? '#16a34a' : '#dc2626', lineHeight: 1, fontWeight: 800 }}>{r.trend >= 0 ? '▲' : '▼'}</Box>
+                      <Typography sx={{ fontSize: '0.75rem', fontWeight: 800, color: r.trend >= 0 ? '#16a34a' : '#dc2626', lineHeight: 1 }}>{Math.abs(r.trend).toFixed(1)}%</Typography>
+                    </Box>
+                    <Typography sx={{ fontSize: '0.65rem', color: 'text.disabled', lineHeight: 1 }}>{trendLabel}</Typography>
+                  </Box>
+                ) : <Box sx={{ height: 16 }} />}
+
+                {/* Spacer pushes buttons to bottom */}
+                <Box sx={{ flex: 1 }} />
+
+                {/* Action buttons — pinned to bottom */}
+                {r.actions?.length > 0 && (
+                  <Box sx={{ display: 'flex', gap: 0.75, mt: 1.25, width: '100%' }}>
+                    {r.actions.map((a) => (
+                      <Box key={a.label} onClick={a.fn} sx={{
+                        flex: 1,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.5,
+                        px: 1, py: 0.75, borderRadius: 1.5,
+                        border: `1.5px solid ${alpha(r.color, 0.35)}`,
+                        bgcolor: alpha(r.color, 0.08),
+                        cursor: 'pointer', userSelect: 'none',
+                        transition: 'all 0.15s ease',
+                        '&:hover': { bgcolor: r.color, borderColor: r.color, '& .al': { color: '#fff' }, '& .ai': { stroke: '#fff' } },
+                      }}>
+                        <svg className="ai" width={10} height={10} viewBox="0 0 24 24" fill="none" stroke={r.color} strokeWidth={3} strokeLinecap="round" style={{ flexShrink: 0 }}>
+                          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+                        </svg>
+                        <Typography className="al" sx={{ fontSize: '0.65rem', fontWeight: 700, color: r.color, lineHeight: 1, whiteSpace: 'nowrap' }}>
+                          {a.label}
+                        </Typography>
+                      </Box>
+                    ))}
+                  </Box>
+                )}
+              </Box>
+            );
+          })}
+        </Box>
+      )}
+
+      {/* ── Right: Clock + Calendar stacked ── */}
+      <Box sx={{ flex: '0 0 auto', width: { xs: '100%', lg: 310 }, display: 'flex', flexDirection: { xs: 'row', lg: 'column' }, overflow: 'hidden' }}>
+        {/* Digital Clock */}
+        <Box sx={{
+          flex: { xs: '0 0 160px', sm: '0 0 180px', lg: 'none' },
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0f2040 100%)',
+          display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+          py: 2.5, px: 2, gap: 1.25, position: 'relative',
+          borderBottom: { lg: `1px solid ${alpha(textOnBg, 0.12)}` },
+          borderRight: { xs: `1px solid ${alpha(accentColor, 0.1)}`, lg: 'none' },
+        }}>
+          <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width={52} height={52} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%) rotate(-90deg)' }}>
+              <circle cx={26} cy={26} r={radius} fill="none" stroke={alpha(textOnBg, 0.15)} strokeWidth={3} />
+              <circle cx={26} cy={26} r={radius} fill="none" stroke={alpha(textOnBg, 0.85)} strokeWidth={3}
+                strokeDasharray={`${dash} ${circ - dash}`} strokeLinecap="round"
+                style={{ transition: 'stroke-dasharray 0.35s ease' }}
+              />
+            </svg>
+            <Typography sx={{ fontSize: '0.76rem', fontWeight: 800, color: textOnBg, fontVariantNumeric: 'tabular-nums', zIndex: 1, lineHeight: 1 }}>{ss}</Typography>
+          </Box>
+          <Box sx={{ textAlign: 'center' }}>
+            <Typography sx={{ fontSize: '2.4rem', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1, color: textOnBg, fontVariantNumeric: 'tabular-nums', userSelect: 'none' }}>
+              {hh}<Box component="span" sx={{ opacity: blink ? 1 : 0.2, transition: 'opacity 0.1s', mx: '1px' }}>:</Box>{mm}
+            </Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 0.6 }}>
+              <Box sx={{ px: 1.1, py: 0.15, borderRadius: 100, bgcolor: alpha(textOnBg, 0.15), border: `1px solid ${alpha(textOnBg, 0.25)}` }}>
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 800, color: textOnBg, letterSpacing: '0.06em' }}>{ampm}</Typography>
+              </Box>
+            </Box>
+          </Box>
+          <Typography sx={{ fontSize: '0.68rem', color: alpha(textOnBg, 0.7), textAlign: 'center', fontWeight: 500 }}>
+            {now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
+          </Typography>
+          {/* Logo + app name — bottom right */}
+          <Box sx={{ position: 'absolute', bottom: 10, right: 12, display: 'flex', alignItems: 'center', gap: 0.6 }}>
+            <TallyKraftLogo size={16} variant="icon" />
+            <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: alpha(textOnBg, 0.5), letterSpacing: '0.04em', lineHeight: 1 }}>TallyKraft</Typography>
+          </Box>
+        </Box>
+
+        {/* Mini Calendar */}
+        <Box sx={{ flex: 1, p: { xs: 1.5, lg: 2 }, display: 'flex', flexDirection: 'column', gap: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box onClick={prevMonth} sx={{ cursor: 'pointer', width: 24, height: 24, borderRadius: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', '&:hover': { bgcolor: alpha(accentColor, 0.1), color: accentColor } }}>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="15 18 9 12 15 6" /></svg>
+            </Box>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: 'text.primary' }}>{MONTHS[cm]} {cy}</Typography>
+              {!isCurrentMonth && (
+                <Box onClick={goToday} sx={{ cursor: 'pointer', px: 0.75, py: 0.1, borderRadius: 100, bgcolor: alpha(accentColor, 0.1), border: `1px solid ${alpha(accentColor, 0.2)}` }}>
+                  <Typography sx={{ fontSize: '0.58rem', fontWeight: 700, color: accentColor }}>Today</Typography>
+                </Box>
+              )}
+            </Box>
+            <Box onClick={nextMonth} sx={{ cursor: 'pointer', width: 24, height: 24, borderRadius: 1.25, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'text.secondary', '&:hover': { bgcolor: alpha(accentColor, 0.1), color: accentColor } }}>
+              <svg width={13} height={13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}><polyline points="9 18 15 12 9 6" /></svg>
+            </Box>
+          </Box>
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+            {DAYS.map(d => <Typography key={d} sx={{ textAlign: 'center', fontSize: '0.58rem', fontWeight: 700, color: 'text.disabled', pb: 0.35, userSelect: 'none' }}>{d}</Typography>)}
+          </Box>
+          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.2 }}>
+            {weeks.map((week, wi) => (
+              <Box key={wi} sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                {week.map((d, di) => (
+                  <Box key={di} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 25, borderRadius: 1.25, bgcolor: isToday(d) ? accentColor : 'transparent', boxShadow: isToday(d) ? `0 2px 6px ${alpha(accentColor, 0.4)}` : 'none' }}>
+                    {d && <Typography sx={{ fontSize: '0.7rem', fontWeight: isToday(d) ? 800 : 400, color: isToday(d) ? '#fff' : (d < today.d && isCurrentMonth ? 'text.disabled' : 'text.primary'), userSelect: 'none', lineHeight: 1 }}>{d}</Typography>}
+                  </Box>
+                ))}
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      </Box>
+    </Box>
+  );
+};
 
 // ─── Card definitions ────────────────────────────────────────────────────────
-const CARD_DEFS = [
-  { key: 'totalSales',     trendKey: 'salesTrend',    titleKey: 'dash.totalSales',     icon: TrendingUp,  color: '#4f46e5', gradient: 'linear-gradient(135deg,#4f46e5 0%,#818cf8 100%)' },
-  { key: 'totalPurchases', trendKey: 'purchaseTrend', titleKey: 'dash.totalPurchases', icon: ShoppingBag, color: '#e11d48', gradient: 'linear-gradient(135deg,#e11d48 0%,#fb7185 100%)' },
-  { key: 'toGet',          trendKey: null,            titleKey: 'dash.receivables',    icon: Download,    color: '#059669', gradient: 'linear-gradient(135deg,#059669 0%,#34d399 100%)' },
-  { key: 'toGive',         trendKey: null,            titleKey: 'dash.payables',       icon: Upload,      color: '#d97706', gradient: 'linear-gradient(135deg,#d97706 0%,#fbbf24 100%)' },
-  { key: 'totalExpenses',  trendKey: null,            titleKey: 'dash.expenses',       icon: DollarSign,  color: '#7c3aed', gradient: 'linear-gradient(135deg,#7c3aed 0%,#a78bfa 100%)' },
-];
-
-// ─── Metric card ─────────────────────────────────────────────────────────────
-// `subline` (optional) renders custom content under the value in place of the
-// trend chip — used by Cash in Hand for its in/out breakdown. `negative` flips
-// the value colour to red (e.g. a negative cash balance).
-const MetricCard = ({ title, value, trend, trendLabel, icon: Icon, color, gradient, subline, negative }) => (
-  <Card elevation={0} sx={{
-    position: 'relative', height: '100%', borderRadius: 3, overflow: 'hidden',
-    border: '1px solid', borderColor: alpha(color, 0.16),
-    background: `linear-gradient(160deg, ${alpha(color, 0.06)} 0%, ${alpha(color, 0.015)} 42%, #fff 100%)`,
-    transition: 'transform 0.22s ease, box-shadow 0.22s ease, border-color 0.22s ease',
-    '&:hover': {
-      boxShadow: `0 14px 38px ${alpha(color, 0.22)}`,
-      transform: 'translateY(-3px)',
-      borderColor: alpha(color, 0.32),
-    },
-  }}>
-    {/* faint corner glow for depth */}
-    <Box aria-hidden sx={{ position: 'absolute', top: -28, right: -28, width: 96, height: 96, borderRadius: '50%', background: alpha(color, 0.14), filter: 'blur(10px)', pointerEvents: 'none' }} />
-    <CardContent sx={{ p: 2.5, position: 'relative', '&:last-child': { pb: 2.25 } }}>
-      <Stack direction="row" justifyContent="space-between" alignItems="flex-start" sx={{ mb: 2.25 }}>
-        <Typography sx={{ fontSize: '0.66rem', fontWeight: 800, color: alpha(color, 0.85), textTransform: 'uppercase', letterSpacing: '0.09em', mt: 0.5, pr: 1 }}>
-          {title}
-        </Typography>
-        <Box sx={{
-          width: 38, height: 38, borderRadius: 2, background: gradient, display: 'flex',
-          alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-          boxShadow: `0 6px 16px ${alpha(color, 0.4)}`,
-        }}>
-          <Icon size={18} color="white" />
-        </Box>
-      </Stack>
-      <Typography sx={{ fontSize: '1.6rem', fontWeight: 900, color: negative ? '#dc2626' : 'text.primary', letterSpacing: '-0.03em', lineHeight: 1 }}>
-        ₹{(value ?? 0).toLocaleString('en-IN')}
-      </Typography>
-      <Box sx={{ mt: 1.5, minHeight: 22 }}>
-        {subline ? subline : (trend !== undefined && (
-          <Stack direction="row" spacing={0.75} alignItems="center">
-            <Box sx={{
-              display: 'inline-flex', alignItems: 'center', gap: 0.25,
-              px: 0.75, py: 0.25, borderRadius: 1,
-              bgcolor: trend >= 0 ? alpha('#16a34a', 0.12) : alpha('#dc2626', 0.12),
-              color: trend >= 0 ? '#16a34a' : '#dc2626',
-            }}>
-              {trend >= 0 ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
-              <Typography sx={{ fontSize: '0.68rem', fontWeight: 800, lineHeight: 1 }}>{Math.abs(trend).toFixed(1)}%</Typography>
-            </Box>
-            <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.7rem' }}>{trendLabel}</Typography>
-          </Stack>
-        ))}
-      </Box>
-    </CardContent>
-    <Box sx={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: 3, background: gradient }} />
-  </Card>
-);
 
 // ─── Chart tooltip ────────────────────────────────────────────────────────────
 const ChartTooltip = ({ active, payload, label }) => {
@@ -174,6 +337,12 @@ const Dashboard = () => {
     openingCash: currentBusiness?.openingCash,
     sales: salesRaw, purchases: purchasesRaw, payments: paymentsRaw, expenses, cashEntries: cashEntriesRaw,
   }), [currentBusiness?.openingCash, salesRaw, purchasesRaw, paymentsRaw, expenses, cashEntriesRaw]);
+
+  // Bank balance = openingBank + digital/bank inflows − digital/bank outflows.
+  const bank = useMemo(() => computeBankBalance({
+    openingBank: currentBusiness?.openingBank,
+    sales: salesRaw, purchases: purchasesRaw, payments: paymentsRaw, expenses, cashEntries: cashEntriesRaw,
+  }), [currentBusiness?.openingBank, salesRaw, purchasesRaw, paymentsRaw, expenses, cashEntriesRaw]);
 
   // ── Stats computation ──────────────────────────────────────────────────────
   const stats = useMemo(() => {
@@ -321,67 +490,34 @@ const Dashboard = () => {
       })()}
 
       {/* ── Hero header ── */}
-      <Box sx={{
-        mb: 3.5, p: { xs: 2.5, sm: 3.5 }, borderRadius: 3,
-        background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0f2040 100%)',
-        position: 'relative', overflow: 'hidden',
-      }}>
-        <Box sx={{ position: 'absolute', top: -50, right: -50, width: 220, height: 220, borderRadius: '50%', bgcolor: alpha('#6366f1', 0.14) }} />
-        <Box sx={{ position: 'absolute', bottom: -70, right: 130, width: 260, height: 260, borderRadius: '50%', bgcolor: alpha('#10b981', 0.06) }} />
-        <Box sx={{ position: 'absolute', top: 15, right: 230, width: 90, height: 90, borderRadius: '50%', bgcolor: alpha('#f43f5e', 0.09) }} />
-
-        <Stack direction={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', sm: 'center' }} gap={2} sx={{ position: 'relative', zIndex: 1 }}>
-          <Stack direction="row" alignItems="center" gap={1.5}>
+      <Box sx={{ mb: 2.5, display: 'flex', flexDirection: 'column', gap: 1.5 }}>
+        {/* Top bar: business name + period + actions */}
+        <Box sx={{
+          p: { xs: 2, sm: 2.5 }, borderRadius: 3,
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 55%, #0f2040 100%)',
+          position: 'relative', overflow: 'hidden',
+          display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' }, justifyContent: 'space-between', gap: 1.5,
+        }}>
+          <Box sx={{ position: 'absolute', top: -40, right: -40, width: 160, height: 160, borderRadius: '50%', bgcolor: alpha('#6366f1', 0.14), pointerEvents: 'none' }} />
+          <Stack direction="row" alignItems="center" gap={1.5} sx={{ position: 'relative', zIndex: 1, minWidth: 0 }}>
             {currentBusiness?.logo && (
-              <Box sx={{
-                width: { xs: 44, sm: 54 },
-                height: { xs: 44, sm: 54 },
-                borderRadius: 2,
-                bgcolor: 'white',
-                flexShrink: 0,
-                overflow: 'hidden',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 2px 16px rgba(0,0,0,0.3)',
-                border: '1.5px solid rgba(255,255,255,0.18)',
-              }}>
-                <img
-                  src={currentBusiness.logo}
-                  alt={currentBusiness.name}
-                  style={{ width: '100%', height: '100%', objectFit: 'contain' }}
-                />
+              <Box sx={{ width: 40, height: 40, borderRadius: 1.75, bgcolor: 'white', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 2px 12px rgba(0,0,0,0.25)', border: '1.5px solid rgba(255,255,255,0.18)' }}>
+                <img src={currentBusiness.logo} alt={currentBusiness.name} style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               </Box>
             )}
-            <Box>
-              <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.1rem', sm: '1.5rem' }, letterSpacing: '-0.025em', color: 'white', lineHeight: 1.2 }}>
-                {currentBusiness?.name || 'Your Business'}
-              </Typography>
-              <Stack direction="row" alignItems="center" spacing={1} sx={{ mt: 0.5, flexWrap: 'wrap' }}>
-                <Typography sx={{ color: 'rgba(255,255,255,0.42)', fontSize: { xs: '0.72rem', sm: '0.8125rem' } }}>
-                  {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                </Typography>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.25, borderRadius: 1.5, bgcolor: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.12)' }}>
-                  <Clock size={12} color="rgba(255,255,255,0.7)" />
-                  <Typography sx={{ color: 'rgba(255,255,255,0.92)', fontSize: { xs: '0.72rem', sm: '0.8125rem' }, fontWeight: 700, fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }}>
-                    {now.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: true })}
-                  </Typography>
-                </Box>
-              </Stack>
-            </Box>
+            <Typography sx={{ fontWeight: 800, fontSize: { xs: '1rem', sm: '1.35rem' }, letterSpacing: '-0.02em', color: 'white', lineHeight: 1.2 }} noWrap>
+              {currentBusiness?.name || 'Your Business'}
+            </Typography>
           </Stack>
-          <Stack direction="row" spacing={1} alignItems="center" justifyContent={{ xs: 'space-between', sm: 'flex-end' }}>
-            {/* Period pills */}
+          <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" gap={1} sx={{ position: 'relative', zIndex: 1, flexShrink: 0 }}>
             <Box sx={{ display: 'flex', bgcolor: 'rgba(255,255,255,0.07)', borderRadius: 2, p: 0.4, gap: 0.25, border: '1px solid rgba(255,255,255,0.1)' }}>
               {['day', 'week', 'month', 'year'].map(p => (
                 <Box key={p} onClick={() => setPeriod(p)} sx={{
-                  px: { xs: 0.875, sm: 1.5 }, py: 0.625, borderRadius: 1.5, cursor: 'pointer', userSelect: 'none',
+                  px: { xs: 0.875, sm: 1.25 }, py: 0.55, borderRadius: 1.5, cursor: 'pointer', userSelect: 'none',
                   bgcolor: period === p ? 'rgba(255,255,255,0.18)' : 'transparent',
                   color: period === p ? 'white' : 'rgba(255,255,255,0.42)',
-                  fontWeight: period === p ? 700 : 500, fontSize: { xs: '0.72rem', sm: '0.78rem' },
-                  transition: 'all 0.15s ease',
-                  minWidth: { xs: 36, sm: 'auto' },
-                  textAlign: 'center',
+                  fontWeight: period === p ? 700 : 500, fontSize: { xs: '0.72rem', sm: '0.76rem' },
+                  transition: 'all 0.15s ease', minWidth: { xs: 34, sm: 'auto' }, textAlign: 'center',
                   '&:hover': { bgcolor: 'rgba(255,255,255,0.12)', color: 'rgba(255,255,255,0.85)' },
                 }}>
                   {isMobile ? p.charAt(0).toUpperCase() : (p.charAt(0).toUpperCase() + p.slice(1))}
@@ -389,40 +525,36 @@ const Dashboard = () => {
               ))}
             </Box>
             {currentBusiness?.qrCode && (
-              <Button
-                variant="outlined"
-                startIcon={<QrCode size={16} />}
-                onClick={() => setQrOpen(true)}
-                sx={{
-                  color: 'white',
-                  borderColor: 'rgba(255,255,255,0.35)',
-                  fontWeight: 700,
-                  borderRadius: 2,
-                  textTransform: 'none',
-                  whiteSpace: 'nowrap',
-                  flexShrink: 0,
-                  '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' },
-                }}
-              >
+              <Button variant="outlined" startIcon={<QrCode size={15} />} onClick={() => setQrOpen(true)}
+                sx={{ color: 'white', borderColor: 'rgba(255,255,255,0.35)', fontWeight: 700, borderRadius: 2, textTransform: 'none', whiteSpace: 'nowrap', flexShrink: 0, '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.1)' } }}>
                 {isMobile ? 'QR' : 'Show QR'}
               </Button>
             )}
             <Tooltip title="Keyboard shortcuts (?)">
-              <Button
-                variant="outlined"
-                startIcon={<Keyboard size={15} />}
-                onClick={() => window.dispatchEvent(new CustomEvent('open-shortcuts'))}
-                sx={{ color: 'rgba(255,255,255,0.8)', borderColor: 'rgba(255,255,255,0.3)', fontWeight: 600, borderRadius: 2, textTransform: 'none', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.08)', color: 'white' }, whiteSpace: 'nowrap', flexShrink: 0, display: { xs: 'none', sm: 'inline-flex' } }}
-              >
+              <Button variant="outlined" startIcon={<Keyboard size={14} />} onClick={() => window.dispatchEvent(new CustomEvent('open-shortcuts'))}
+                sx={{ color: 'rgba(255,255,255,0.8)', borderColor: 'rgba(255,255,255,0.3)', fontWeight: 600, borderRadius: 2, textTransform: 'none', '&:hover': { borderColor: 'white', bgcolor: 'rgba(255,255,255,0.08)', color: 'white' }, whiteSpace: 'nowrap', flexShrink: 0, display: { xs: 'none', sm: 'inline-flex' } }}>
                 Shortcuts
               </Button>
             </Tooltip>
-            <Button variant="contained" startIcon={<Plus size={16} />} onClick={handleMenuOpen}
+            <Button variant="contained" startIcon={<Plus size={15} />} onClick={handleMenuOpen}
               sx={{ bgcolor: 'white', color: '#0f172a', fontWeight: 700, borderRadius: 2, textTransform: 'none', boxShadow: '0 2px 12px rgba(0,0,0,0.3)', '&:hover': { bgcolor: 'rgba(255,255,255,0.92)' }, whiteSpace: 'nowrap', flexShrink: 0 }}>
               {isMobile ? 'New' : 'New Entry'}
             </Button>
           </Stack>
-        </Stack>
+        </Box>
+        {/* Hero widget: clock + calendar + stats */}
+        <ClockCalendarWidget
+          now={now}
+          accentColor="#4f46e5"
+          accentColorHex="#818cf8"
+          bgColor="linear-gradient(135deg, #4f46e5 0%, #6366f1 55%, #818cf8 100%)"
+          textOnBg="#fff"
+          stats={stats}
+          cash={cash}
+          bank={bank}
+          trendLabel={stats.trendLabel}
+          onQuickNew={quickNew}
+        />
       </Box>
 
       <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}
@@ -498,36 +630,6 @@ const Dashboard = () => {
         </DialogContent>
       </Dialog>
 
-      {/* ── Metric cards (CSS grid: 2 → 3 → 6 cols) ── */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)', lg: 'repeat(6, 1fr)' }, gap: { xs: 1.25, sm: 2 }, mb: { xs: 2, sm: 3 } }}>
-        {CARD_DEFS.map(({ key, trendKey, titleKey, ...card }) => (
-          <MetricCard key={key} {...card}
-            title={t(titleKey)}
-            value={stats[key]}
-            trend={trendKey ? stats[trendKey] : undefined}
-            trendLabel={stats.trendLabel}
-          />
-        ))}
-        {/* Cash in Hand — same compact card, with an in/out breakdown subline */}
-        <MetricCard
-          title={t('cash.inHand')}
-          value={cash.balance}
-          negative={cash.balance < 0}
-          icon={Wallet}
-          color="#0891b2"
-          gradient="linear-gradient(135deg,#0891b2 0%,#22d3ee 100%)"
-          subline={(
-            <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap">
-              <Typography sx={{ fontSize: '0.68rem', color: '#16a34a', fontWeight: 700, lineHeight: 1 }}>
-                ↑ ₹{cash.cashIn.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-              </Typography>
-              <Typography sx={{ fontSize: '0.68rem', color: '#dc2626', fontWeight: 700, lineHeight: 1 }}>
-                ↓ ₹{cash.cashOut.toLocaleString('en-IN', { maximumFractionDigits: 0 })}
-              </Typography>
-            </Stack>
-          )}
-        />
-      </Box>
 
       {/* ── This Week chart ── */}
       <Grid container spacing={2} sx={{ mb: 2.5 }}>

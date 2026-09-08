@@ -3,7 +3,7 @@ import { LANGUAGES, DEFAULT_LANG, isRTL } from './languages';
 import { STRINGS } from './strings';
 
 const I18nContext = createContext();
-const STORAGE_KEY = 'appLanguage';
+const STORAGE_KEY = 'tallykraft_appLanguage';
 
 const readStored = () => {
   try {
