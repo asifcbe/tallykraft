@@ -1,36 +1,90 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useData } from './DataContext';
 import { useTabs, pathLabel } from './TabsContext';
-// All page components — rendered inside keep-alive tabs
-import Dashboard from './Dashboard';
-import Parties from './Parties';
-import Items from './Items';
-import Sales from './Sales';
-import POS from './POS';
-import Expenses from './Expenses';
-import Cash from './Cash';
-import Calculator from './Calculator';
-import Opticals from './Opticals';
-import Estimates from './Estimates';
-import CreditNotes from './CreditNotes';
-import DebitNotes from './DebitNotes';
-import DeliveryNotes from './DeliveryNotes';
-import CustomSection from './CustomSection';
-import StaffPage from './StaffPage';
-import PaymentEntry from './PaymentEntry';
-import Reports from './Reports';
-import Backup from './Backup';
-import SettingsPage from './Settings';
-import Admin from './Admin';
-import LedgerPage from './Ledger';
-import MembershipPage from './Membership';
-import Help from './Help';
+
+// After a new build is deployed, a tab still running the OLD index chunk
+// asks for a page chunk whose hashed filename no longer exists on the
+// server — the dynamic import() then rejects with a "Failed to fetch
+// dynamically imported module" / ChunkLoadError. Without handling, React
+// unmounts the whole <Suspense> subtree and the section goes blank until a
+// manual reload (which fetches the fresh index.html + new chunk names).
+//
+// lazyWithRetry:
+//   1. Retries the import once after a short delay (covers a transient
+//      network blip mid-fetch, not just stale deploys).
+//   2. On a genuine chunk-load failure, does a ONE-TIME hard reload (guarded
+//      by a sessionStorage flag so it can't loop) — the reload pulls the
+//      current index.html and the correct chunk names, and the user lands
+//      back where they were.
+const CHUNK_RELOAD_FLAG = 'tk_chunkReloadedAt';
+const isChunkLoadError = (err) => {
+  const msg = String(err?.message || err || '');
+  return (
+    err?.name === 'ChunkLoadError' ||
+    /Loading chunk|dynamically imported module|Importing a module script failed|Failed to fetch/i.test(msg)
+  );
+};
+const lazyWithRetry = (importer) =>
+  lazy(() =>
+    importer().catch(async (err) => {
+      // one quiet retry
+      await new Promise((r) => setTimeout(r, 400));
+      try {
+        return await importer();
+      } catch (err2) {
+        if (isChunkLoadError(err2 || err)) {
+          let last = 0;
+          try { last = Number(sessionStorage.getItem(CHUNK_RELOAD_FLAG)) || 0; } catch { /* ignore */ }
+          // Only auto-reload if we haven't already done so in the last 10s
+          // (prevents a reload loop if the deploy is genuinely broken).
+          if (Date.now() - last > 10000) {
+            try { sessionStorage.setItem(CHUNK_RELOAD_FLAG, String(Date.now())); } catch { /* ignore */ }
+            window.location.reload();
+            // Return a never-resolving module so nothing renders before the
+            // reload takes effect.
+            return new Promise(() => {});
+          }
+        }
+        throw err2 || err;
+      }
+    })
+  );
+
+// All page components — lazy-loaded so each page's JS is only fetched the
+// first time its tab is opened (mountedIds gate), instead of every page
+// being bundled into the single main chunk every user downloads on load.
+const Dashboard = lazyWithRetry(() => import('./Dashboard'));
+const Parties = lazyWithRetry(() => import('./Parties'));
+const Items = lazyWithRetry(() => import('./Items'));
+const Sales = lazyWithRetry(() => import('./Sales'));
+const POS = lazyWithRetry(() => import('./POS'));
+const Expenses = lazyWithRetry(() => import('./Expenses'));
+const Cash = lazyWithRetry(() => import('./Cash'));
+const Calculator = lazyWithRetry(() => import('./Calculator'));
+const Opticals = lazyWithRetry(() => import('./Opticals'));
+const Estimates = lazyWithRetry(() => import('./Estimates'));
+const Orders = lazyWithRetry(() => import('./Orders'));
+const CreditNotes = lazyWithRetry(() => import('./CreditNotes'));
+const DebitNotes = lazyWithRetry(() => import('./DebitNotes'));
+const DeliveryNotes = lazyWithRetry(() => import('./DeliveryNotes'));
+const CustomSection = lazyWithRetry(() => import('./CustomSection'));
+const StaffPage = lazyWithRetry(() => import('./StaffPage'));
+const PaymentEntry = lazyWithRetry(() => import('./PaymentEntry'));
+const Reports = lazyWithRetry(() => import('./Reports'));
+const Backup = lazyWithRetry(() => import('./Backup'));
+const MigrateData = lazyWithRetry(() => import('./MigrateData'));
+const SettingsPage = lazyWithRetry(() => import('./Settings'));
+const Admin = lazyWithRetry(() => import('./Admin'));
+const LedgerPage = lazyWithRetry(() => import('./Ledger'));
+const MembershipPage = lazyWithRetry(() => import('./Membership'));
+const InvestorsPage = lazyWithRetry(() => import('./Investors'));
+const Help = lazyWithRetry(() => import('./Help'));
 import {
   Box, Drawer, AppBar, Toolbar, List, Typography, Divider, IconButton,
-  ListItem, ListItemButton, ListItemIcon, ListItemText, Avatar, Menu, MenuItem,
+  ListItem, ListItemButton, ListItemIcon, ListItemText, ListSubheader, Avatar, Menu, MenuItem,
   Tooltip, useTheme, useMediaQuery, Button, Dialog, DialogTitle, DialogContent,
-  DialogActions, TextField, Alert, alpha, Popover, BottomNavigation, BottomNavigationAction, Paper,
-  CircularProgress, Stack, Chip
+  DialogActions, TextField, Alert, alpha, BottomNavigation, BottomNavigationAction, Paper,
+  CircularProgress, Stack, Chip, Snackbar
 } from '@mui/material';
 import {
   Menu as MenuIcon,
@@ -54,9 +108,8 @@ import {
   BookOpen,
   LogOut,
   DollarSign,
-  ChevronDown,
-  Check,
   ShieldCheck,
+  CloudOff,
   CreditCard,
   Crown,
   Keyboard,
@@ -64,17 +117,30 @@ import {
   Calculator as CalculatorIcon,
   X as TabClose,
   HelpCircle,
+  Maximize2,
+  Minimize2,
+  Copy,
+  Check,
+  RefreshCw,
+  Handshake,
+  ClipboardList,
+  QrCode,
+  AlertTriangle,
 } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useBusiness } from './BusinessContext';
 import { useAuth } from './AuthContext';
+import { useBusinessAuthDoc } from './businessCode';
 import { useConfig } from './ConfigContext';
 import { useSubscription } from './SubscriptionContext';
 import SectionIcon from './SectionIcon';
 import { useDialog } from './DialogContext';
 import BusinessSetupDialog from './BusinessSetupDialog';
 import TallyKraftLogo from './TallyKraftLogo';
+import { BRAND } from './theme';
 import { useI18n } from './i18n/I18nContext';
+import { buildUpiUri } from './upiUtils';
+import UpiQrImage from './UpiQrImage';
 
 const drawerWidth = 240;
 const miniWidth = 64; // collapsed sidebar — icons only
@@ -97,33 +163,148 @@ const STAFF_ROUTE_FEATURES = {
   '/help': null, // always allowed
   '/reports': 'reports',
   '/estimates': 'estimates',
+  '/orders': 'orders',
   '/credit-notes': 'creditNotes',
   '/debit-notes': 'debitNotes',
   '/delivery-notes': 'deliveryNotes',
   '/ledger': 'ledger',
   '/membership': 'membership',
+  '/investors': 'investors',
   '/opticals': 'opticals',
 };
 
-// ── Tab content renderer — maps a path to its page component ────────────────
-const TabPageRenderer = ({ path }) => {
-  const { staffSession } = useAuth();
+// ── No-permission full screen shown when a staff member hits a blocked page ──
+const NoPermissionScreen = ({ firstAllowedPath, firstAllowedLabel, onNavigate }) => {
+  const { logout } = useAuth();
+  return (
+    <Box sx={{
+      position: 'fixed', inset: 0, zIndex: 9999,
+      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+      bgcolor: 'background.default', p: 3, gap: 2,
+    }}>
+      <Box sx={{ p: 2, borderRadius: '50%', bgcolor: 'error.50', display: 'flex', mb: 1 }}>
+        <ShieldCheck size={48} strokeWidth={1.2} color="#dc2626" />
+      </Box>
+      <Typography variant="h5" fontWeight={800} textAlign="center">
+        Access Restricted
+      </Typography>
+      <Typography variant="body2" color="text.secondary" textAlign="center" maxWidth={360}>
+        You don&apos;t have permission to view this section. Please contact your administrator to request access.
+      </Typography>
+      <Box sx={{ mt: 1, p: 2.5, borderRadius: 2, bgcolor: 'action.hover', border: '1px solid', borderColor: 'divider', maxWidth: 360, width: '100%' }}>
+        <Typography variant="body2" fontWeight={700} sx={{ mb: 0.5 }}>Need access?</Typography>
+        <Typography variant="caption" color="text.secondary">
+          Ask your admin to enable this section for your account in Staff Management → Edit Staff → Features.
+        </Typography>
+      </Box>
+      <Box sx={{ display: 'flex', gap: 1.5, mt: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
+        {firstAllowedPath && (
+          <Button variant="contained" startIcon={<LayoutDashboard size={16} />}
+            onClick={() => onNavigate(firstAllowedPath, firstAllowedLabel)}
+            sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, bgcolor: BRAND.teal, '&:hover': { bgcolor: BRAND.tealDark } }}>
+            Go to {firstAllowedLabel}
+          </Button>
+        )}
+        <Button variant="outlined" color="error" startIcon={<LogOut size={16} />} onClick={logout}
+          sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2 }}>
+          Sign Out
+        </Button>
+      </Box>
+    </Box>
+  );
+};
 
-  if (staffSession) {
+// ── Suspense fallback while a lazy-loaded page's JS is being fetched ────────
+const PageLoadingFallback = () => (
+  <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}>
+    <CircularProgress size={28} sx={{ color: BRAND.teal }} />
+  </Box>
+);
+
+// ── Per-tab error boundary ────────────────────────────────────────────────
+// Without this, ANY error thrown while a lazy page loads or renders (a stale
+// chunk after a deploy, a transient render bug, bad data shape) unmounts the
+// whole content area and the section goes blank until a manual reload. This
+// keeps the app shell (sidebar/topbar/tabs) intact and gives the user a
+// one-click recovery. Keyed on the tab's path by the parent so switching
+// sections resets a boundary that had errored.
+class TabErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { error: null };
+  }
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  componentDidCatch(error) {
+    console.error('[TabErrorBoundary] page crashed:', error);
+    // A chunk-load error here means lazyWithRetry's own reload guard already
+    // fired and was rate-limited — surface the manual reload button instead
+    // of looping.
+  }
+  handleReload = () => window.location.reload();
+  handleRetry = () => this.setState({ error: null });
+  render() {
+    if (!this.state.error) return this.props.children;
+    const chunk = isChunkLoadError(this.state.error);
+    return (
+      <Box sx={{
+        display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+        minHeight: '50vh', p: 3, gap: 1.5, textAlign: 'center',
+      }}>
+        <Box sx={{ p: 1.5, borderRadius: '50%', bgcolor: 'error.50', display: 'flex' }}>
+          <AlertTriangle size={36} strokeWidth={1.4} color="#dc2626" />
+        </Box>
+        <Typography variant="h6" fontWeight={800}>
+          {chunk ? 'This section needs a refresh' : "This section couldn't load"}
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ maxWidth: 380 }}>
+          {chunk
+            ? 'The app was updated in the background. Reload to get the latest version — your data is safe.'
+            : 'Something went wrong displaying this page. Your data is safe. Try again, or reload the app.'}
+        </Typography>
+        <Box sx={{ display: 'flex', gap: 1.5, mt: 0.5, flexWrap: 'wrap', justifyContent: 'center' }}>
+          {!chunk && (
+            <Button variant="outlined" onClick={this.handleRetry}
+              sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2 }}>
+              Try again
+            </Button>
+          )}
+          <Button variant="contained" onClick={this.handleReload}
+            sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, bgcolor: BRAND.teal, '&:hover': { bgcolor: BRAND.tealDark } }}>
+            Reload app
+          </Button>
+        </Box>
+      </Box>
+    );
+  }
+}
+
+// ── Tab content renderer — maps a path to its page component ────────────────
+const TabPageRenderer = ({ path, tabId }) => {
+  const { staffSession } = useAuth();
+  const { openTab } = useTabs();
+
+  if (staffSession && staffSession.role !== 'admin') {
     const isCustomSection = path?.startsWith('/section/');
     const featureKey = isCustomSection ? null : STAFF_ROUTE_FEATURES[path];
     const isListed = isCustomSection || Object.prototype.hasOwnProperty.call(STAFF_ROUTE_FEATURES, path);
     // Block if: route is admin-only (not listed) OR required feature not granted
     const blocked = !isListed || (featureKey !== null && !staffSession.features?.[featureKey]);
     if (blocked) {
+      // Find the first route the staff member can access
+      const feats = staffSession.features || {};
+      const allowedEntry = Object.entries(STAFF_ROUTE_FEATURES).find(
+        ([, fKey]) => fKey === null || feats[fKey] === true
+      );
+      const firstPath = allowedEntry ? allowedEntry[0] : '/';
+      const firstLabel = pathLabel(firstPath);
       return (
-        <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: 320, gap: 2, color: 'text.secondary' }}>
-          <ShieldCheck size={48} strokeWidth={1.2} />
-          <Typography variant="h6" fontWeight={700} color="text.primary">Access Restricted</Typography>
-          <Typography variant="body2" textAlign="center" maxWidth={320}>
-            You don&apos;t have permission to view this section. Contact your admin to request access.
-          </Typography>
-        </Box>
+        <NoPermissionScreen
+          firstAllowedPath={firstPath}
+          firstAllowedLabel={firstLabel}
+          onNavigate={(p, label) => openTab(p, label, { duplicate: false })}
+        />
       );
     }
   }
@@ -132,8 +313,8 @@ const TabPageRenderer = ({ path }) => {
   if (path === '/parties') return <Parties />;
   if (path === '/items') return <Items />;
   if (path === '/pos') return <POS />;
-  if (path === '/sales') return <Sales />;
-  if (path === '/purchases') return <Sales mode="purchase" />;
+  if (path === '/sales') return <Sales tabId={tabId} />;
+  if (path === '/purchases') return <Sales mode="purchase" tabId={tabId} />;
   if (path === '/expenses') return <Expenses />;
   if (path === '/cash') return <Cash />;
   if (path === '/calculator') return <Calculator />;
@@ -141,14 +322,17 @@ const TabPageRenderer = ({ path }) => {
   if (path === '/payment-out') return <PaymentEntry mode="payment-out" />;
   if (path === '/opticals') return <Opticals />;
   if (path === '/estimates') return <Estimates />;
+  if (path === '/orders') return <Orders />;
   if (path === '/credit-notes') return <CreditNotes />;
   if (path === '/debit-notes') return <DebitNotes />;
   if (path === '/delivery-notes') return <DeliveryNotes />;
   if (path === '/staff') return <StaffPage />;
   if (path === '/ledger') return <LedgerPage />;
   if (path === '/membership') return <MembershipPage />;
+  if (path === '/investors') return <InvestorsPage />;
   if (path === '/reports') return <Reports />;
   if (path === '/backup') return <Backup />;
+  if (path === '/migrate') return <MigrateData />;
   if (path === '/help') return <Help />;
   if (path === '/settings') return <SettingsPage />;
   if (path === '/admin') return <Admin />;
@@ -157,19 +341,14 @@ const TabPageRenderer = ({ path }) => {
 };
 
 // ── Multi-instance tab sub-strip ─────────────────────────────────────────────
-// Shown below the AppBar only when there are 2+ tabs open for the same path
-// (Sales or Reports). Each chip = one open instance; × closes it.
-const MultiTabStrip = () => {
-  const { tabs, activeTabId, activateTab, closeTab } = useTabs();
-  const theme = useTheme();
-  const primary = theme.palette.primary.main;
-  const salesTabs = tabs.filter(t => t.path === '/sales');
-  const reportTabs = tabs.filter(t => t.path === '/reports');
-  const multiTabs = [
-    ...(salesTabs.length >= 2 ? salesTabs : []),
-    ...(reportTabs.length >= 2 ? reportTabs : []),
-  ];
-  if (multiTabs.length === 0) return null;
+const MultiTabStrip = ({ activeTabPath }) => {
+  const { tabs, activeTabId, activateTab, closeTab, openTab } = useTabs();
+
+  // Only show tabs that belong to the currently active page
+  const stripTabs = tabs.filter(t => t.path === activeTabPath);
+  if (!stripTabs.length || (activeTabPath !== '/sales' && activeTabPath !== '/reports')) return null;
+
+  const newLabel = activeTabPath === '/sales' ? 'New Invoice' : 'New Report';
 
   return (
     <Box sx={{
@@ -182,8 +361,9 @@ const MultiTabStrip = () => {
       '&::-webkit-scrollbar': { display: 'none' },
       scrollbarWidth: 'none',
     }}>
-      {multiTabs.map(tab => {
+      {stripTabs.map((tab, idx) => {
         const isActive = tab.id === activeTabId;
+        const isFirst = idx === 0;
         return (
           <Box
             key={tab.id}
@@ -197,12 +377,12 @@ const MultiTabStrip = () => {
               transition: 'all 0.14s ease',
               border: '1px solid',
               ...(isActive ? {
-                bgcolor: alpha(primary, 0.1),
-                borderColor: alpha(primary, 0.28),
+                bgcolor: alpha(BRAND.teal, 0.1),
+                borderColor: alpha(BRAND.teal, 0.28),
               } : {
                 bgcolor: 'transparent',
                 borderColor: 'divider',
-                '&:hover': { bgcolor: 'action.hover', borderColor: alpha(primary, 0.18) },
+                '&:hover': { bgcolor: 'action.hover', borderColor: alpha(BRAND.teal, 0.18) },
               }),
             }}
           >
@@ -212,120 +392,100 @@ const MultiTabStrip = () => {
             }}>
               {tab.label}
             </Typography>
-            <Box
-              component="span"
-              onClick={e => closeTab(tab.id, e)}
-              sx={{
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                width: 14, height: 14, borderRadius: '3px', flexShrink: 0,
-                color: isActive ? 'primary.main' : 'text.disabled',
-                opacity: isActive ? 0.7 : 0.45,
-                '&:hover': { opacity: 1, bgcolor: alpha(primary, 0.12), color: 'primary.main' },
-              }}
-            >
-              <TabClose size={9} />
-            </Box>
+            {!isFirst && (
+              <Box
+                component="span"
+                onClick={e => closeTab(tab.id, e)}
+                sx={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: 14, height: 14, borderRadius: '3px', flexShrink: 0,
+                  color: isActive ? 'primary.main' : 'text.disabled',
+                  opacity: isActive ? 0.7 : 0.45,
+                  '&:hover': { opacity: 1, bgcolor: alpha(BRAND.teal, 0.12), color: 'primary.main' },
+                }}
+              >
+                <TabClose size={9} />
+              </Box>
+            )}
           </Box>
         );
       })}
+      {/* + button to open a new instance of the current page */}
+      <Tooltip title={newLabel}>
+        <Box
+          onClick={() => openTab(activeTabPath, newLabel, { duplicate: true })}
+          sx={{
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: 28, height: 28, borderRadius: '6px', flexShrink: 0,
+            cursor: 'pointer', border: '1px dashed', borderColor: 'divider',
+            color: 'text.disabled',
+            '&:hover': { borderColor: 'primary.main', color: 'primary.main', bgcolor: alpha(BRAND.teal, 0.06) },
+            transition: 'all 0.14s',
+          }}
+        >
+          <Plus size={13} />
+        </Box>
+      </Tooltip>
     </Box>
   );
 };
 
-const NavSectionLabel = ({ label }) => (
-  <Typography
-    variant="overline"
-    sx={{
-      display: 'block',
-      px: 1.5,
-      pt: 2,
-      pb: 0.5,
-      fontSize: '0.625rem',
-      fontWeight: 700,
-      letterSpacing: '0.08em',
-      color: 'text.disabled',
-      userSelect: 'none',
-    }}
-  >
-    {label}
-  </Typography>
-);
-
-const NavItem = ({ item, isActive, onClick }) => (
-  <ListItem disablePadding sx={{ mb: 0.25 }}>
-    <ListItemButton
-      dense
-      onClick={onClick}
-      selected={isActive}
-      sx={{
-        borderRadius: 1.5,
-        py: 0.75,
-        px: 1.25,
-        position: 'relative',
-        '&.Mui-selected': {
-          bgcolor: 'rgba(79,70,229,0.08)',
-          color: 'primary.main',
-          '&::before': {
-            content: '""',
-            position: 'absolute',
-            left: 0, top: '20%', bottom: '20%',
-            width: 3,
-            borderRadius: '0 2px 2px 0',
-            backgroundColor: 'currentColor',
-          },
-          '&:hover': { bgcolor: 'rgba(79,70,229,0.12)' },
-          '& .MuiListItemIcon-root': { color: 'primary.main' },
-        },
-        '&:not(.Mui-selected)': {
-          color: 'text.secondary',
-          '&:hover': { bgcolor: 'action.hover', color: 'text.primary' },
-        },
-      }}
-    >
-      <ListItemIcon sx={{ minWidth: 34, color: isActive ? 'primary.main' : 'text.disabled' }}>
-        {item.icon}
-      </ListItemIcon>
-      <ListItemText
-        primary={item.text}
-        primaryTypographyProps={{ fontSize: '0.8125rem', fontWeight: isActive ? 600 : 400 }}
-      />
-    </ListItemButton>
-  </ListItem>
-);
-
-// Shows "Saving…" while a write is in flight, then "Saved" for 1.5 s, then disappears.
-// Uses a stable ref-based approach so rapid saving=true/false flips (React batching
-// timing) don't flash the chip multiple times — only one cycle per user action.
+// Shows "Saving…" while a write is in flight, then "Saved" for 1.5 s, then
+// disappears. A failed cloud sync previously only logged to the console —
+// this looked identical to a successful save from the user's side (the
+// "Saving…" chip just cleared either way), so a genuinely failed write
+// (rejected field value, permission error, network blip) left data stuck
+// local-only with no visible indication. The "sync failed" state doesn't
+// auto-hide, unlike "Saved" — it needs the user's attention.
 const AutoSaveChip = React.memo(() => {
-  const { saving } = useData();
-  const [label, setLabel] = React.useState(null); // null = hidden
+  const { saving, syncError, syncWarning } = useData();
+  const [label, setLabel] = React.useState(null);
   const hideTimer = React.useRef(null);
   const savingTimer = React.useRef(null);
+  const lastErrorAtRef = React.useRef(null);
+
+  const lastWarnAtRef = React.useRef(null);
 
   React.useEffect(() => {
     if (saving) {
-      // Show "Saving…" immediately and cancel any pending hide.
       clearTimeout(hideTimer.current);
       clearTimeout(savingTimer.current);
       setLabel('saving');
+    } else if (syncError && syncError.at !== lastErrorAtRef.current) {
+      lastErrorAtRef.current = syncError.at;
+      clearTimeout(hideTimer.current);
+      clearTimeout(savingTimer.current);
+      setLabel('error');
     } else if (label === 'saving') {
-      // Transition to "Saved" only if we were showing "Saving…".
-      // Small delay avoids a one-frame flicker when saving=true→false very fast.
       savingTimer.current = setTimeout(() => {
-        setLabel('saved');
-        hideTimer.current = setTimeout(() => setLabel(null), 1500);
+        // A fresh soft-size advisory takes the post-save slot instead of the
+        // plain "Saved ✓", then auto-hides the same way. Never overrides an
+        // active error.
+        const warnFresh = syncWarning && syncWarning.at !== lastWarnAtRef.current;
+        if (warnFresh) lastWarnAtRef.current = syncWarning.at;
+        setLabel(warnFresh ? 'warn' : 'saved');
+        hideTimer.current = setTimeout(() => setLabel(null), warnFresh ? 4000 : 1500);
       }, 50);
     }
     return () => {
       clearTimeout(hideTimer.current);
       clearTimeout(savingTimer.current);
     };
-  }, [saving]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [saving, syncError, syncWarning]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!label) return null;
 
+  const isError = label === 'error';
+  const isWarn = label === 'warn';
+  const color = label === 'saving' || isWarn ? 'warning' : isError ? 'error' : 'success';
+
   return (
     <Box
+      title={
+        isError ? (syncError?.message || 'Failed to sync to cloud')
+        : isWarn ? (syncWarning?.message || 'This business has a lot of synced data')
+        : undefined
+      }
       sx={{
         display: { xs: 'none', sm: 'flex' },
         alignItems: 'center',
@@ -334,17 +494,22 @@ const AutoSaveChip = React.memo(() => {
         px: 1,
         py: 0.4,
         borderRadius: 100,
-        bgcolor: label === 'saving' ? 'warning.light' : 'success.light',
+        bgcolor: `${color}.light`,
         border: '1px solid',
-        borderColor: label === 'saving' ? 'warning.main' : 'success.main',
+        borderColor: `${color}.main`,
         transition: 'background-color 0.15s, border-color 0.15s',
+        cursor: isError || isWarn ? 'help' : 'default',
       }}
     >
       {label === 'saving'
         ? <CircularProgress size={10} thickness={5} sx={{ color: 'warning.dark' }} />
+        : isError
+        ? <CloudOff size={11} color="#991b1b" />
+        : isWarn
+        ? <AlertTriangle size={11} color="#92400e" />
         : <ShieldCheck size={11} color="#166534" />}
-      <Typography variant="caption" sx={{ fontSize: '0.68rem', fontWeight: 700, color: label === 'saving' ? 'warning.dark' : 'success.dark', lineHeight: 1 }}>
-        {label === 'saving' ? 'Saving…' : 'Saved ✓'}
+      <Typography variant="caption" sx={{ fontSize: '0.68rem', fontWeight: 700, color: `${color}.dark`, lineHeight: 1 }}>
+        {label === 'saving' ? 'Saving…' : isError ? 'Sync failed' : isWarn ? 'Large data' : 'Saved ✓'}
       </Typography>
     </Box>
   );
@@ -355,8 +520,6 @@ const Layout = () => {
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const isXs = useMediaQuery(theme.breakpoints.down('sm'));
   const [open, setOpen] = useState(!isMobile);
-  // On desktop the sidebar never fully hides — when "closed" it shrinks to an
-  // icons-only rail. On mobile it remains a temporary overlay that toggles fully.
   const collapsed = !open && !isMobile;
   const [businessMenuAnchor, setBusinessMenuAnchor] = useState(null);
   const [userMenuAnchor, setUserMenuAnchor] = useState(null);
@@ -367,7 +530,14 @@ const Layout = () => {
   const activeTab = useMemo(() => tabs.find(t => t.id === activeTabId), [tabs, activeTabId]);
   const { mountedIds } = useTabs();
   const { currentBusiness, businesses, switchBusiness } = useBusiness();
-  const { logout, currentUser, isAdmin, staffSession } = useAuth();
+  const { logout, currentUser, isAdmin, staffSession, currentBusiness: authBusiness } = useAuth();
+  // Scoped per the currently-selected LOCAL business (not authBusiness, which
+  // is a single account-wide doc) — used for the business code chip.
+  const ownerUid = currentUser?.uid || authBusiness?.ownerId;
+  const scopedBiz = useBusinessAuthDoc(currentBusiness, ownerUid);
+  const [codeCopied, setCodeCopied] = useState(false);
+  const [paymentQrOpen, setPaymentQrOpen] = useState(false);
+  const [paymentQrAmount, setPaymentQrAmount] = useState('');
   const { config } = useConfig();
   const { t } = useI18n();
   const { getBusinessState, isBusinessActive, daysLeftForBusiness } = useSubscription();
@@ -379,12 +549,26 @@ const Layout = () => {
   const isExpired = bizState === 'expired' || bizState === 'trial_expired';
   const showSubscribePill = isActiveTrial || isExpired;
   const { confirm } = useDialog();
-  const { getItems, backupNow } = useData();
+  const { getItems } = useData();
   const [signOutOpen, setSignOutOpen] = useState(false);
-  const [backingUp, setBackingUp] = useState(false);
   const calculatorEnabled = config.features?.calculator !== false;
   const [calcOpen, setCalcOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  useEffect(() => {
+    const onFsChange = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', onFsChange);
+    return () => document.removeEventListener('fullscreenchange', onFsChange);
+  }, []);
+
+  const toggleFullscreen = () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(() => {});
+    } else {
+      document.exitFullscreen().catch(() => {});
+    }
+  };
   const gModeRef = useRef(false);
   const gModeTimerRef = useRef(null);
   const locationRef = useRef(location);
@@ -413,8 +597,6 @@ const Layout = () => {
 
   useEffect(() => {
     const handleKeyDown = (e) => {
-      // Calculator popup toggle (Alt+C) — works even while typing so it can be
-      // dismissed from anywhere. Gated on the feature being enabled.
       if (e.altKey && (e.code === 'KeyC' || e.key?.toLowerCase() === 'c')) {
         if (config.features?.calculator !== false) {
           e.preventDefault();
@@ -440,12 +622,12 @@ const Layout = () => {
         clearTimeout(gModeTimerRef.current);
         if (e.code === 'KeyN') {
           e.preventDefault();
-          openTab('/sales', 'New Invoice', { duplicate: true });
+          openTab('/sales', 'New Invoice', { duplicate: false });
           return;
         }
         if (e.code === 'KeyB') {
           e.preventDefault();
-          openTab('/purchases', 'New Purchase', { duplicate: true });
+          openTab('/purchases', 'New Purchase', { duplicate: false });
           return;
         }
         const goMap = { KeyH: '/', KeyS: '/sales', KeyP: '/purchases', KeyE: '/expenses', KeyR: '/reports', KeyA: '/parties', KeyI: '/items', KeyJ: '/payment-in' };
@@ -463,13 +645,61 @@ const Layout = () => {
     };
   }, [navigate, config.features?.calculator]);
 
+  // Global hardware barcode/QR scanner — when the active tab is NOT POS/Sales/Purchases,
+  // navigate to POS and relay the scanned code via a 'barcode-scan' CustomEvent so POS
+  // can add the item directly without requiring focus on any input.
+  const openTabRef = useRef(openTab);
+  useEffect(() => { openTabRef.current = openTab; }, [openTab]);
+  const activeTabRef = useRef(activeTab);
+  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => {
+    let buf = [];
+    const onKey = (e) => {
+      const activePath = activeTabRef.current?.path;
+      // POS and Sales/Purchases handle their own scanners — don't intercept there
+      if (activePath === '/pos' || activePath === '/sales' || activePath === '/purchases') return;
+      // Don't intercept while any dialog/modal is open (e.g. ItemFormDialog, PartyFormDialog)
+      if (document.querySelector('.MuiDialog-root')) return;
+
+      if (e.key === 'Enter') {
+        if (buf.length >= 3) {
+          let allFast = true;
+          for (let i = 1; i < buf.length; i++) {
+            if (buf[i].time - buf[i - 1].time >= 50) { allFast = false; break; }
+          }
+          if (allFast) {
+            e.preventDefault();
+            const code = buf.map(b => b.char).join('').trim();
+            buf = [];
+            openTabRef.current('/pos', 'POS', { duplicate: false });
+            setTimeout(() => {
+              window.dispatchEvent(new CustomEvent('barcode-scan', { detail: code }));
+            }, 200);
+            return;
+          }
+        }
+        buf = [];
+        return;
+      }
+
+      if (e.key.length !== 1) return;
+      buf.push({ char: e.key, time: Date.now() });
+      if (buf.length > 1 && buf[buf.length - 1].time - buf[buf.length - 2].time > 500) {
+        buf = [buf[buf.length - 1]];
+      }
+    };
+    document.addEventListener('keydown', onKey, true);
+    return () => document.removeEventListener('keydown', onKey, true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleDrawerToggle = () => setOpen(!open);
 
-  // For staff sessions: only show nav items the staff member has access to
-  const sf = staffSession?.features || null;
+  // For staff sessions: only show nav items the staff member has access to.
+  // Admin logins (role === 'admin') bypass all feature gating — same as Google sign-in admin.
+  const isAdminSession = staffSession?.role === 'admin';
+  const sf = (!staffSession || isAdminSession) ? null : (staffSession.features || {});
   const canStaff = (key) => !sf || !!sf[key];
 
-  // Navigation groups — all existing items preserved
   const navGroups = [
     {
       items: [
@@ -493,6 +723,7 @@ const Layout = () => {
       label: t('nav.documents'),
       items: [
         ...(config.features?.estimates && canStaff('estimates') ? [{ text: t('nav.estimates'), icon: <FileSearch size={18} />, path: '/estimates' }] : []),
+        ...(config.features?.orders && canStaff('orders') ? [{ text: 'Orders', icon: <ClipboardList size={18} />, path: '/orders' }] : []),
         ...(config.features?.creditNotes && canStaff('creditNotes') ? [{ text: t('nav.creditNotes'), icon: <RotateCcw size={18} />, path: '/credit-notes' }] : []),
         ...(config.features?.debitNotes && canStaff('debitNotes') ? [{ text: t('nav.debitNotes'), icon: <CornerUpLeft size={18} />, path: '/debit-notes' }] : []),
         ...(config.features?.deliveryNotes && canStaff('deliveryNotes') ? [{ text: t('nav.deliveryNotes'), icon: <Truck size={18} />, path: '/delivery-notes' }] : []),
@@ -505,6 +736,7 @@ const Layout = () => {
         ...(config.features?.calculator !== false ? [{ text: t('nav.calculator'), icon: <CalculatorIcon size={18} />, path: '/calculator' }] : []),
         ...(config.features?.ledger && canStaff('ledger') ? [{ text: t('nav.ledger'), icon: <BookOpen size={18} />, path: '/ledger' }] : []),
         ...(config.features?.membership && canStaff('membership') ? [{ text: t('nav.membership'), icon: <CreditCard size={18} />, path: '/membership' }] : []),
+        ...(config.features?.investors && canStaff('investors') ? [{ text: 'Investors', icon: <Handshake size={18} />, path: '/investors' }] : []),
         ...(config.features?.opticals && config.businessType === 'opticals' && canStaff('opticals') ? [{ text: t('nav.opticals'), icon: <Eye size={18} />, path: '/opticals' }] : []),
         ...(config.customSections || []).map(section => ({
           text: section.name,
@@ -523,6 +755,7 @@ const Layout = () => {
       label: t('nav.system'),
       items: [
         ...(!sf ? [{ text: t('nav.backup'), icon: <Database size={18} />, path: '/backup' }] : []),
+        ...(!sf ? [{ text: 'Migrate Data', icon: <RefreshCw size={18} />, path: '/migrate' }] : []),
         { text: t('nav.help'), icon: <HelpCircle size={18} />, path: '/help' },
         ...(!sf && config.features?.settings ? [{ text: t('nav.settings'), icon: <Settings size={18} />, path: '/settings' }] : []),
         ...(currentUser && isAdmin ? [{ text: t('nav.admin'), icon: <Settings size={18} />, path: '/admin' }] : []),
@@ -530,26 +763,96 @@ const Layout = () => {
     },
   ];
 
-  const visibleGroups = navGroups.filter(g => g.items.length > 0);
-
-  // Flat list of all items for finding the current page title
   const allItems = navGroups.flatMap(g => g.items);
 
+  // Apply the user's custom sidebar order (Settings → Reorder Sidebar), if
+  // any: items are sorted by their position in config.sidebarOrder, with
+  // unlisted items (new features, custom sections) kept in their original
+  // relative order and appended after the ones the user has placed. Group
+  // headers are preserved but re-derived from this new order — a header is
+  // shown whenever the item's original group differs from the previous
+  // item's, so headers stay meaningful even after cross-group dragging.
+  const flatWithGroup = navGroups.flatMap(g => g.items.map(item => ({ ...item, _group: g.label || null })));
+  const savedOrder = config.sidebarOrder || [];
+  const orderedFlat = savedOrder.length
+    ? [...flatWithGroup].sort((a, b) => {
+        const ai = savedOrder.indexOf(a.path);
+        const bi = savedOrder.indexOf(b.path);
+        if (ai === -1 && bi === -1) return 0;
+        if (ai === -1) return 1;
+        if (bi === -1) return -1;
+        return ai - bi;
+      })
+    : flatWithGroup;
+  const displayGroups = [];
+  orderedFlat.forEach((item) => {
+    const last = displayGroups[displayGroups.length - 1];
+    if (last && last._group === item._group) last.items.push(item);
+    else displayGroups.push({ label: item._group, _group: item._group, items: [item] });
+  });
+
+  // Redirect to first available section when active tab is on a disabled/hidden path
+  useEffect(() => {
+    if (!activeTab) return;
+    const activePath = activeTab.path;
+    // Only redirect for paths that are feature-gated (i.e. in the nav system)
+    // Always-accessible paths (help, settings, admin, calculator) are excluded
+    const alwaysAllowed = ['/settings', '/admin', '/help', '/calculator'];
+    if (alwaysAllowed.includes(activePath) || activePath?.startsWith('/section/')) return;
+    const navPaths = allItems.map(i => i.path);
+    if (!navPaths.includes(activePath)) {
+      // Find first available nav item to redirect to
+      const fallback = allItems.find(i => i.path !== activePath);
+      if (fallback) openTab(fallback.path, fallback.text);
+    }
+  }, [allItems, activeTab?.path]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const currentPageTitle =
+    activeTab?.label ||
     allItems.find(i => i.path === location.pathname)?.text ||
     config.customSections?.find(s => location.pathname === `/section/${s.id}`)?.name ||
     'Accounting';
 
   const isStaff = !!staffSession;
-  const userDisplayName = isStaff ? staffSession.name : (currentUser?.displayName || 'User');
+  const isAdminSessionTop = staffSession?.role === 'admin';
+  // For an admin business-code login, staffSession.name is business.name from
+  // WHICHEVER business the session was originally created against — stamped
+  // once at login and never updated, so it goes stale (still shows the OLD
+  // business's name/initial) the instant the user switches to a different
+  // local business. currentBusiness (live, from useBusiness()) is the
+  // correct source once that's happened — Dashboard already reads from
+  // there, which is why it stayed correct while this dropdown didn't.
+  // Shown as "Admin" here (matching the Sales/POS "Billed By" convention)
+  // since the business name itself is already shown in the caption line
+  // below — a genuine non-admin staff member's own name is a person, not a
+  // business, so it's unaffected by switching businesses either way.
+  const userDisplayName = isAdminSessionTop
+    ? 'Admin'
+    : isStaff ? staffSession.name : (currentUser?.displayName || 'User');
   const userEmail = isStaff ? `@${staffSession.username}` : currentUser?.email;
-  const userInitial = isStaff
-    ? (staffSession.name?.[0] || 'S').toUpperCase()
-    : (currentUser?.displayName?.[0] || currentUser?.email?.[0] || 'U').toUpperCase();
+  const userInitial = isAdminSessionTop
+    ? ((currentBusiness?.name || staffSession.name)?.[0] || 'A').toUpperCase()
+    : isStaff
+      ? (staffSession.name?.[0] || 'S').toUpperCase()
+      : (currentUser?.displayName?.[0] || currentUser?.email?.[0] || 'U').toUpperCase();
+
+  // Scoped to whichever business the switcher is currently prompting for a
+  // password to switch INTO — distinct from currentBusiness (the active one).
+  const targetBiz = useBusinessAuthDoc(passwordDialog.business, ownerUid);
+
+  // Once the target business's own auth doc resolves, auto-switch immediately
+  // if it turns out to have no password set (no prompt needed for that one).
+  useEffect(() => {
+    if (passwordDialog.open && passwordDialog.business && targetBiz && !targetBiz.adminPassword) {
+      switchBusiness(passwordDialog.business._key);
+      setPasswordDialog({ open: false, business: null, password: '', error: '' });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [passwordDialog.open, passwordDialog.business, targetBiz]);
 
   const handlePasswordSubmit = () => {
-    if (passwordDialog.business && passwordDialog.business.password === passwordDialog.password) {
-      switchBusiness(passwordDialog.business.id);
+    if (passwordDialog.business && targetBiz?.adminPassword === passwordDialog.password) {
+      switchBusiness(passwordDialog.business._key);
       setPasswordDialog({ open: false, business: null, password: '', error: '' });
     } else {
       setPasswordDialog({ ...passwordDialog, error: 'Incorrect password' });
@@ -561,7 +864,16 @@ const Layout = () => {
   };
 
   const drawer = (
-    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <Box sx={{
+      height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden',
+      background: BRAND.gradient,
+      color: '#fff',
+      position: 'relative',
+      '&::before': {
+        content: '""', position: 'absolute', inset: 0, pointerEvents: 'none',
+        background: 'radial-gradient(120% 60% at 0% 0%, rgba(255,255,255,0.10), transparent 60%)',
+      },
+    }}>
       {/* Logo */}
       <Box
         sx={{
@@ -571,31 +883,36 @@ const Layout = () => {
           justifyContent: collapsed ? 'center' : 'space-between',
           minHeight: APP_BAR_H,
           flexShrink: 0,
-          borderBottom: '1.5px solid',
-          borderColor: 'divider',
+          borderBottom: '1px solid rgba(255,255,255,0.12)',
+          position: 'relative', zIndex: 1,
         }}
       >
         {collapsed ? (
-          // Mini rail: show the icon-only logo; clicking it expands the sidebar.
           <Tooltip title="Expand sidebar" placement="right">
             <IconButton
               size="small"
               onClick={handleDrawerToggle}
-              sx={{ p: 0.5, borderRadius: 1.5 }}
+              sx={{ p: 0.5, borderRadius: 1.5, bgcolor: '#fff', '&:hover': { bgcolor: 'rgba(255,255,255,0.88)' } }}
             >
-              <TallyKraftLogo size={30} variant="icon" />
+              <TallyKraftLogo size={26} variant="icon" />
             </IconButton>
           </Tooltip>
         ) : (
           <>
-            <Box sx={{ display: 'flex', alignItems: 'center' }}>
-              <TallyKraftLogo size={44} variant="wordmark" />
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Box sx={{ bgcolor: '#fff', borderRadius: 1.5, p: 0.5, display: 'flex', lineHeight: 0 }}>
+                <TallyKraftLogo size={24} variant="icon" />
+              </Box>
+              <Box component="span" sx={{ fontSize: '1.05rem', lineHeight: 1, letterSpacing: '-0.02em', color: '#fff', whiteSpace: 'nowrap', userSelect: 'none' }}>
+                <Box component="span" sx={{ fontWeight: 800 }}>Tally</Box>
+                <Box component="span" sx={{ fontWeight: 300 }}>Kraft</Box>
+              </Box>
             </Box>
             <Tooltip title="Collapse sidebar" placement="right">
               <IconButton
                 size="small"
                 onClick={handleDrawerToggle}
-                sx={{ color: 'text.disabled', '&:hover': { color: 'text.secondary' } }}
+                sx={{ color: 'rgba(255,255,255,0.6)', '&:hover': { color: '#fff', bgcolor: 'rgba(255,255,255,0.1)' } }}
               >
                 <ChevronLeft size={16} />
               </IconButton>
@@ -604,73 +921,63 @@ const Layout = () => {
         )}
       </Box>
 
-      <Divider />
-
       {/* Navigation */}
-      <Box sx={{ flexGrow: 1, overflowY: 'auto', overflowX: 'hidden', px: collapsed ? 0.75 : 1, py: 1 }}>
-        {visibleGroups.map((group, groupIdx) => (
+      <Box sx={{
+        flexGrow: 1, overflowY: 'auto', overflowX: 'hidden', px: collapsed ? 0 : 1, py: 1,
+        position: 'relative', zIndex: 1,
+        '&::-webkit-scrollbar': { width: 5 },
+        '&::-webkit-scrollbar-thumb': { background: 'rgba(255,255,255,0.18)', borderRadius: 3 },
+      }}>
+        {displayGroups.map((group, groupIdx) => (
           <React.Fragment key={groupIdx}>
-            {group.label && !collapsed && <NavSectionLabel label={group.label} />}
-            {group.label && collapsed && groupIdx > 0 && <Divider sx={{ my: 1, mx: 0.5 }} />}
+            {group.label && !collapsed && (
+              <Typography variant="overline" sx={{ display: 'block', px: 1.5, pt: 2, pb: 0.5, fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.08em', color: 'rgba(255,255,255,0.45)', userSelect: 'none' }}>
+                {group.label}
+              </Typography>
+            )}
+            {group.label && collapsed && groupIdx > 0 && <Divider sx={{ my: 1, mx: 0.5, borderColor: 'rgba(255,255,255,0.12)' }} />}
             <List dense disablePadding>
               {group.items.map((item) => {
-                const isDuplicate = item.path === '/sales' || item.path === '/purchases' || item.path === '/reports';
-                const newLabel = item.path === '/sales' ? 'New Invoice' : item.path === '/purchases' ? 'New Purchase' : 'New Report';
+                const isDuplicate = item.path === '/sales' || item.path === '/reports';
+                const newLabel = item.path === '/sales' ? 'New Invoice' : 'New Report';
+                const selected = activeTab?.path === item.path;
                 return (
                   <ListItem key={item.text} disablePadding sx={{ mb: 0.25 }}>
-                    {/* Main nav button */}
                     <Tooltip title={collapsed ? item.text : ''} placement="right" disableHoverListener={!collapsed}>
                       <ListItemButton
                         dense
-                        selected={activeTab?.path === item.path}
+                        selected={selected}
                         onClick={() => {
                           openTab(item.path, item.text, { duplicate: false });
                           if (isMobile) setOpen(false);
                         }}
                         sx={{
-                          borderRadius: 1.5, py: 0.75, px: collapsed ? 0 : 1.25, position: 'relative', flex: 1, minWidth: 0,
+                          borderRadius: 2, py: 1, px: collapsed ? 0 : 1.25, position: 'relative', flex: 1, minWidth: 0,
                           justifyContent: collapsed ? 'center' : 'flex-start',
+                          color: 'rgba(255,255,255,0.78)',
+                          transition: 'background-color 0.15s ease, color 0.15s ease',
                           '&.Mui-selected': {
-                            bgcolor: 'rgba(79,70,229,0.08)', color: 'primary.main',
-                            '&::before': collapsed ? {} : { content: '""', position: 'absolute', left: 0, top: '20%', bottom: '20%', width: 3, borderRadius: '0 2px 2px 0', backgroundColor: 'currentColor' },
-                            '&:hover': { bgcolor: 'rgba(79,70,229,0.12)' },
-                            '& .MuiListItemIcon-root': { color: 'primary.main' },
+                            bgcolor: 'rgba(255,255,255,0.16)', color: '#fff',
+                            boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.12)',
+                            '&::before': collapsed ? {} : { content: '""', position: 'absolute', left: -4, top: '22%', bottom: '22%', width: 3, borderRadius: '0 3px 3px 0', backgroundColor: '#fff' },
+                            '&:hover': { bgcolor: 'rgba(255,255,255,0.22)' },
+                            '& .MuiListItemIcon-root': { color: '#fff' },
                           },
-                          '&:not(.Mui-selected)': { color: 'text.secondary', '&:hover': { bgcolor: 'action.hover', color: 'text.primary' } },
+                          '&:not(.Mui-selected)': { '&:hover': { bgcolor: 'rgba(255,255,255,0.08)', color: '#fff', '& .MuiListItemIcon-root': { color: '#fff' } } },
                         }}
                       >
-                        <ListItemIcon sx={{ minWidth: collapsed ? 0 : 34, justifyContent: 'center', color: activeTab?.path === item.path ? 'primary.main' : 'text.disabled' }}>
+                        <ListItemIcon sx={{ minWidth: collapsed ? 0 : 34, justifyContent: 'center', color: selected ? '#fff' : 'rgba(255,255,255,0.6)' }}>
                           {item.icon}
                         </ListItemIcon>
                         {!collapsed && (
                           <ListItemText
                             primary={item.text}
-                            primaryTypographyProps={{ fontSize: '0.8125rem', fontWeight: activeTab?.path === item.path ? 600 : 400, noWrap: true }}
+                            primaryTypographyProps={{ fontSize: '0.8125rem', fontWeight: selected ? 700 : 400, noWrap: true }}
                           />
                         )}
                       </ListItemButton>
                     </Tooltip>
 
-                    {/* + button — only for Sales and Purchases (hidden when collapsed or on mobile) */}
-                    {isDuplicate && !collapsed && !isMobile && (
-                      <Tooltip title={newLabel} placement="right">
-                        <IconButton
-                          size="small"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            openTab(item.path, newLabel, { duplicate: true });
-                            if (isMobile) setOpen(false);
-                          }}
-                          sx={{
-                            ml: 0.25, mr: 0.25, width: 26, height: 26, flexShrink: 0,
-                            color: 'text.disabled', borderRadius: 1.25,
-                            '&:hover': { color: 'primary.main', bgcolor: 'rgba(79,70,229,0.08)' },
-                          }}
-                        >
-                          <Plus size={14} />
-                        </IconButton>
-                      </Tooltip>
-                    )}
                   </ListItem>
                 );
               })}
@@ -679,46 +986,37 @@ const Layout = () => {
         ))}
       </Box>
 
-      {/* Business Switcher Footer — hidden for staff (they always belong to one business) */}
-      {config.multiBusiness && !isStaff && (
-        <Box sx={{ flexShrink: 0 }}>
-          <Divider />
+      {/* Business Switcher Footer — hidden for non-admin staff sessions only; admin
+          business-code sessions get the same access as Google-auth admins */}
+      {config.multiBusiness && (!isStaff || isAdminSession) && (
+        <Box sx={{ flexShrink: 0, position: 'relative', zIndex: 1 }}>
+          <Divider sx={{ borderColor: 'rgba(255,255,255,0.12)' }} />
           <Box sx={{ p: collapsed ? 0.75 : 1.25 }}>
             <Tooltip title={collapsed ? (currentBusiness?.name || 'Select Business') : ''} placement="right" disableHoverListener={!collapsed}>
               <ListItemButton
                 dense
                 onClick={(e) => setBusinessMenuAnchor(e.currentTarget)}
                 sx={{
-                  borderRadius: 1.5,
-                  border: '1px solid',
-                  borderColor: 'divider',
+                  borderRadius: 2,
+                  border: '1px solid rgba(255,255,255,0.18)',
+                  bgcolor: 'rgba(255,255,255,0.06)',
                   py: 0.875,
                   px: collapsed ? 0 : 1.25,
                   justifyContent: collapsed ? 'center' : 'flex-start',
-                  '&:hover': { bgcolor: 'action.hover' },
+                  '&:hover': { bgcolor: 'rgba(255,255,255,0.12)' },
                 }}
               >
                 <ListItemIcon sx={{ minWidth: collapsed ? 0 : 32, justifyContent: 'center' }}>
-                  <Box
-                    sx={{
-                      width: 24,
-                      height: 24,
-                      borderRadius: 1,
-                      bgcolor: 'primary.main',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                    }}
-                  >
-                    <Store size={13} color="white" />
+                  <Box sx={{ width: 26, height: 26, borderRadius: 1.25, bgcolor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <Store size={14} color={BRAND.tealDark} />
                   </Box>
                 </ListItemIcon>
                 {!collapsed && (
                   <ListItemText
                     primary={currentBusiness?.name || 'Select Business'}
                     secondary="Switch business"
-                    primaryTypographyProps={{ fontSize: '0.75rem', fontWeight: 700, noWrap: true, color: 'text.primary' }}
-                    secondaryTypographyProps={{ fontSize: '0.625rem', color: 'text.disabled' }}
+                    primaryTypographyProps={{ fontSize: '0.75rem', fontWeight: 700, noWrap: true, color: '#fff' }}
+                    secondaryTypographyProps={{ fontSize: '0.625rem', color: 'rgba(255,255,255,0.55)' }}
                   />
                 )}
               </ListItemButton>
@@ -727,44 +1025,55 @@ const Layout = () => {
         </Box>
       )}
 
-      {/* Business Menu */}
-      <Menu
-        anchorEl={businessMenuAnchor}
-        open={Boolean(businessMenuAnchor)}
-        onClose={() => setBusinessMenuAnchor(null)}
-        anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
-        transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
-      >
-        {businesses.map((biz) => (
-          <MenuItem
-            key={biz.id}
-            selected={biz.id === currentBusiness?.id}
-            onClick={() => {
-              if (biz.id === currentBusiness?.id) {
+      {/* Business Menu — Google-auth sessions and admin business-code sessions alike */}
+      {(!isStaff || isAdminSession) && (
+        <Menu
+          anchorEl={businessMenuAnchor}
+          open={Boolean(businessMenuAnchor)}
+          onClose={() => setBusinessMenuAnchor(null)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+          transformOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+        >
+          {businesses.map((biz) => (
+            <MenuItem
+              key={biz._key}
+              selected={biz._key === currentBusiness?._key}
+              onClick={() => {
+                if (biz._key === currentBusiness?._key) {
+                  setBusinessMenuAnchor(null);
+                  return;
+                }
                 setBusinessMenuAnchor(null);
-                return;
-              }
-              if (biz.password) {
+                // "Business Switch Lock" (Settings → Access Control, off by
+                // default) — when off, switching is always free regardless
+                // of whether this business happens to have an admin
+                // password set. When on, fall back to the existing
+                // per-business password dialog (which itself still
+                // auto-switches for any business that has no password set).
+                if (!config.features?.businessSwitchLock) {
+                  switchBusiness(biz._key);
+                  return;
+                }
                 setPasswordDialog({ open: true, business: biz, password: '', error: '' });
-              } else {
-                switchBusiness(biz.id);
-              }
-              setBusinessMenuAnchor(null);
-            }}
-          >
-            {biz.name}
-          </MenuItem>
-        ))}
-        {config.multiBusiness && (
-          <>
-            <Divider sx={{ my: 0.5 }} />
+              }}
+            >
+              {biz.name}
+            </MenuItem>
+          ))}
+          {config.multiBusiness && <Divider sx={{ my: 0.5 }} />}
+          {config.multiBusiness && !isStaff && (
             <MenuItem onClick={() => { openTab('/settings', 'Settings'); setBusinessMenuAnchor(null); }}>
               <ListItemIcon><Plus size={16} /></ListItemIcon>
               Add New Business
             </MenuItem>
-          </>
-        )}
-      </Menu>
+          )}
+          {config.multiBusiness && isAdminSession && (
+            <MenuItem disabled sx={{ opacity: '0.65 !important', whiteSpace: 'normal', fontSize: '0.75rem' }}>
+              Log in with email to add a new business
+            </MenuItem>
+          )}
+        </Menu>
+      )}
     </Box>
   );
 
@@ -773,6 +1082,7 @@ const Layout = () => {
       {/* AppBar */}
       <AppBar
         position="fixed"
+        elevation={0}
         sx={{
           zIndex: (t) => t.zIndex.drawer + 1,
           width: { xs: '100%', md: `calc(100% - ${collapsed ? miniWidth : drawerWidth}px)` },
@@ -784,11 +1094,12 @@ const Layout = () => {
           bgcolor: 'rgba(255,255,255,0.92)',
           backdropFilter: 'blur(8px)',
           color: 'text.primary',
+          borderBottom: '1px solid',
+          borderColor: 'divider',
         }}
       >
         <Toolbar disableGutters sx={{ px: { xs: 1.5, md: 2 }, minHeight: `${APP_BAR_H}px !important` }}>
-          {/* Menu toggle — mobile only (desktop has its own collapse toggle in the
-              sidebar, which now stays visible as an icon rail). */}
+          {/* Mobile menu toggle */}
           {isMobile && !open && (
             <IconButton
               color="inherit"
@@ -814,7 +1125,7 @@ const Layout = () => {
             sx={{
               display: { xs: 'none', sm: 'flex' },
               alignItems: 'center',
-              mr: 1.5,
+              mr: 1,
               px: 1.25,
               py: 0.375,
               borderRadius: 100,
@@ -828,14 +1139,58 @@ const Layout = () => {
             </Typography>
           </Box>
 
-          {/* Auto-save status indicator — hidden on mobile */}
+          {/* Payment QR shortcut — quick "scan & pay" for a walk-in customer
+              without needing to open a Sales/POS tab first. */}
+          {currentBusiness?.upiId && (
+            <Tooltip title="Show Payment QR">
+              <IconButton
+                size="small"
+                onClick={() => { setPaymentQrAmount(''); setPaymentQrOpen(true); }}
+                sx={{ mr: 1, display: { xs: 'none', sm: 'flex' }, color: BRAND.tealDark, bgcolor: alpha(BRAND.teal, 0.08), border: '1px solid', borderColor: alpha(BRAND.teal, 0.2), '&:hover': { bgcolor: alpha(BRAND.teal, 0.14) } }}
+              >
+                <QrCode size={16} />
+              </IconButton>
+            </Tooltip>
+          )}
+
+          {/* Business code chip — click to copy */}
+          {scopedBiz?.businessCode && (
+            <Tooltip title={codeCopied ? 'Copied!' : 'Click to copy business code'}>
+              <Chip
+                size="small"
+                icon={codeCopied ? <Check size={12} /> : <Copy size={12} />}
+                label={scopedBiz.businessCode}
+                onClick={() => {
+                  navigator.clipboard.writeText(scopedBiz.businessCode).catch(() => {});
+                  setCodeCopied(true);
+                  setTimeout(() => setCodeCopied(false), 2000);
+                }}
+                sx={{
+                  mr: 1,
+                  display: { xs: 'none', sm: 'flex' },
+                  height: 24,
+                  fontFamily: 'monospace',
+                  fontWeight: 700,
+                  fontSize: '0.7rem',
+                  letterSpacing: '0.08em',
+                  cursor: 'pointer',
+                  bgcolor: codeCopied ? 'success.light' : alpha(BRAND.teal, 0.1),
+                  color: codeCopied ? 'success.dark' : BRAND.tealDark,
+                  border: '1px solid',
+                  borderColor: codeCopied ? 'success.light' : alpha(BRAND.teal, 0.25),
+                  '& .MuiChip-icon': { color: 'inherit' },
+                  transition: 'all 0.2s ease',
+                }}
+              />
+            </Tooltip>
+          )}
+
+          {/* Auto-save status */}
           <Box sx={{ display: { xs: 'none', sm: 'block' } }}>
             <AutoSaveChip />
           </Box>
 
-
-
-          {/* Install app button — icon only on mobile */}
+          {/* Install app button */}
           {showInstallButton && (
             <Tooltip title={isIOS ? 'Install on iPhone / iPad' : 'Install App'}>
               <IconButton
@@ -868,6 +1223,17 @@ const Layout = () => {
             </Tooltip>
           )}
 
+          {/* Fullscreen button */}
+          <Tooltip title={isFullscreen ? 'Exit fullscreen' : 'Fullscreen'}>
+            <IconButton
+              size="small"
+              onClick={toggleFullscreen}
+              sx={{ mr: 0.75, color: 'text.secondary', border: '1px solid', borderColor: 'divider', borderRadius: 1.5, display: { xs: 'none', sm: 'inline-flex' } }}
+            >
+              {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+            </IconButton>
+          </Tooltip>
+
           {/* Shortcuts button */}
           <Tooltip title="Keyboard shortcuts (?)">
             <IconButton
@@ -886,44 +1252,30 @@ const Layout = () => {
               sx={{
                 mr: 1, display: 'flex', alignItems: 'center', gap: 0.6,
                 px: { xs: 1, sm: 1.25 }, height: 28, borderRadius: '100px',
-                cursor: 'pointer', userSelect: 'none',
-                border: '1px solid',
+                cursor: 'pointer', userSelect: 'none', border: '1px solid',
                 transition: 'all 0.15s ease',
                 ...(isExpired ? {
-                  bgcolor: alpha('#ef4444', 0.08),
-                  borderColor: alpha('#ef4444', 0.3),
-                  color: '#dc2626',
+                  bgcolor: alpha('#ef4444', 0.08), borderColor: alpha('#ef4444', 0.3), color: '#dc2626',
                   '&:hover': { bgcolor: alpha('#ef4444', 0.14), borderColor: alpha('#ef4444', 0.5) },
                 } : {
-                  bgcolor: alpha('#f59e0b', 0.08),
-                  borderColor: alpha('#f59e0b', 0.3),
-                  color: '#b45309',
+                  bgcolor: alpha('#f59e0b', 0.08), borderColor: alpha('#f59e0b', 0.3), color: '#b45309',
                   '&:hover': { bgcolor: alpha('#f59e0b', 0.14), borderColor: alpha('#f59e0b', 0.5) },
                 }),
               }}
             >
-              {/* Pulsing dot */}
               <Box sx={{
                 width: 6, height: 6, borderRadius: '50%', flexShrink: 0,
                 bgcolor: isExpired ? '#ef4444' : '#f59e0b',
                 boxShadow: `0 0 0 0 ${isExpired ? '#ef444466' : '#f59e0b66'}`,
                 animation: 'pulse-ring 1.8s ease-out infinite',
                 '@keyframes pulse-ring': {
-                  '0%':   { boxShadow: `0 0 0 0 ${isExpired ? '#ef444455' : '#f59e0b55'}` },
-                  '70%':  { boxShadow: `0 0 0 5px transparent` },
+                  '0%': { boxShadow: `0 0 0 0 ${isExpired ? '#ef444455' : '#f59e0b55'}` },
+                  '70%': { boxShadow: `0 0 0 5px transparent` },
                   '100%': { boxShadow: `0 0 0 0 transparent` },
                 },
               }} />
-              <Typography sx={{
-                fontWeight: 700, fontSize: '0.72rem', lineHeight: 1,
-                whiteSpace: 'nowrap',
-                display: { xs: 'none', sm: 'block' },
-              }}>
-                {isExpired
-                  ? 'Expired · Renew'
-                  : daysLeft !== null
-                    ? `${daysLeft}d left · Upgrade`
-                    : 'Trial · Upgrade'}
+              <Typography sx={{ fontWeight: 700, fontSize: '0.72rem', lineHeight: 1, whiteSpace: 'nowrap', display: { xs: 'none', sm: 'block' } }}>
+                {isExpired ? 'Expired · Renew' : daysLeft !== null ? `${daysLeft}d left · Upgrade` : 'Trial · Upgrade'}
               </Typography>
               <Crown size={12} style={{ flexShrink: 0 }} />
             </Box>
@@ -939,12 +1291,10 @@ const Layout = () => {
               <Avatar
                 src={!isStaff ? currentUser?.photoURL : undefined}
                 sx={{
-                  width: 30,
-                  height: 30,
-                  fontSize: '0.75rem',
-                  fontWeight: 700,
-                  bgcolor: isStaff ? 'secondary.main' : 'primary.main',
-                  color: '#fff',
+                  width: 30, height: 30, fontSize: '0.75rem', fontWeight: 700,
+                  bgcolor: '#fff',
+                  color: BRAND.tealDark,
+                  border: `1.5px solid ${BRAND.teal}`,
                 }}
               >
                 {userInitial}
@@ -960,7 +1310,7 @@ const Layout = () => {
             transformOrigin={{ vertical: 'top', horizontal: 'right' }}
             PaperProps={{ sx: { minWidth: 220, mt: 0.75 } }}
           >
-            <Box sx={{ px: 2, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+            <ListSubheader disableSticky sx={{ px: 2, py: 1.5, lineHeight: 1.4, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
               <Typography variant="subtitle2" noWrap sx={{ color: 'text.primary' }}>
                 {userDisplayName}
               </Typography>
@@ -969,10 +1319,10 @@ const Layout = () => {
               </Typography>
               {isStaff && (
                 <Typography variant="caption" sx={{ color: 'secondary.main', fontWeight: 700 }}>
-                  Staff · {staffSession.businessName}
+                  {isAdminSessionTop ? 'Admin' : 'Staff'} · {currentBusiness?.name || staffSession.businessName}
                 </Typography>
               )}
-            </Box>
+            </ListSubheader>
             <MenuItem
               onClick={() => { setUserMenuAnchor(null); setSignOutOpen(true); }}
               sx={{ mt: 0.5, color: 'error.main', '& .MuiListItemIcon-root': { color: 'error.main' } }}
@@ -983,9 +1333,8 @@ const Layout = () => {
           </Menu>
         </Toolbar>
 
-        {/* Multi-instance sub-strip — only visible when ≥2 Sales or Reports tabs are open */}
-        {!isMobile && <MultiTabStrip />}
-
+        {/* Multi-instance sub-strip — only visible when active tab is sales or reports */}
+        {!isMobile && <MultiTabStrip activeTabPath={activeTab?.path} />}
       </AppBar>
 
       {/* Sidebar */}
@@ -1007,6 +1356,7 @@ const Layout = () => {
               boxSizing: 'border-box',
               overflowX: 'hidden',
               transition: 'width 0.25s ease',
+              border: 'none',
             },
           }}
         >
@@ -1014,7 +1364,7 @@ const Layout = () => {
         </Drawer>
       </Box>
 
-      {/* Main content — offset for the unified AppBar + optional multi-tab strip */}
+      {/* Main content */}
       <Box
         component="main"
         sx={{
@@ -1022,9 +1372,7 @@ const Layout = () => {
           width: { xs: '100%', md: `calc(100% - ${collapsed ? miniWidth : drawerWidth}px)` },
           mt: (() => {
             if (isMobile) return `${APP_BAR_H}px`;
-            const salesTabs = tabs.filter(t => t.path === '/sales');
-            const reportTabs = tabs.filter(t => t.path === '/reports');
-            const hasStrip = salesTabs.length >= 2 || reportTabs.length >= 2;
+            const hasStrip = (activeTab?.path === '/sales' || activeTab?.path === '/reports') && tabs.some(t => t.path === activeTab?.path);
             return `${APP_BAR_H + (hasStrip ? 38 : 0)}px`;
           })(),
           minWidth: 0,
@@ -1060,24 +1408,26 @@ const Layout = () => {
                 pb: { xs: isXs ? '72px' : 1.5, sm: 2, md: 2.5 },
               }}
             >
-              {mountedIds.has(tab.id) && <TabPageRenderer path={tab.path} />}
+              {mountedIds.has(tab.id) && (
+                <TabErrorBoundary key={tab.id}>
+                  <Suspense fallback={<PageLoadingFallback />}>
+                    <TabPageRenderer path={tab.path} tabId={tab.id} />
+                  </Suspense>
+                </TabErrorBoundary>
+              )}
             </Box>
           ))}
         </Box>
       </Box>
 
-      {/* ── Mobile bottom navigation bar (xs only) ── */}
+      {/* Mobile bottom navigation bar (xs only) */}
       {isXs && (
         <Paper
           elevation={8}
           sx={{
-            position: 'fixed',
-            bottom: 0,
-            left: 0,
-            right: 0,
+            position: 'fixed', bottom: 0, left: 0, right: 0,
             zIndex: theme.zIndex.appBar,
-            borderTop: '1px solid',
-            borderColor: 'divider',
+            borderTop: '1px solid', borderColor: 'divider',
             overflow: 'hidden',
           }}
         >
@@ -1087,67 +1437,30 @@ const Layout = () => {
             sx={{ height: 60, pr: '64px' }}
           >
             {config.features?.dashboard && (
-              <BottomNavigationAction
-                label="Home"
-                value="/"
-                icon={<LayoutDashboard size={22} />}
-                sx={{ minWidth: 0, '& .MuiBottomNavigationAction-label': { fontSize: '0.62rem' } }}
-              />
+              <BottomNavigationAction label="Home" value="/" icon={<LayoutDashboard size={22} />} sx={{ minWidth: 0, '& .MuiBottomNavigationAction-label': { fontSize: '0.62rem' } }} />
             )}
             {config.features?.sales && (
-              <BottomNavigationAction
-                label="Sales"
-                value="/sales"
-                icon={<ReceiptText size={22} />}
-                sx={{ minWidth: 0, '& .MuiBottomNavigationAction-label': { fontSize: '0.62rem' } }}
-              />
+              <BottomNavigationAction label="Sales" value="/sales" icon={<ReceiptText size={22} />} sx={{ minWidth: 0, '& .MuiBottomNavigationAction-label': { fontSize: '0.62rem' } }} />
             )}
             {config.features?.purchases && (
-              <BottomNavigationAction
-                label="Purchases"
-                value="/purchases"
-                icon={<ShoppingBag size={22} />}
-                sx={{ minWidth: 0, '& .MuiBottomNavigationAction-label': { fontSize: '0.62rem' } }}
-              />
+              <BottomNavigationAction label="Purchases" value="/purchases" icon={<ShoppingBag size={22} />} sx={{ minWidth: 0, '& .MuiBottomNavigationAction-label': { fontSize: '0.62rem' } }} />
             )}
             {config.features?.parties && (
-              <BottomNavigationAction
-                label="Parties"
-                value="/parties"
-                icon={<Users size={22} />}
-                sx={{ minWidth: 0, '& .MuiBottomNavigationAction-label': { fontSize: '0.62rem' } }}
-              />
+              <BottomNavigationAction label="Parties" value="/parties" icon={<Users size={22} />} sx={{ minWidth: 0, '& .MuiBottomNavigationAction-label': { fontSize: '0.62rem' } }} />
             )}
             {config.features?.items && (
-              <BottomNavigationAction
-                label="Items"
-                value="/items"
-                icon={<Package size={22} />}
-                sx={{ minWidth: 0, '& .MuiBottomNavigationAction-label': { fontSize: '0.62rem' } }}
-              />
+              <BottomNavigationAction label="Items" value="/items" icon={<Package size={22} />} sx={{ minWidth: 0, '& .MuiBottomNavigationAction-label': { fontSize: '0.62rem' } }} />
             )}
           </BottomNavigation>
 
-          {/* "More" drawer trigger — lives outside BottomNavigation so it never hijacks the route value */}
           <Box
             onClick={() => setOpen(true)}
             sx={{
-              position: 'absolute',
-              right: 0,
-              top: 0,
-              bottom: 0,
-              width: 64,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: 0.25,
-              cursor: 'pointer',
-              color: 'text.secondary',
-              borderLeft: '1px solid',
-              borderColor: 'divider',
-              userSelect: 'none',
-              bgcolor: 'background.paper',
+              position: 'absolute', right: 0, top: 0, bottom: 0, width: 64,
+              display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 0.25,
+              cursor: 'pointer', color: 'text.secondary',
+              borderLeft: '1px solid', borderColor: 'divider',
+              userSelect: 'none', bgcolor: 'background.paper',
               '&:active': { bgcolor: 'action.selected' },
             }}
           >
@@ -1159,41 +1472,81 @@ const Layout = () => {
 
       {/* Business Switch Password Dialog */}
       <Dialog open={passwordDialog.open} onClose={handlePasswordClose} maxWidth="xs" fullWidth>
-        <DialogTitle>
-          Switch to {passwordDialog.business?.name}
-        </DialogTitle>
+        <DialogTitle>Switch to {passwordDialog.business?.name}</DialogTitle>
         <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: 0.5 }}>
-            Enter the password for this business to switch to it.
-          </Typography>
-          <TextField
-            fullWidth
-            label="Password"
-            type="password"
-            value={passwordDialog.password}
-            onChange={(e) => setPasswordDialog({ ...passwordDialog, password: e.target.value, error: '' })}
-            onKeyDown={(e) => { if (e.key === 'Enter') handlePasswordSubmit(); }}
-            error={!!passwordDialog.error}
-            helperText={passwordDialog.error}
-            autoFocus
-          />
+          {targetBiz === null ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+              <CircularProgress size={24} />
+            </Box>
+          ) : (
+            <>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2, mt: 0.5 }}>
+                Enter the password for this business to switch to it.
+              </Typography>
+              <TextField
+                fullWidth label="Password" type="password"
+                value={passwordDialog.password}
+                onChange={(e) => setPasswordDialog({ ...passwordDialog, password: e.target.value, error: '' })}
+                onKeyDown={(e) => { if (e.key === 'Enter') handlePasswordSubmit(); }}
+                error={!!passwordDialog.error}
+                helperText={passwordDialog.error}
+                autoFocus
+              />
+            </>
+          )}
         </DialogContent>
         <DialogActions>
           <Button onClick={handlePasswordClose} variant="outlined">Cancel</Button>
-          <Button onClick={handlePasswordSubmit} variant="contained">
-            Switch Business
-          </Button>
+          <Button onClick={handlePasswordSubmit} variant="contained" disabled={targetBiz === null}>Switch Business</Button>
         </DialogActions>
       </Dialog>
 
-      {/* ── Calculator Popup ── */}
+      {/* Payment QR shortcut — an amount is optional; leaving it blank
+          generates an "any amount" QR the customer can fill in themselves. */}
+      <Dialog open={paymentQrOpen} onClose={() => setPaymentQrOpen(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 800, fontSize: '1rem' }}>Scan & Pay</DialogTitle>
+        <DialogContent sx={{ textAlign: 'center', pb: 3 }}>
+          <TextField
+            fullWidth
+            size="small"
+            type="number"
+            label="Amount (optional)"
+            placeholder="Leave blank for any amount"
+            value={paymentQrAmount}
+            onChange={(e) => setPaymentQrAmount(e.target.value)}
+            onFocus={(e) => e.target.select()}
+            autoFocus
+            slotProps={{ input: { startAdornment: <Typography variant="body2" sx={{ color: 'text.secondary', fontWeight: 600, mr: 0.5 }}>₹</Typography>, min: 0, step: 0.01 } }}
+            sx={{ mb: 2 }}
+          />
+          <Box sx={{ display: 'inline-flex', p: 1.5, bgcolor: '#fff', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+            <UpiQrImage
+              value={buildUpiUri({
+                upiId: currentBusiness?.upiId,
+                payeeName: currentBusiness?.name,
+                amount: Number(paymentQrAmount) || undefined,
+              })}
+              size={220}
+            />
+          </Box>
+          <Typography sx={{ fontWeight: 800, fontSize: '1.4rem', color: BRAND.tealDark, mt: 1.5 }}>
+            {Number(paymentQrAmount) > 0 ? `₹${Number(paymentQrAmount).toFixed(2)}` : 'Any amount'}
+          </Typography>
+          <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 0.5 }}>
+            Scan with any UPI app to pay
+          </Typography>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setPaymentQrOpen(false)} sx={{ textTransform: 'none' }}>Close</Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Calculator Popup */}
       {calculatorEnabled && (
         <Dialog
           open={calcOpen}
           onClose={() => setCalcOpen(false)}
-          maxWidth="xs"
-          fullWidth
-          fullScreen={isXs}
+          maxWidth="xs" fullWidth fullScreen={isXs}
           PaperProps={{ sx: { borderRadius: { xs: 0, sm: 3 } } }}
         >
           <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 2, pt: 1.5, pb: 0.5 }}>
@@ -1210,12 +1563,14 @@ const Layout = () => {
             </Tooltip>
           </Box>
           <DialogContent sx={{ pt: 1 }}>
-            <Calculator embedded />
+            <Suspense fallback={<PageLoadingFallback />}>
+              <Calculator embedded />
+            </Suspense>
           </DialogContent>
         </Dialog>
       )}
 
-      {/* ── Keyboard Shortcuts Dialog ── */}
+      {/* Keyboard Shortcuts Dialog */}
       <Dialog open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} maxWidth="sm" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 800, pb: 1 }}>
           <Box sx={{ p: 0.875, borderRadius: 1.5, bgcolor: alpha(theme.palette.primary.main, 0.1), display: 'flex' }}>
@@ -1227,7 +1582,7 @@ const Layout = () => {
           {[
             {
               title: 'Navigation — press G then a letter',
-              color: '#4f46e5',
+              color: BRAND.tealDark,
               seq: true,
               items: [
                 { keys: ['G', 'H'], label: 'Dashboard (Home)' },
@@ -1245,7 +1600,7 @@ const Layout = () => {
               color: '#059669',
               items: [
                 { keys: ['G', 'N'], label: 'New sales invoice (in list view)', seq: true },
-              { keys: ['G', 'B'], label: 'New purchase bill (in list view)', seq: true },
+                { keys: ['G', 'B'], label: 'New purchase bill (in list view)', seq: true },
                 { keys: ['Ctrl', 'S'], label: 'Save', macKeys: ['⌘', 'S'] },
                 { keys: ['Ctrl', '↵'], label: 'Save & create new', macKeys: ['⌘', '↵'] },
                 { keys: ['Esc'], label: 'Cancel / Back to list' },
@@ -1328,54 +1683,26 @@ const Layout = () => {
         </DialogActions>
       </Dialog>
 
-      {/* Sign-out confirmation with backup notice */}
-      <Dialog open={signOutOpen} onClose={() => !backingUp && setSignOutOpen(false)} maxWidth="xs" fullWidth>
+      {/* Sign-out confirmation */}
+      <Dialog open={signOutOpen} onClose={() => setSignOutOpen(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, fontWeight: 700 }}>
           <ShieldCheck size={22} color="#16a34a" />
           Sign Out
         </DialogTitle>
         <DialogContent>
-          <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.5 }}>
-            <Typography variant="body2">
-              Are you sure you want to sign out?
-            </Typography>
-            <Alert
-              severity="success"
-              icon={<ShieldCheck size={18} />}
-              sx={{ borderRadius: 2 }}
-            >
-              <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.25 }}>
-                Your data will be backed up automatically
-              </Typography>
-              <Typography variant="caption" color="text.secondary">
-                All your business data is saved on this device before signing out, so nothing is lost.
-              </Typography>
-            </Alert>
-          </Box>
+          <Typography variant="body2">Are you sure you want to sign out?</Typography>
         </DialogContent>
         <DialogActions sx={{ px: 2.5, pb: 2, gap: 1 }}>
-          <Button
-            onClick={() => setSignOutOpen(false)}
-            disabled={backingUp}
-            sx={{ textTransform: 'none' }}
-          >
+          <Button onClick={() => setSignOutOpen(false)} sx={{ textTransform: 'none' }}>
             Cancel
           </Button>
           <Button
-            variant="contained"
-            color="error"
-            disabled={backingUp}
-            startIcon={backingUp ? <CircularProgress size={16} color="inherit" /> : <LogOut size={16} />}
-            onClick={async () => {
-              setBackingUp(true);
-              await backupNow?.();
-              setBackingUp(false);
-              setSignOutOpen(false);
-              logout();
-            }}
-            sx={{ textTransform: 'none', fontWeight: 700, minWidth: 150 }}
+            variant="contained" color="error"
+            startIcon={<LogOut size={16} />}
+            onClick={() => { setSignOutOpen(false); logout(); }}
+            sx={{ textTransform: 'none', fontWeight: 700 }}
           >
-            {backingUp ? 'Backing up…' : 'Back Up & Sign Out'}
+            Sign Out
           </Button>
         </DialogActions>
       </Dialog>
