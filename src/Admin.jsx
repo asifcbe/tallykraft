@@ -3,7 +3,8 @@ import {
   Box, Typography, Card, CardContent, TextField, Button, Grid,
   Switch, FormControlLabel, Chip, IconButton, Tooltip, Divider, Alert,
   Tabs, Tab, Stack, Paper, MenuItem, alpha, Dialog, DialogTitle,
-  DialogContent, DialogActions, InputAdornment, LinearProgress
+  DialogContent, DialogActions, InputAdornment, LinearProgress,
+  Table, TableHead, TableBody, TableRow, TableCell
 } from '@mui/material';
 import {
   Plus, Save, Trash2, ShieldCheck, ChevronUp, ChevronDown, X,
@@ -350,6 +351,8 @@ const Admin = () => {
 
   // Subscription search
   const [subSearch, setSubSearch] = useState('');
+  // Which "business N" rows in the Subscriptions tab have their payment history expanded.
+  const [expandedPayHistory, setExpandedPayHistory] = useState({}); // `${email}:${bId}` -> bool
 
   // ── Firestore listeners ────────────────────────────────────────────────────
   useEffect(() => {
@@ -1435,8 +1438,10 @@ const Admin = () => {
               { label: 'On Trial',        value: stats.trial,        color: '#f59e0b', icon: TrendingUp },
               { label: 'Expired',         value: stats.expired,      color: '#ef4444', icon: XCircle },
               { label: 'Admin Granted',   value: stats.adminGranted, color: '#8b5cf6', icon: Award },
+              { label: 'Total Collected', value: inr(analytics.lifetimeRevenue), color: '#0891b2', icon: IndianRupee },
+              { label: 'Paying Customers',value: analytics.payingCustomers, color: '#4f46e5', icon: Users },
             ].map(s => (
-              <Grid item xs={6} sm={3} key={s.label}>
+              <Grid item xs={6} sm={4} md={2} key={s.label}>
                 <Card elevation={0} sx={{ border: '1px solid', borderColor: alpha(s.color, 0.2), borderRadius: 2, bgcolor: alpha(s.color, 0.04) }}>
                   <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                     <Stack direction="row" alignItems="center" justifyContent="space-between">
@@ -1508,42 +1513,95 @@ const Admin = () => {
                               const meta = PLAN_META[biz.plan] || { label: biz.plan, color: '#666' };
                               const active = isSubActive(biz);
                               const dl = biz.endDate ? daysLeft(biz.endDate) : null;
+                              const pays = Array.isArray(biz.payments) ? biz.payments : [];
+                              const bizName = biz.lastBilling?.businessName || biz.businessName || `Business ${bId}`;
+                              const paidTotal = pays.reduce(
+                                (s, p) => s + (Number(p.total) || PLAN_PRICE[p.plan] || 0), 0);
+                              const key = `${email}:${bId}`;
+                              const open = !!expandedPayHistory[key];
                               return (
                                 <Box key={bId} sx={{
-                                  display: 'flex', alignItems: 'center', gap: 1.5, p: 1, borderRadius: 1.5,
+                                  p: 1, borderRadius: 1.5,
                                   border: '1px solid', borderColor: active ? alpha(meta.color, 0.25) : alpha('#ef4444', 0.2),
                                   bgcolor: active ? alpha(meta.color, 0.04) : alpha('#ef4444', 0.03),
                                 }}>
-                                  <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: active ? meta.color : '#ef4444', flexShrink: 0 }} />
-                                  <Box sx={{ flex: 1 }}>
-                                    <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                                      Business {bId} · <span style={{ color: meta.color }}>{meta.label}</span>
-                                    </Typography>
-                                    {biz.endDate && (
-                                      <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.65rem' }}>
-                                        {active ? 'Expires' : 'Expired'} {new Date(biz.endDate).toLocaleDateString('en-IN')}
-                                        {dl !== null && active ? ` · ${dl} day${dl !== 1 ? 's' : ''} left` : ''}
-                                        {biz.grantedBy ? ` · Granted by ${biz.grantedBy}` : ''}
+                                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                                    <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: active ? meta.color : '#ef4444', flexShrink: 0 }} />
+                                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                                      <Typography variant="caption" sx={{ fontWeight: 700 }}>
+                                        {bizName} <span style={{ color: 'rgba(0,0,0,0.4)', fontWeight: 500 }}>· #{bId}</span> · <span style={{ color: meta.color }}>{meta.label}</span>
                                       </Typography>
-                                    )}
+                                      {biz.endDate && (
+                                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', fontSize: '0.65rem' }}>
+                                          {active ? 'Expires' : 'Expired'} {new Date(biz.endDate).toLocaleDateString('en-IN')}
+                                          {dl !== null && active ? ` · ${dl} day${dl !== 1 ? 's' : ''} left` : ''}
+                                          {biz.grantedBy ? ` · Granted by ${biz.grantedBy}` : ''}
+                                        </Typography>
+                                      )}
+                                    </Box>
+                                    <Stack direction="row" spacing={0.5} alignItems="center">
+                                      {pays.length > 0 && (
+                                        <Chip
+                                          label={`${pays.length} pay${pays.length !== 1 ? 's' : ''} · ${inr(paidTotal)}`}
+                                          size="small" onClick={() => setExpandedPayHistory(m => ({ ...m, [key]: !m[key] }))}
+                                          sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700, cursor: 'pointer',
+                                            bgcolor: alpha('#059669', 0.1), color: '#059669' }}
+                                        />
+                                      )}
+                                      <Chip
+                                        label={active ? 'Active' : 'Expired'} size="small"
+                                        sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700,
+                                          bgcolor: active ? alpha(meta.color, 0.12) : alpha('#ef4444', 0.1),
+                                          color: active ? meta.color : '#ef4444' }}
+                                      />
+                                      {active && (
+                                        <Tooltip title="Revoke this subscription">
+                                          <IconButton size="small" color="error"
+                                            onClick={() => handleRevokeBizSub(email, bId)}
+                                            sx={{ p: 0.4 }}>
+                                            <XCircle size={14} />
+                                          </IconButton>
+                                        </Tooltip>
+                                      )}
+                                    </Stack>
                                   </Box>
-                                  <Stack direction="row" spacing={0.5} alignItems="center">
-                                    <Chip
-                                      label={active ? 'Active' : 'Expired'} size="small"
-                                      sx={{ height: 18, fontSize: '0.6rem', fontWeight: 700,
-                                        bgcolor: active ? alpha(meta.color, 0.12) : alpha('#ef4444', 0.1),
-                                        color: active ? meta.color : '#ef4444' }}
-                                    />
-                                    {active && (
-                                      <Tooltip title="Revoke this subscription">
-                                        <IconButton size="small" color="error"
-                                          onClick={() => handleRevokeBizSub(email, bId)}
-                                          sx={{ p: 0.4 }}>
-                                          <XCircle size={14} />
-                                        </IconButton>
-                                      </Tooltip>
-                                    )}
-                                  </Stack>
+
+                                  {/* Payment history (Razorpay receipts) */}
+                                  {open && pays.length > 0 && (
+                                    <Box sx={{ mt: 1, overflowX: 'auto' }}>
+                                      <Table size="small" sx={{ '& td, & th': { fontSize: '0.65rem', py: 0.4, px: 0.75, whiteSpace: 'nowrap' } }}>
+                                        <TableHead>
+                                          <TableRow>
+                                            <TableCell>Invoice #</TableCell>
+                                            <TableCell>Date</TableCell>
+                                            <TableCell>Plan</TableCell>
+                                            <TableCell align="right">Taxable</TableCell>
+                                            <TableCell align="right">GST</TableCell>
+                                            <TableCell align="right">Total</TableCell>
+                                            <TableCell>Razorpay ID</TableCell>
+                                          </TableRow>
+                                        </TableHead>
+                                        <TableBody>
+                                          {pays.slice().reverse().map((p, i) => {
+                                            const total = Number(p.total) || PLAN_PRICE[p.plan] || 0;
+                                            const gst = Number(p.taxAmount) || (Number(p.cgst) || 0) + (Number(p.sgst) || 0) + (Number(p.igst) || 0);
+                                            const taxable = Number(p.taxable) || (total - gst) || total;
+                                            return (
+                                              <TableRow key={p.invoiceNo || p.paymentId || i}>
+                                                <TableCell sx={{ fontWeight: 700 }}>{p.invoiceNo || '—'}</TableCell>
+                                                <TableCell>{p.date ? new Date(p.date).toLocaleDateString('en-IN') : '—'}</TableCell>
+                                                <TableCell>{PLAN_META[p.plan]?.label || p.plan}</TableCell>
+                                                <TableCell align="right">{inr(taxable)}</TableCell>
+                                                <TableCell align="right">{gst ? inr(gst) : '—'}</TableCell>
+                                                <TableCell align="right" sx={{ fontWeight: 700 }}>{inr(total)}</TableCell>
+                                                <TableCell sx={{ fontFamily: 'monospace', color: 'text.secondary' }}>{p.paymentId || '—'}</TableCell>
+                                              </TableRow>
+                                            );
+                                          })}
+                                        </TableBody>
+                                      </Table>
+                                    </Box>
+                                  )}
                                 </Box>
                               );
                             })}
