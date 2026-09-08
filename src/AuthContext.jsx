@@ -8,6 +8,20 @@ import { isAlwaysAdmin } from './alwaysAdmin';
 
 const AuthContext = createContext();
 
+// Given a Firestore `businesses/{id}` doc id, derive the LOCAL business key used
+// by DataContext/BusinessContext (allBusinessData). Business "1" uses the legacy
+// deterministic id `biz_${uid}`; every other local business uses
+// `biz_${uid}_${localId}` (see businessCode.js resolveBizDocId + DataContext
+// addBusiness). Used to scope a staff/admin business-code session to the right
+// local business.
+const deriveLocalBusinessId = (bizDocId, ownerUid) => {
+  if (!bizDocId || !ownerUid) return null;
+  const prefix = `biz_${ownerUid}_`;
+  if (bizDocId === `biz_${ownerUid}`) return '1';
+  if (bizDocId.startsWith(prefix)) return bizDocId.slice(prefix.length);
+  return null;
+};
+
 const generateBusinessCode = () => {
   // Avoid ambiguous chars (O/0, I/1/l)
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -175,9 +189,24 @@ export const AuthProvider = ({ children }) => {
             setStaffSession(staff);
             setIsAuthenticated(true);
             setIsAuthorized(true);
-            setIsAdmin(false);
+            // An admin-via-business-code session must restore isAdmin so the
+            // full nav/feature set is available after a reload, same as a
+            // fresh loginAsAdmin.
+            setIsAdmin(staff.role === 'admin');
             setCurrentUser(null);
-            setCurrentBusiness({ id: staff.businessId, name: staff.businessName });
+            // Re-fetch the full businesses doc so businessCode / adminPassword /
+            // ownerEmail are present post-reload (a partial stub loses them and
+            // the "business not linked" prompt can wrongly reappear).
+            try {
+              const bizSnap = await getDoc(doc(firestore, 'businesses', staff.businessId));
+              if (bizSnap.exists()) {
+                setCurrentBusiness({ id: bizSnap.id, ...bizSnap.data() });
+              } else {
+                setCurrentBusiness({ id: staff.businessId, name: staff.businessName });
+              }
+            } catch {
+              setCurrentBusiness({ id: staff.businessId, name: staff.businessName });
+            }
           } catch (_) {
             sessionStorage.removeItem('staffSession');
             resetGuestState();
@@ -239,6 +268,8 @@ export const AuthProvider = ({ children }) => {
         businessId: business.id,
         businessName: business.name,
         ownerUid: business.ownerId,
+        ownerEmail: business.ownerEmail || null,
+        localBusinessId: deriveLocalBusinessId(business.id, business.ownerId),
         role: 'admin',
       };
       sessionStorage.setItem('staffSession', JSON.stringify(session));
@@ -315,6 +346,8 @@ export const AuthProvider = ({ children }) => {
         businessId: business.id,
         businessName: business.name,
         ownerUid: business.ownerId,
+        ownerEmail: business.ownerEmail || null,
+        localBusinessId: deriveLocalBusinessId(business.id, business.ownerId),
         role: 'staff',
       };
 
