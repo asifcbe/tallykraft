@@ -1,10 +1,11 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Button, Box, Typography, Alert, CircularProgress, Chip
+  Button, Box, Typography, Alert, CircularProgress, Chip,
+  TextField, InputAdornment, IconButton,
 } from '@mui/material';
 import { Html5Qrcode, Html5QrcodeSupportedFormats, Html5QrcodeScannerState } from 'html5-qrcode';
-import { ScanLine, CheckCircle2, X } from 'lucide-react';
+import { ScanLine, CheckCircle2, X, QrCode, CornerDownLeft } from 'lucide-react';
 
 const SCANNER_GAP_MS  = 50;   // max ms between hardware-scanner keystrokes
 const MIN_BARCODE_LEN = 4;    // minimum chars to treat as a barcode
@@ -56,6 +57,7 @@ const BarcodeScanner = ({ open, onScan, onClose, continuous = true }) => {
   const [scanCount, setScanCount]   = useState(0);
   const [lastItem, setLastItem]     = useState('');   // feedback text
   const [showFeedback, setShowFeedback] = useState(false);
+  const [manualInput, setManualInput]   = useState('');
   const feedbackTimer = useRef(null);
 
   const showScanFeedback = (barcode) => {
@@ -173,7 +175,7 @@ const BarcodeScanner = ({ open, onScan, onClose, continuous = true }) => {
       return scanner
         .start(
           { facingMode: 'environment' }, // prefer the rear camera on phones
-          { fps: 10, qrbox: { width: 250, height: 150 }, aspectRatio: 1.7778 },
+          { fps: 10, qrbox: { width: 220, height: 220 }, aspectRatio: 1.7778 },
           onDecode,
           () => { /* per-frame "not found" — ignore */ }
         )
@@ -231,12 +233,19 @@ const BarcodeScanner = ({ open, onScan, onClose, continuous = true }) => {
     onClose();
   };
 
+  const handleManualSubmit = () => {
+    const val = manualInput.trim();
+    if (val.length < 1) return;
+    handleScan(val);
+    setManualInput('');
+  };
+
   return (
     <Dialog open={open} onClose={handleClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontWeight: 700, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <ScanLine size={20} />
-          Scan Barcodes
+          Scan Barcode / QR Code
         </Box>
         {scanCount > 0 && (
           <Chip
@@ -273,12 +282,26 @@ const BarcodeScanner = ({ open, onScan, onClose, continuous = true }) => {
 
             <Box id={REGION_ID} sx={{ width: '100%', '& video': { width: '100%', display: 'block' } }} />
 
-            {/* Scan-line crosshair */}
-            <Box sx={{
-              position: 'absolute', top: '50%', left: '8%', right: '8%',
-              height: 2, bgcolor: 'error.main', transform: 'translateY(-50%)',
-              boxShadow: '0 0 12px rgba(255,50,50,0.9)', zIndex: 3,
-            }} />
+            {/* Corner-bracket viewfinder — works for both barcodes and QR */}
+            {['tl','tr','bl','br'].map(corner => {
+              const isTop = corner.startsWith('t');
+              const isLeft = corner.endsWith('l');
+              return (
+                <Box key={corner} sx={{
+                  position: 'absolute',
+                  top: isTop ? '22%' : undefined,
+                  bottom: !isTop ? '22%' : undefined,
+                  left: isLeft ? '20%' : undefined,
+                  right: !isLeft ? '20%' : undefined,
+                  width: 24, height: 24, zIndex: 3,
+                  borderTop: isTop ? '3px solid #ef4444' : 'none',
+                  borderBottom: !isTop ? '3px solid #ef4444' : 'none',
+                  borderLeft: isLeft ? '3px solid #ef4444' : 'none',
+                  borderRight: !isLeft ? '3px solid #ef4444' : 'none',
+                  borderRadius: isTop && isLeft ? '4px 0 0 0' : isTop ? '0 4px 0 0' : isLeft ? '0 0 0 4px' : '0 0 4px 0',
+                }} />
+              );
+            })}
 
             {/* Success overlay after each scan */}
             {showFeedback && (
@@ -297,8 +320,37 @@ const BarcodeScanner = ({ open, onScan, onClose, continuous = true }) => {
 
         <Typography variant="caption" color="text.secondary"
           sx={{ display: 'block', mt: 1.5, textAlign: 'center' }}>
-          Point camera at barcode — camera stays open for multiple scans
+          Point camera at a barcode or QR code — camera stays open for multiple scans
         </Typography>
+
+        {/* Manual entry fallback */}
+        <Box sx={{ mt: 1.5, display: 'flex', gap: 1 }}>
+          <TextField
+            size="small"
+            fullWidth
+            placeholder="Type barcode / QR value manually and press Enter"
+            value={manualInput}
+            onChange={e => setManualInput(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleManualSubmit(); } }}
+            slotProps={{
+              input: {
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <QrCode size={14} style={{ color: 'rgba(0,0,0,0.38)' }} />
+                  </InputAdornment>
+                ),
+                endAdornment: manualInput.trim() ? (
+                  <InputAdornment position="end">
+                    <IconButton size="small" onClick={handleManualSubmit} edge="end">
+                      <CornerDownLeft size={14} />
+                    </IconButton>
+                  </InputAdornment>
+                ) : null,
+              },
+            }}
+            sx={{ '& .MuiOutlinedInput-root': { borderRadius: 1.5, fontSize: '0.82rem' } }}
+          />
+        </Box>
 
         <Box sx={{
           mt: 1.5, p: 1.5, borderRadius: 1.5,
@@ -320,7 +372,7 @@ const BarcodeScanner = ({ open, onScan, onClose, continuous = true }) => {
 
       <DialogActions sx={{ px: 2, pb: 2, gap: 1 }}>
         <Typography variant="caption" color="text.secondary" sx={{ flex: 1 }}>
-          {scanCount === 0 ? 'Scan items, then press Done' : `${scanCount} item${scanCount > 1 ? 's' : ''} added — scan more or press Done`}
+          {scanCount === 0 ? 'Scan barcode or QR, then press Done' : `${scanCount} item${scanCount > 1 ? 's' : ''} scanned — scan more or press Done`}
         </Typography>
         <Button
           variant="contained"

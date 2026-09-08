@@ -18,6 +18,8 @@ import PrivacyPolicy from './PrivacyPolicy';
 import { DialogProvider } from './DialogContext';
 import { useData } from './DataContext';
 import { TabsProvider } from './TabsContext';
+import { NetworkProvider } from './NetworkContext';
+import NetworkStatusBanner from './NetworkStatusBanner';
 
 const BeforeUnloadGuard = () => {
   const { backupNow } = useData();
@@ -140,6 +142,7 @@ const AppContent = () => {
 function App() {
   return (
     <I18nProvider>
+    <NetworkProvider>
     <AuthProvider>
       <BillingProvider>
       <SubscriptionProvider>
@@ -152,6 +155,7 @@ function App() {
                   <BrowserRouter>
                     <TabsProvider>
                       <BeforeUnloadGuard />
+                      <NetworkStatusBanner />
                       <AppContent />
                     </TabsProvider>
                   </BrowserRouter>
@@ -163,6 +167,7 @@ function App() {
       </SubscriptionProvider>
       </BillingProvider>
     </AuthProvider>
+    </NetworkProvider>
     </I18nProvider>
   );
 }

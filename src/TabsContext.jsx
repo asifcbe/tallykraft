@@ -7,7 +7,7 @@ const SINGLETON_PATHS = new Set([
   '/', '/parties', '/items', '/expenses', '/payment-in', '/payment-out',
   '/reports', '/backup', '/settings', '/staff', '/ledger', '/membership',
   '/estimates', '/credit-notes', '/debit-notes', '/delivery-notes', '/journal',
-  '/opticals', '/admin',
+  '/opticals', '/admin', '/investors',
 ]);
 
 // Human-readable label for a path
@@ -17,7 +17,7 @@ export const pathLabel = (path) => {
     '/sales': 'New Invoice', '/purchases': 'New Purchase',
     '/expenses': 'Expenses', '/payment-in': 'Payment In', '/payment-out': 'Payment Out',
     '/reports': 'Reports', '/backup': 'Backup', '/settings': 'Settings',
-    '/staff': 'Staff', '/ledger': 'Ledger', '/membership': 'Membership',
+    '/staff': 'Staff', '/ledger': 'Ledger', '/membership': 'Membership', '/investors': 'Investors',
     '/estimates': 'Estimates', '/credit-notes': 'Credit Notes',
     '/debit-notes': 'Debit Notes', '/delivery-notes': 'Delivery Notes',
     '/journal': 'Journal', '/opticals': 'Opticals', '/admin': 'Admin',
@@ -31,6 +31,26 @@ export const pathLabel = (path) => {
 let _idSeq = 0;
 const makeTabId = () => `tab_${++_idSeq}`;
 
+// Tabs are kept alive (display:none, never unmounted) while inactive — but
+// MUI Dialog/Modal render via a Portal straight onto document.body, so a
+// dialog left open on the tab you're navigating AWAY from is completely
+// unaffected by that display:none and stays mounted, interactive, and
+// on-screen (its Backdrop especially) on top of whatever tab becomes active
+// next — the app then looks fully frozen/unclickable until a hard reload.
+// Dispatching Escape lets every dialog close itself the normal way (each
+// page's own onClose handler runs, respecting any "don't close while
+// saving" guards) instead of force-removing DOM nodes and risking a state/
+// DOM mismatch. Deferred one tick so it runs after the tab-switch state
+// update, in case the newly-active tab's own effects open a fresh dialog of
+// their own on mount (which should NOT be immediately closed by this).
+const closeStrayDialogs = () => {
+  setTimeout(() => {
+    if (document.querySelector('.MuiModal-root, .MuiDialog-root, .MuiPopover-root')) {
+      document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+    }
+  }, 0);
+};
+
 const buildInitialTab = () => {
   const path = window.location.pathname || '/';
   return { id: makeTabId(), path, label: pathLabel(path), closeable: path !== '/' };
@@ -42,12 +62,21 @@ export const TabsProvider = ({ children }) => {
   const [activeTabId, setActiveTabId] = useState(initial.id);
   // Track which tabs have been mounted at least once (lazy-mount)
   const [mountedIds, setMountedIds] = useState(() => new Set([initial.id]));
+  // Ref mirrors so callbacks can read current values without stale closures
+  const tabsRef = useRef([initial]);
+  const activeTabIdRef = useRef(initial.id);
+
+  // Keep refs in sync on every render so callbacks always see current values
+  tabsRef.current = tabs;
+  activeTabIdRef.current = activeTabId;
 
   const _activateById = useCallback((tabId, newTabs) => {
     setActiveTabId(tabId);
+    activeTabIdRef.current = tabId;
     setMountedIds(ids => new Set([...ids, tabId]));
     const tab = (newTabs || []).find(t => t.id === tabId);
     if (tab) window.history.replaceState(null, '', tab.path);
+    closeStrayDialogs();
   }, []);
 
   /**
@@ -84,6 +113,7 @@ export const TabsProvider = ({ children }) => {
       setActiveTabId(t.id);
       window.history.replaceState(null, '', path);
     }
+    closeStrayDialogs();
   }, []);
 
   const activateTab = useCallback((tabId) => {
@@ -94,23 +124,30 @@ export const TabsProvider = ({ children }) => {
     });
     setActiveTabId(tabId);
     setMountedIds(ids => new Set([...ids, tabId]));
+    closeStrayDialogs();
   }, []);
 
   const closeTab = useCallback((tabId, e) => {
     e?.stopPropagation();
-    setTabs(prev => {
-      if (prev.length <= 1) return prev; // keep at least one tab
-      const idx = prev.findIndex(t => t.id === tabId);
-      const filtered = prev.filter(t => t.id !== tabId);
-      setActiveTabId(current => {
-        if (current !== tabId) return current;
-        const next = filtered[Math.max(0, idx - 1)] || filtered[0];
-        if (next) window.history.replaceState(null, '', next.path);
-        return next?.id ?? filtered[0]?.id;
-      });
-      setMountedIds(ids => { const n = new Set(ids); n.delete(tabId); return n; });
-      return filtered;
-    });
+    const currentTabs = tabsRef.current;
+    const currentActiveId = activeTabIdRef.current;
+    if (currentTabs.length <= 1) return; // keep at least one tab
+    const idx = currentTabs.findIndex(t => t.id === tabId);
+    if (idx < 0) return;
+    const filtered = currentTabs.filter(t => t.id !== tabId);
+    setTabs(filtered);
+    setMountedIds(ids => { const n = new Set(ids); n.delete(tabId); return n; });
+    // Only change the active tab if we're closing the currently active one
+    if (currentActiveId === tabId) {
+      const next = filtered[Math.max(0, idx - 1)] || filtered[0];
+      if (next) {
+        setActiveTabId(next.id);
+        activeTabIdRef.current = next.id;
+        setMountedIds(ids => new Set([...ids, next.id]));
+        window.history.replaceState(null, '', next.path);
+      }
+    }
+    closeStrayDialogs();
   }, []);
 
   /** Update label / metadata of an existing tab */

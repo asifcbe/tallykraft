@@ -1,8 +1,12 @@
-import * as XLSX from 'xlsx';
+// xlsx (~140KB gzipped) is dynamically imported inside each export function
+// below instead of statically at module load, so pages that import from this
+// file (Items, Parties, Sales, Settings, etc.) don't ship it unless the user
+// actually triggers an export.
 
 // ── Excel export ──────────────────────────────────────────────────────────────
 
-export const exportToExcel = (rows, columns, filename) => {
+export const exportToExcel = async (rows, columns, filename) => {
+  const XLSX = await import('xlsx');
   const data = rows.map(row => {
     const out = {};
     columns.forEach(col => {
@@ -27,51 +31,79 @@ export const ITEM_COLUMNS = [
   { header: 'Description', value: r => r.description || '' },
   { header: 'Unit', value: r => r.unit || 'NOS' },
   { header: 'Sale Price', value: r => r.salePrice || 0 },
+  { header: 'MRP', value: r => r.mrp || 0 },
   { header: 'Purchase Price', value: r => r.purchasePrice || 0 },
   { header: 'Tax Rate', value: r => r.taxRate || 0 },
   { header: 'HSN Code', value: r => r.hsnCode || '' },
   { header: 'Stock', value: r => r.stock || 0 },
   { header: 'Min Stock', value: r => r.minStock || 0 },
-  { header: 'Default Supplier', value: r => r.defaultPartyName || '' },
   { header: 'Barcode', value: r => r.barcode || '' },
 ];
 
 export const PARTY_COLUMNS = [
   { header: 'Name', value: r => r.name },
   { header: 'Type', value: r => r.type },
+  { header: 'Country Code', value: r => r.countryCode || '+91' },
   { header: 'Phone', value: r => r.phone || '' },
+  { header: 'Category', value: r => r.category || '' },
   { header: 'Email', value: r => r.email || '' },
   { header: 'GST Number', value: r => r.gstNumber || '' },
   { header: 'Address', value: r => r.address || '' },
-  { header: 'Balance', value: r => r.balance || 0 },
+  { header: 'State', value: r => r.state || '' },
+  { header: 'Additional Address', value: r => r.additionalAddress || '' },
+  { header: 'Description', value: r => r.description || '' },
+  { header: 'Opening Balance', value: r => r.openingBalance ?? r.balance ?? 0 },
+  { header: 'Bank Name', value: r => r.bankName || '' },
+  { header: 'Account Holder', value: r => r.accountHolderName || '' },
+  { header: 'Account Number', value: r => r.accountNumber || '' },
+  { header: 'IFSC Code', value: r => r.ifscCode || '' },
 ];
 
-export const SALE_COLUMNS = [
-  { header: 'Invoice No', value: r => r.invoiceNumber || String(r.id || '').slice(0, 8) },
-  { header: 'Date', value: r => r.date || '' },
-  { header: 'Party', value: r => r.partyName || '' },
-  { header: 'Items', value: r => (r.items || []).map(i => `${i.name} x${i.qty || 1} @ ₹${i.price || 0}${Number(i.discountPercent || i.discPct) > 0 ? ` (-${i.discountPercent || i.discPct}%)` : ''}${Number(i.taxRate) > 0 ? ` +${i.taxRate}% GST` : ''}`).join('; ') },
-  { header: 'Subtotal (before tax/disc)', value: r => r.subtotal || 0 },
-  { header: 'Discount Amount', value: r => r.discountAmount || 0 },
-  { header: 'Discount %', value: r => r.discountPercent || 0 },
-  { header: 'Tax Amount', value: r => r.taxAmount || 0 },
-  { header: 'Total', value: r => r.totalAmount || r.total || r.grandTotal || 0 },
-  { header: 'Payment Mode', value: r => r.paymentMode || '' },
-  { header: 'Status', value: r => r.status || '' },
-];
+// Sales export — one row per line item, matching the import format so export→import is round-trippable
+export const SALE_COLUMNS = null; // expanded per-item below — use exportSalesToExcel instead
 
-export const PURCHASE_COLUMNS = [
-  { header: 'Bill No', value: r => r.billNumber || String(r.id || '').slice(0, 8) },
-  { header: 'Date', value: r => r.date || '' },
-  { header: 'Vendor', value: r => r.partyName || r.vendorName || '' },
-  { header: 'Items', value: r => (r.items || []).map(i => `${i.name} x${i.qty || 1} @ ₹${i.price || 0}${Number(i.discountPercent || i.discPct) > 0 ? ` (-${i.discountPercent || i.discPct}%)` : ''}${Number(i.taxRate) > 0 ? ` +${i.taxRate}% GST` : ''}`).join('; ') },
-  { header: 'Subtotal (before tax/disc)', value: r => r.subtotal || 0 },
-  { header: 'Discount Amount', value: r => r.discountAmount || 0 },
-  { header: 'Discount %', value: r => r.discountPercent || 0 },
-  { header: 'Tax Amount', value: r => r.taxAmount || 0 },
-  { header: 'Total', value: r => r.totalAmount || r.total || r.grandTotal || 0 },
-  { header: 'Payment Mode', value: r => r.paymentMode || '' },
-];
+export const PURCHASE_COLUMNS = null; // expanded per-item below — use exportPurchasesToExcel instead
+
+// Expand a list of sale/purchase transactions into one row per line item
+const expandTransactionRows = (transactions, partyLabel, invoiceLabel) =>
+  transactions.flatMap((r) => {
+    const invNo = r.invoiceNumber || r.billNumber || String(r.id || '').slice(0, 8);
+    const partyName = r.partyName || r.vendorName || '';
+    const date = r.date || '';
+    const payMode = r.paymentMode || '';
+    const status = r.status || '';
+    const items = r.items && r.items.length > 0 ? r.items : [{ name: '', qty: 1, price: 0, discountPercent: 0, taxRate: 0 }];
+    return items.map((it) => ({
+      [partyLabel]: partyName,
+      'Date': date,
+      [invoiceLabel]: invNo,
+      'Item Name': it.name || '',
+      'Qty': it.qty || 1,
+      'Rate': it.price || 0,
+      'Disc%': it.discountPercent || it.discPct || 0,
+      'GST%': it.taxRate || 0,
+      'Payment Mode': payMode,
+      'Status': status,
+    }));
+  });
+
+export const exportSalesToExcel = async (transactions, filename = 'sales_export.xlsx') => {
+  const XLSX = await import('xlsx');
+  const data = expandTransactionRows(transactions, 'Customer Name', 'Invoice#');
+  const ws = XLSX.utils.json_to_sheet(data, { header: ['Customer Name', 'Date', 'Invoice#', 'Item Name', 'Qty', 'Rate', 'Disc%', 'GST%', 'Payment Mode', 'Status'] });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+  XLSX.writeFile(wb, filename);
+};
+
+export const exportPurchasesToExcel = async (transactions, filename = 'purchases_export.xlsx') => {
+  const XLSX = await import('xlsx');
+  const data = expandTransactionRows(transactions, 'Vendor Name', 'Bill#');
+  const ws = XLSX.utils.json_to_sheet(data, { header: ['Vendor Name', 'Date', 'Bill#', 'Item Name', 'Qty', 'Rate', 'Disc%', 'GST%', 'Payment Mode', 'Status'] });
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Purchases');
+  XLSX.writeFile(wb, filename);
+};
 
 export const EXPENSE_COLUMNS = [
   { header: 'Date', value: r => r.date || '' },
@@ -235,7 +267,7 @@ export const exportToTallyXML = ({ sales = [], purchases = [], businessName = 'M
 const safeSheetName = (name) =>
   String(name || 'Sheet').replace(/[:\\/?*[\]]/g, '').slice(0, 31);
 
-const rowsToSheet = (rows, columns) => {
+const rowsToSheet = (XLSX, rows, columns) => {
   const data = rows.map(row => {
     const out = {};
     columns.forEach(col => { out[col.header] = col.value(row); });
@@ -258,7 +290,8 @@ const dynamicColumns = (rows) => {
   }}));
 };
 
-export const exportFullBusinessToExcel = ({ businessName, businessId, allData, customSections = [] }) => {
+export const exportFullBusinessToExcel = async ({ businessName, businessId, allData, customSections = [] }) => {
+  const XLSX = await import('xlsx');
   const wb = XLSX.utils.book_new();
   const used = new Set();
 
@@ -267,17 +300,33 @@ export const exportFullBusinessToExcel = ({ businessName, businessId, allData, c
     const name = safeSheetName(sheetName);
     const unique = used.has(name) ? `${name.slice(0, 28)}_${used.size}` : name;
     used.add(unique);
-    XLSX.utils.book_append_sheet(wb, rowsToSheet(rows, columns), unique);
+    XLSX.utils.book_append_sheet(wb, rowsToSheet(XLSX, rows, columns), unique);
   };
 
   const biz = (table) => (allData[table] || []).filter(r => r.businessId === businessId);
 
   // Known tables with curated columns
-  addSheet(biz('items'),     ITEM_COLUMNS,     'Items');
-  addSheet(biz('parties'),   PARTY_COLUMNS,    'Parties');
-  addSheet(biz('sales'),     SALE_COLUMNS,     'Sales');
-  addSheet(biz('purchases'), PURCHASE_COLUMNS, 'Purchases');
-  addSheet(biz('expenses'),  EXPENSE_COLUMNS,  'Expenses');
+  addSheet(biz('items'),    ITEM_COLUMNS,   'Items');
+  addSheet(biz('parties'),  PARTY_COLUMNS,  'Parties');
+  addSheet(biz('expenses'), EXPENSE_COLUMNS, 'Expenses');
+
+  // Sales — expanded one row per line item
+  const salesRows = biz('sales');
+  if (salesRows.length) {
+    const data = expandTransactionRows(salesRows, 'Customer Name', 'Invoice#');
+    const ws = XLSX.utils.json_to_sheet(data, { header: ['Customer Name', 'Date', 'Invoice#', 'Item Name', 'Qty', 'Rate', 'Disc%', 'GST%', 'Payment Mode', 'Status'] });
+    XLSX.utils.book_append_sheet(wb, ws, 'Sales');
+    used.add('Sales');
+  }
+
+  // Purchases — expanded one row per line item
+  const purchaseRows = biz('purchases');
+  if (purchaseRows.length) {
+    const data = expandTransactionRows(purchaseRows, 'Vendor Name', 'Bill#');
+    const ws = XLSX.utils.json_to_sheet(data, { header: ['Vendor Name', 'Date', 'Bill#', 'Item Name', 'Qty', 'Rate', 'Disc%', 'GST%', 'Payment Mode', 'Status'] });
+    XLSX.utils.book_append_sheet(wb, ws, 'Purchases');
+    used.add('Purchases');
+  }
 
   // Custom sections — one sheet per section
   const customRecords = biz('customSectionRecords');
