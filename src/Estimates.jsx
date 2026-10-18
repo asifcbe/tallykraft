@@ -5,9 +5,10 @@ import {
   IconButton, MenuItem, InputAdornment, Snackbar, Alert, useTheme, alpha,
   Backdrop, CircularProgress,
 } from '@mui/material';
-import { Plus, Trash2, FileText, ScanLine } from 'lucide-react';
+import { Plus, Trash2, FileText, ScanLine, ArrowLeft } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
 import { useTabs } from './TabsContext';
+import { reservedSerials, getDraft, reserve as reserveDraft, release as releaseDraft, subscribe as subscribeDrafts, formatInvoiceNumber, parseSerial } from './draftInvoiceNumbers';
 import { dispatchQuickNew, acknowledgeQuickNew } from './quickNewBridge';
 
 import { useConfig } from './ConfigContext';
@@ -15,14 +16,16 @@ import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
 import { useDialog } from './DialogContext';
 import { useReactToPrint } from 'react-to-print';
-import InvoiceTemplate, { PAPER_SIZES, getPaperWidthMm, getJsPdfFormat } from './InvoiceTemplate';
+import InvoiceTemplate, { PAPER_SIZES } from './InvoiceTemplate';
 import PartySelect from './PartySelect';
 import ItemSelect from './ItemSelect';
 import ItemFormDialog from './ItemFormDialog';
+import PartyFormDialog from './PartyFormDialog';
 import BarcodeScanner from './BarcodeScanner';
 import SendDialog from './SendDialog';
 import TxListView from './TxListView';
 import { waitForQrReady } from './qrReady';
+import { captureElement, canvasToPdf } from './pdfCapture';
 
 const PAPER_SIZE_VALUES = PAPER_SIZES.map(p => p.value);
 
@@ -153,18 +156,27 @@ const buildEstimateMessage = ({ tx, businessName }) => {
   if (Number(tx.taxAmount) > 0) lines.push(`Tax (GST): ₹${Number(tx.taxAmount).toFixed(2)}`);
   lines.push(`*Total: ₹${(Number(tx.totalAmount) || 0).toFixed(2)}*`);
   if (tx.description?.trim()) lines.push(`\n📝 Notes: ${tx.description.trim()}`);
-  lines.push('\n_Sent via TallyKraft_');
+  lines.push('\n_Sent via BillDheko_');
   return lines.filter(l => l !== null).join('\n');
 };
 
 const BLANK_ROW = { itemId: '', name: '', qty: '', price: '', unit: '', taxRate: 0, discountPercent: '', taxInclusive: false, total: 0 };
 
-const Estimates = () => {
+const Estimates = ({ tabId }) => {
   const theme = useTheme();
   const tokens = useMemo(() => getThemeTokens(theme), [theme]);
   const { currentBusiness } = useBusiness();
   const { t } = useI18n();
-  const { openTab } = useTabs();
+  const { openTab, activeTabId, updateTab } = useTabs();
+  // Estimates can be open in several tabs at once (like Sales). Each instance
+  // is kept alive in the background, so global listeners below only act for
+  // the tab that's actually on screen.
+  const isActiveTabRef = useRef(true);
+  isActiveTabRef.current = !tabId || activeTabId === tabId;
+  // Owner id for this tab's reserved draft estimate number.
+  const draftOwnerIdRef = useRef(null);
+  if (!draftOwnerIdRef.current) draftOwnerIdRef.current = `${tabId || 'estimates'}_${Math.random().toString(36).slice(2, 9)}`;
+  const draftOwnerId = draftOwnerIdRef.current;
 
   const { data, addItem, updateItem, deleteItem, getItems } = useData();
   const { confirm, showAlert } = useDialog();
@@ -178,6 +190,10 @@ const Estimates = () => {
   const [items, setItems] = useState([{ ...BLANK_ROW, qty: 1 }]);
   const [description, setDescription] = useState('');
   const [noGST, setNoGST] = useState(false);
+  // Terms & Conditions for the printed/previewed estimate. Set once in
+  // Settings → Invoice (`estimateTermsText`); falls back to the Sales terms
+  // (`termsText`) when the estimate-specific one is left blank. NOT per-estimate.
+  const estimateTerms = config.billPrintOptions?.estimateTermsText || config.billPrintOptions?.termsText || '';
   const [printingTx, setPrintingTx] = useState(null);
   const [paperSize, setPaperSize] = useState(() => {
     const d = config.billPrintOptions?._paperSize || config.defaultPaperSize;
@@ -199,6 +215,7 @@ const Estimates = () => {
   const barcodeInputRef = useRef(null);
   const [itemDialog, setItemDialog] = useState({ open: false, name: '' });
   const itemDialogCallbackRef = useRef(null);
+  const [quickAddParty, setQuickAddParty] = useState({ open: false, name: '', phone: '' });
 
   // ── Share/print/download state ───────────────────────────────────────────
   const [sendOpen, setSendOpen] = useState(false);
@@ -220,6 +237,7 @@ const Estimates = () => {
   useEffect(() => {
     const onQuickNew = (e) => {
       if (e.detail?.path !== '/estimates' || e.detail?.intent !== 'viewEstimate' || !e.detail?.estimateId) return;
+      if (!isActiveTabRef.current) return;
       setOpenEstimateId(e.detail.estimateId);
       acknowledgeQuickNew(e.detail);
     };
@@ -267,8 +285,44 @@ const Estimates = () => {
       const serial = parseInt(parts[parts.length - 1], 10);
       if (!isNaN(serial) && serial > maxSerial) maxSerial = serial;
     });
-    return `${prefix}-${String(maxSerial + 1).padStart(4, '0')}`;
+    // Skip numbers another open Estimates tab is showing as its draft, and
+    // reserve this tab's own so the next tab picks a different one.
+    const scope = draftScope();
+    reservedSerials(scope, prefix, draftOwnerId).forEach((sv) => { if (sv > maxSerial) maxSerial = sv; });
+    reserveDraft(draftOwnerId, scope, prefix, maxSerial + 1);
+    return formatInvoiceNumber(prefix, maxSerial + 1);
   };
+
+  // ── Draft estimate-number reservation (multi-tab uniqueness) ──────────────
+  const draftScope = () => `${currentBusiness?.id || ''}|estimates`;
+  const savedSerialSet = (prefix) => {
+    const set = new Set();
+    getItems('estimates').forEach((r) => {
+      if (r.businessId !== currentBusiness?.id) return;
+      const sv = parseSerial(r.estimateNumber, prefix);
+      if (sv != null) set.add(sv);
+    });
+    return set;
+  };
+  // repack = draft abandoned (cancel / close tab): free its number and let the
+  // other open drafts move down into the gap. Not repacked after a save.
+  const releaseMyDraft = (repack) => {
+    const d = getDraft(draftOwnerId);
+    if (!d) return;
+    const saved = repack ? savedSerialSet(d.prefix) : null;
+    releaseDraft(draftOwnerId, { repack, isSavedSerial: (sv) => !!saved?.has(sv) });
+  };
+  const releaseMyDraftRef = useRef(releaseMyDraft);
+  releaseMyDraftRef.current = releaseMyDraft;
+  // Another tab's draft was abandoned and ours was re-numbered → show it.
+  useEffect(() => subscribeDrafts((changed) => {
+    if (!changed.has(draftOwnerId)) return;
+    const d = getDraft(draftOwnerId);
+    if (d) setEstimateNumber(formatInvoiceNumber(d.prefix, d.serial));
+  }), [draftOwnerId]);
+  // Closing the tab abandons any unsaved draft.
+  useEffect(() => () => releaseMyDraftRef.current(true), []);
+  const backToList = () => { if (!editId) releaseMyDraft(true); setView('list'); };
 
   const openingForEditRef = useRef(false);
   const resetForm = () => {
@@ -295,6 +349,17 @@ const Estimates = () => {
       resetForm();
     }
   }, [view, isSaving]); // eslint-disable-line
+
+  // Tab label follows the open estimate (customer, else number), like Sales.
+  useEffect(() => {
+    if (!tabId) return;
+    let label = 'Estimates';
+    if (view === 'create') {
+      label = selectedParty?.name
+        || (estimateNumber ? (editId ? `Edit ${estimateNumber}` : estimateNumber) : (editId ? 'Edit Estimate' : 'New Estimate'));
+    }
+    updateTab(tabId, { label });
+  }, [tabId, view, selectedParty, estimateNumber, editId, updateTab]);
 
   const addItemRow = () => setItems([...items, { ...BLANK_ROW, qty: 1 }]);
   const removeItemRow = (index) => {
@@ -417,6 +482,7 @@ const Estimates = () => {
   useEffect(() => {
     let buf = [];
     const onKey = (e) => {
+      if (!isActiveTabRef.current) return;
       if (viewRef.current !== 'create') return;
       if (document.querySelector('.MuiDialog-root')) return;
       if (document.activeElement === barcodeInputRef.current) return;
@@ -517,6 +583,7 @@ const Estimates = () => {
         return;
       }
       setSnack({ open: true, msg: editId ? 'Estimate updated' : 'Estimate saved' });
+      if (!editId) releaseMyDraft(false);
       setView('list');
     } catch (e) {
       await showAlert({ title: 'Save failed', message: 'Save failed: ' + (e?.message || e), variant: 'danger' });
@@ -525,6 +592,7 @@ const Estimates = () => {
   };
 
   const handleEdit = (est) => {
+    releaseMyDraft(true); // editing an existing number — give up any draft
     openingForEditRef.current = true;
     setEditId(est.id);
     setSelectedParty(parties.find(p => p.id === est.partyId) || null);
@@ -609,9 +677,8 @@ const Estimates = () => {
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   };
   const captureInvoiceCanvas = async () => {
-    const { default: html2canvas } = await import('html2canvas');
     await waitForCaptureReady(pdfRef.current);
-    return html2canvas(pdfRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+    return captureElement(pdfRef.current, { scale: 1.5 });
   };
   const showDeliverResult = (result) => {
     if (result.method === 'clipboard') setSnack({ open: true, msg: 'Copied — paste it into the WhatsApp chat' });
@@ -637,12 +704,7 @@ const Estimates = () => {
       if (_shareCancelledRef.current || !pdfRef.current) return;
       const [canvas, { jsPDF }] = await Promise.all([captureInvoiceCanvas(), import('jspdf').then(m => ({ jsPDF: m.jsPDF }))]);
       if (_shareCancelledRef.current) return;
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfWidthMm = getPaperWidthMm(paperSize);
-      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
-      const namedFormat = getJsPdfFormat(paperSize);
-      const pdf = new jsPDF({ unit: 'mm', format: namedFormat || [pdfWidthMm, pdfHeightMm] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const pdf = canvasToPdf(canvas, jsPDF, paperSize);
       if (_shareCancelledRef.current) return;
       const fileName = `${target.estimateNumber || 'estimate'}.pdf`;
       const pdfBlob = pdf.output('blob');
@@ -701,16 +763,34 @@ const Estimates = () => {
 
       {/* Hidden print ref */}
       <Box sx={{ position: 'absolute', left: -9999 }}>
-        <InvoiceTemplate ref={printRef} transaction={printingTx} business={currentBusiness} paperSize={paperSize} title="Estimate" />
+        <InvoiceTemplate
+          ref={printRef}
+          transaction={printingTx}
+          business={currentBusiness}
+          paperSize={paperSize}
+          title="Estimate"
+          printOptions={{ ...config.billPrintOptions, loyalty: config.loyalty, termsText: estimateTerms }}
+        />
       </Box>
       {/* PDF/image capture ref — off-screen but NOT display:none (html2canvas needs layout) */}
       <Box sx={{ position: 'fixed', left: -9999, top: 0, opacity: 0, pointerEvents: 'none', zIndex: -1 }}>
-        <InvoiceTemplate ref={pdfRef} transaction={previewTx} business={currentBusiness} paperSize={paperSize} title="Estimate" />
+        <InvoiceTemplate
+          ref={pdfRef}
+          transaction={previewTx}
+          business={currentBusiness}
+          paperSize={paperSize}
+          title="Estimate"
+          printOptions={{ ...config.billPrintOptions, loyalty: config.loyalty, termsText: estimateTerms }}
+        />
       </Box>
 
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1.5 }}>
         <Typography variant="h6" sx={{ fontWeight: 600, fontSize: '1rem' }}>{t('doc.estimatesQuotes')}</Typography>
-        <Button variant="contained" startIcon={<Plus size={18} />} onClick={() => (view === 'list' ? openNewEstimate() : setView('list'))}>
+        <Button
+          variant="contained"
+          startIcon={view === 'list' ? <Plus size={18} /> : <ArrowLeft size={18} />}
+          onClick={() => (view === 'list' ? openNewEstimate() : backToList())}
+        >
           {view === 'list' ? t('doc.newEstimate') : t('doc.backToList')}
         </Button>
       </Box>
@@ -740,6 +820,7 @@ const Estimates = () => {
               business={currentBusiness}
               paperSize={paperSize}
               title="Estimate"
+              printOptions={{ ...config.billPrintOptions, loyalty: config.loyalty, termsText: estimateTerms }}
             />
           )}
         />
@@ -754,6 +835,7 @@ const Estimates = () => {
                   options={parties}
                   value={selectedParty}
                   onChange={(v) => setSelectedParty(v)}
+                  onAddNew={(inputValue, isPhone) => setQuickAddParty({ open: true, name: isPhone ? '' : (inputValue || ''), phone: isPhone ? (inputValue || '') : '' })}
                   label="Customer"
                   placeholder="Search customer…"
                 />
@@ -912,7 +994,7 @@ const Estimates = () => {
               <Grid size={12} sx={{ textAlign: 'right' }}>
                 <Typography>Subtotal: ₹{subtotal.toFixed(2)} | Tax: ₹{tax.toFixed(2)} | Total: ₹{total.toFixed(2)}</Typography>
                 <Box sx={{ mt: 2, display: 'flex', justifyContent: 'flex-end', gap: 1, flexWrap: 'wrap' }}>
-                  <Button variant="outlined" onClick={() => setView('list')}>Cancel</Button>
+                  <Button variant="outlined" onClick={backToList}>Cancel</Button>
                   <Button variant="contained" onClick={handleSave} disabled={isSaving}>Save Estimate</Button>
                 </Box>
               </Grid>
@@ -936,13 +1018,27 @@ const Estimates = () => {
         }}
       />
 
+      <PartyFormDialog
+        open={quickAddParty.open}
+        onClose={() => setQuickAddParty({ open: false, name: '', phone: '' })}
+        partyType="Customer"
+        editingParty={null}
+        initialName={quickAddParty.name || ''}
+        initialPhone={quickAddParty.phone || ''}
+        compact
+        onSaved={(newParty) => {
+          setSelectedParty(newParty);
+          setQuickAddParty({ open: false, name: '', phone: '' });
+        }}
+      />
+
       <SendDialog
         open={sendOpen}
         onClose={() => setSendOpen(false)}
         tx={sendTx}
         party={sendParty}
-        businessName={currentBusiness?.name || 'TallyKraft'}
-        initialMessage={buildEstimateMessage({ tx: sendTx, businessName: currentBusiness?.name || 'TallyKraft' })}
+        businessName={currentBusiness?.name || 'BillDheko'}
+        initialMessage={buildEstimateMessage({ tx: sendTx, businessName: currentBusiness?.name || 'BillDheko' })}
         dialogTitle="Share Estimate"
         onSharePDF={() => shareAsPDF(sendTx)}
         onShareImage={() => shareAsImage(sendTx)}

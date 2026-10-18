@@ -46,7 +46,7 @@ const VirtualListboxInner = React.forwardRef(function VirtualListboxInner(props,
 const VIRTUALIZE_THRESHOLD = 50;
 
 const COLORS = [
-  { bg: '#EEF2FF', fg: '#4F46E5', bd: '#C7D2FE' },
+  { bg: '#EEF2FF', fg: '#5c1f22', bd: '#C7D2FE' },
   { bg: '#F0FDF4', fg: '#16A34A', bd: '#BBF7D0' },
   { bg: '#FFF7ED', fg: '#C2410C', bd: '#FED7AA' },
   { bg: '#FDF4FF', fg: '#7C3AED', bd: '#DDD6FE' },
@@ -114,21 +114,26 @@ const PartySelect = ({
   fullWidth = true,
   sx,
   disabled,
+  // nameOnly only: typed text stays as typed (no auto-highlight/auto-pick);
+  // a saved party is used only when actually picked. onChange's 2nd arg is
+  // the picked party object (null for typed text).
+  freeText = false,
 }) => {
   if (nameOnly) {
     return (
       <Autocomplete
         freeSolo
-        autoHighlight
-        autoSelect
+        autoHighlight={!freeText}
+        // No autoSelect: it picks the highlighted (first) match on blur, so just
+        // clicking out of the field selected a party. Enter still picks it.
         options={options}
         {...(options.length > VIRTUALIZE_THRESHOLD ? { ListboxComponent: VirtualListboxInner, disableListWrap: true } : {})}
         getOptionLabel={(opt) => (typeof opt === 'string' ? opt : opt.name || '')}
         value={value || ''}
         fullWidth={fullWidth}
         disabled={disabled}
-        onChange={(_, v) => onChange(typeof v === 'string' ? v : (v?.name || ''))}
-        onInputChange={(_, v, reason) => { if (reason === 'input') onChange(v); }}
+        onChange={(_, v) => onChange(typeof v === 'string' ? v : (v?.name || ''), v && typeof v === 'object' ? v : null)}
+        onInputChange={(_, v, reason) => { if (reason === 'input') onChange(v, null); }}
         renderOption={(props, option) => {
           if (typeof option === 'string') return <li {...props} style={{ ...props.style, height: ROW_HEIGHT }}>{option}</li>;
           const { key, ...rest } = props;
@@ -185,14 +190,8 @@ const PartySelect = ({
   <Autocomplete
     options={mergedOptions}
     autoHighlight
-    // autoSelect commits the currently-highlighted option on Enter/blur —
-    // without it, autoHighlight alone only visually highlights the top
-    // match as you type; Enter did nothing unless the user had also
-    // arrow-key-navigated to it first. This is what makes "type a name,
-    // press Enter" actually select the party in one keystroke (needed for
-    // Sales.jsx's One by One mode keyboard flow, and generally expected
-    // search-and-select behavior everywhere this component is used).
-    autoSelect
+    // Enter picks the highlighted match (autoHighlight). No autoSelect: it
+    // also picks it on blur, so clicking out of the field selected a party.
     {...(mergedOptions.length > VIRTUALIZE_THRESHOLD ? { ListboxComponent: VirtualListboxInner, disableListWrap: true } : {})}
     getOptionLabel={(opt) => (opt._addNew ? '' : opt.name || '')}
     value={value || null}
@@ -237,7 +236,7 @@ const PartySelect = ({
                 bgcolor: 'primary.50', border: '1.5px dashed', borderColor: 'primary.main',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <UserPlus size={16} color="#4F46E5" />
+                <UserPlus size={16} color="#5c1f22" />
               </Box>
               <Typography sx={{ fontWeight: 700, color: 'primary.main', fontSize: '0.875rem' }}>
                 {option._display}

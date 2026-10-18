@@ -5,7 +5,7 @@ import {
 } from '@mui/material';
 import { Visibility, VisibilityOff, ArrowBack } from '@mui/icons-material';
 import { useAuth } from './AuthContext';
-import TallyKraftLogo from './TallyKraftLogo';
+import BillDhekoLogo, { TM } from './BillDhekoLogo';
 import { firestore } from './db';
 import { doc, getDoc } from 'firebase/firestore';
 
@@ -245,7 +245,7 @@ const Login = ({ onBack }) => {
               display: 'flex', alignItems: 'center', justifyContent: 'center',
               boxShadow: '0 8px 40px rgba(100,116,139,0.45)',
             }}>
-              <TallyKraftLogo size={80} />
+              <BillDhekoLogo size={80} />
             </Box>
           </Box>
 
@@ -254,7 +254,7 @@ const Login = ({ onBack }) => {
             letterSpacing: '0.08em', lineHeight: 1, mb: 0.6,
             animation: 'lg-fadein 0.55s ease both',
           }}>
-            TALLYKRAFT
+            BILLDHEKO<TM />
           </Typography>
           <Typography sx={{
             color: '#57433e', fontSize: '0.88rem', mb: 4.5,
@@ -347,10 +347,10 @@ const Login = ({ onBack }) => {
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             boxShadow: '0 8px 24px rgba(100,116,139,0.4)', mb: 1.5,
           }}>
-            <TallyKraftLogo size={52} />
+            <BillDhekoLogo size={52} />
           </Box>
           <Typography sx={{ fontWeight: 800, color: T.title, letterSpacing: '0.07em', fontSize: '1.25rem', lineHeight: 1 }}>
-            TALLYKRAFT
+            BILLDHEKO<TM />
           </Typography>
           <Typography sx={{ color: T.sub, fontSize: '0.77rem', mt: 0.4 }}>
             Premium Business Accounting

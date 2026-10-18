@@ -9,6 +9,7 @@ import {
   Plus, FileText, ReceiptText, ShoppingBag, Download, Upload, DollarSign, TrendingUp,
   Bell, Clock, QrCode, X, Wallet, Activity, ChevronRight,
   PieChart as PieChartIcon, Layers, CalendarDays, Copy, Check,
+  StickyNote, Pin, Trash2, CornerDownLeft,
 } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
 import { useAuth } from './AuthContext';
@@ -24,22 +25,51 @@ import {
 } from 'recharts';
 import { useTabs } from './TabsContext';
 import { dispatchQuickNew } from './quickNewBridge';
+import { resolveDashboard, DASHBOARD_KPIS, SHORTCUT_ICONS, presetFor, shortcutAvailable } from './dashboardConfig';
 import { BRAND } from './theme';
-import TallyKraftLogo from './TallyKraftLogo';
+import BillDhekoLogo, { TM } from './BillDhekoLogo';
+
+// ─── Design tokens (BillDheko "quiet luxury" dashboard) ─────────────────────
+const D = {
+  ink: '#241612', soft: '#4a3631', muted: '#8a7870', line: '#ece3da', lineSoft: '#f3ece5',
+  ox: '#5c1f22', oxDeep: '#3f1417', gold: '#b08d57', paper: '#ffffff', green: '#2f7d4f', red: '#b4373a',
+  serif: "'Fraunces', Georgia, 'Times New Roman', serif",
+};
+const cardSx = {
+  borderRadius: '16px', border: `1px solid ${D.line}`, bgcolor: D.paper, height: '100%', overflow: 'hidden',
+  boxShadow: '0 1px 2px rgba(36,22,18,0.03), 0 8px 24px rgba(36,22,18,0.035)',
+};
+// Card header: hairline-ringed icon, serif title, muted subtitle, optional right slot.
+const CardHead = ({ icon, title, subtitle, right }) => (
+  <Box sx={{ px: 2.5, pt: 2.25, pb: 1.75, display: 'flex', alignItems: 'center', flexWrap: 'wrap', columnGap: 1.5, rowGap: 1 }}>
+    <Box sx={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', border: `1px solid ${alpha(D.gold, 0.45)}`, color: D.ox }}>
+      {React.createElement(icon, { size: 15, strokeWidth: 1.8 })}
+    </Box>
+    <Box sx={{ flex: '1 1 160px', minWidth: 0 }}>
+      <Typography sx={{ fontFamily: D.serif, fontWeight: 500, fontSize: '1.08rem', letterSpacing: '-0.01em', color: D.ink, lineHeight: 1.2 }} noWrap>{title}</Typography>
+      {subtitle && <Typography sx={{ fontSize: '0.72rem', color: D.muted, mt: 0.2 }} noWrap>{subtitle}</Typography>}
+    </Box>
+    {right}
+  </Box>
+);
+const CountPill = ({ children, color = D.ox }) => (
+  <Box component="span" sx={{ px: 1, py: 0.25, borderRadius: 999, fontSize: '0.7rem', fontWeight: 700, color, bgcolor: alpha(color, 0.08), whiteSpace: 'nowrap' }}>{children}</Box>
+);
 
 // ─── KPI Value: renders at a shared font size determined by the parent grid ──
 const KpiValue = ({ value, color, fontSize }) => {
   const v = value ?? 0;
   const formatted = `${v < 0 ? '−' : ''}₹${Math.abs(v).toLocaleString('en-IN')}`;
   return (
-    <Box sx={{ width: '100%', overflow: 'hidden', display: 'flex', justifyContent: 'center' }}>
+    <Box sx={{ width: '100%', overflow: 'hidden', display: 'flex', justifyContent: 'flex-start' }}>
       <Box
         component="span"
         sx={{
           fontSize: (fontSize ?? 32) + 'px',
-          fontWeight: 900,
+          fontFamily: D.serif,
+          fontWeight: 500,
           color: color ?? 'text.primary',
-          letterSpacing: '-0.04em',
+          letterSpacing: '-0.025em',
           lineHeight: 1,
           fontVariantNumeric: 'tabular-nums',
           whiteSpace: 'nowrap',
@@ -55,7 +85,7 @@ const KpiValue = ({ value, color, fontSize }) => {
 // ─── Measures the largest number in statRows and returns the font size that
 //     fits it in a container of the given width. All KPI cards share this size.
 const useUniformKpiFontSize = (statRows, containerWidth) => {
-  const [fontSize, setFontSize] = React.useState(32);
+  const [fontSize, setFontSize] = React.useState(30);
   const probeRef = React.useRef(null);
 
   React.useLayoutEffect(() => {
@@ -65,7 +95,7 @@ const useUniformKpiFontSize = (statRows, containerWidth) => {
       .map(r => `${(r.value ?? 0) < 0 ? '−' : ''}₹${Math.abs(r.value ?? 0).toLocaleString('en-IN')}`)
       .reduce((a, b) => (a.length >= b.length ? a : b), '');
     el.textContent = longestText;
-    let size = 32;
+    let size = 30;
     el.style.fontSize = size + 'px';
     while (el.scrollWidth > containerWidth && size > 11) {
       size -= 1;
@@ -81,7 +111,7 @@ const useUniformKpiFontSize = (statRows, containerWidth) => {
       component="span"
       sx={{
         position: 'fixed', top: -9999, left: -9999,
-        fontWeight: 900, letterSpacing: '-0.04em',
+        fontFamily: D.serif, fontWeight: 500, letterSpacing: '-0.025em',
         fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap',
         visibility: 'hidden', pointerEvents: 'none',
       }}
@@ -95,7 +125,290 @@ const useUniformKpiFontSize = (statRows, containerWidth) => {
 const DAYS = ['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'];
 const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', stats: heroStats, cash, bank, lastCashAmounts, lastBankAmounts, trendLabel, accentColorHex, onQuickNew }) => {
+// Row of user-defined shortcut buttons (Settings → Dashboard → Shortcuts).
+const DashboardShortcuts = ({ shortcuts, onRun }) => (
+  <Box sx={{
+    display: { xs: 'flex', sm: 'grid' }, gap: 1.25,
+    overflowX: { xs: 'auto', sm: 'visible' }, mx: { xs: -0.5, sm: 0 }, px: { xs: 0.5, sm: 0 }, pb: { xs: 0.5, sm: 0 },
+    scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' },
+    gridTemplateColumns: { sm: 'repeat(auto-fill, minmax(170px, 1fr))' },
+  }}>
+    {shortcuts.map(sc => {
+      const color = sc.color || '#5c1f22';
+      const icon = SHORTCUT_ICONS[sc.icon] || SHORTCUT_ICONS.zap;
+      return (
+        <Box key={sc.id} component="button" type="button" onClick={() => onRun(sc)} title={sc.label}
+          sx={{
+            all: 'unset', boxSizing: 'border-box', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 1.25, px: 1.5, py: 1.2,
+            borderRadius: '14px', border: `1px solid ${D.line}`, bgcolor: D.paper, minWidth: { xs: 150, sm: 0 }, flexShrink: 0,
+            boxShadow: '0 1px 2px rgba(36,22,18,0.03)',
+            transition: 'all .2s ease',
+            '&:hover': { borderColor: alpha(color, 0.45), boxShadow: '0 6px 18px rgba(36,22,18,0.07)', transform: 'translateY(-1px)' },
+            '&:focus-visible': { outline: `2px solid ${alpha(color, 0.5)}`, outlineOffset: 2 },
+          }}>
+          <Box sx={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha(color, 0.08), color }}>
+            {React.createElement(icon, { size: 15, strokeWidth: 1.8 })}
+          </Box>
+          <Typography noWrap sx={{ fontSize: '0.82rem', fontWeight: 600, color: D.ink, minWidth: 0 }}>
+            {sc.label}
+          </Typography>
+        </Box>
+      );
+    })}
+  </Box>
+);
+
+// ─── Notes / whiteboard ──────────────────────────────────────────────────────
+// Quick reminders saved per business in the `notes` table (local-first, synced
+// and backed up like any other data). Enter adds; click a note to edit it
+// (Enter saves, Esc cancels); tick to mark done; pin keeps it on top.
+const NotesBoard = () => {
+  const { data, addItem, updateItem, deleteItem, deleteItems } = useData();
+  const { currentBusiness } = useBusiness();
+  const bizId = currentBusiness?.id;
+  const [draft, setDraft] = useState('');
+  const [editId, setEditId] = useState(null);
+  const [editText, setEditText] = useState('');
+  const [error, setError] = useState('');
+
+  const notes = useMemo(() => (data.notes || [])
+    .filter(n => n.businessId === bizId)
+    .sort((a, b) => (Number(!!b.pinned) - Number(!!a.pinned)) || (Number(!!a.done) - Number(!!b.done)) || ((b.createdAt || 0) - (a.createdAt || 0))),
+  [data.notes, bizId]);
+  const doneCount = notes.filter(n => n.done).length;
+
+  const fail = () => { setError('Could not save the note.'); setTimeout(() => setError(''), 3000); };
+  const add = () => {
+    const text = draft.trim();
+    if (!text || !bizId) return;
+    const ok = addItem('notes', { businessId: bizId, text, done: false, pinned: false });
+    if (ok === false) { fail(); return; }
+    setDraft('');
+  };
+  const patch = (n, changes) => {
+    const ok = updateItem('notes', n.id, changes);
+    if (ok === false) fail();
+  };
+  const saveEdit = (n) => {
+    const text = editText.trim();
+    if (!text) deleteItem('notes', n.id);
+    else if (text !== n.text) patch(n, { text });
+    setEditId(null);
+  };
+
+  return (
+    <Card elevation={0} sx={{ ...cardSx, display: 'flex', flexDirection: 'column', minHeight: { md: 380 } }}>
+      <CardHead icon={StickyNote} title="Notes" subtitle={notes.length ? `${notes.length - doneCount} to remember${doneCount ? ` · ${doneCount} done` : ''}` : 'Jot down anything to remember'}
+        right={doneCount > 0 ? (
+          <Button size="small" onClick={() => deleteItems('notes', notes.filter(n => n.done).map(n => n.id))}
+            sx={{ fontSize: '0.72rem', textTransform: 'none', color: D.muted, p: 0, minWidth: 0, fontWeight: 600, '&:hover': { bgcolor: 'transparent', color: D.ox } }}>
+            Clear done
+          </Button>
+        ) : null} />
+
+      {/* Input */}
+      <Box sx={{ px: 2.5, pb: 1.5 }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, border: `1px solid ${D.line}`, borderRadius: '12px', px: 1.25, py: 0.4, bgcolor: '#fdfbf8',
+          '&:focus-within': { borderColor: alpha(D.ox, 0.45), boxShadow: `0 0 0 3px ${alpha(D.ox, 0.08)}` } }}>
+          <Box component="input" value={draft} placeholder="Write a note and press Enter…"
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } }}
+            aria-label="New note"
+            sx={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', bgcolor: 'transparent', font: 'inherit', fontSize: '0.84rem', color: D.ink, py: 0.75,
+              '&::placeholder': { color: D.muted, opacity: 1 } }} />
+          <IconButton size="small" onClick={add} disabled={!draft.trim()} aria-label="Add note"
+            sx={{ color: D.ox, '&.Mui-disabled': { color: D.line } }}>
+            <CornerDownLeft size={15} />
+          </IconButton>
+        </Box>
+        {error && <Typography sx={{ fontSize: '0.7rem', color: D.red, mt: 0.5 }}>{error}</Typography>}
+      </Box>
+
+      {/* List */}
+      <Box sx={{ flex: 1, minHeight: 0, maxHeight: 340, overflowY: 'auto', pb: 1 }}>
+        {notes.length === 0 ? (
+          <Typography sx={{ px: 2.5, pb: 1.5, fontSize: '0.78rem', color: D.muted, fontStyle: 'italic' }}>
+            Nothing yet — e.g. "Call Ravi about pending payment".
+          </Typography>
+        ) : notes.map(n => (
+          <Box key={n.id} sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, px: 2.5, py: 0.75,
+            bgcolor: n.pinned ? alpha(D.gold, 0.07) : 'transparent',
+            '&:hover': { bgcolor: n.pinned ? alpha(D.gold, 0.11) : '#faf6f2' }, '&:hover .note-act': { opacity: 1 } }}>
+            <Box component="button" type="button" onClick={() => patch(n, { done: !n.done })} aria-label={n.done ? 'Mark not done' : 'Mark done'}
+              sx={{ all: 'unset', cursor: 'pointer', mt: '2px', width: 16, height: 16, borderRadius: '5px', flexShrink: 0, display: 'grid', placeItems: 'center',
+                border: `1.5px solid ${n.done ? D.green : D.line}`, bgcolor: n.done ? D.green : 'transparent', color: '#fff',
+                '&:focus-visible': { outline: `2px solid ${alpha(D.ox, 0.4)}`, outlineOffset: 1 } }}>
+              {n.done && <Check size={11} strokeWidth={3} />}
+            </Box>
+            {editId === n.id ? (
+              <Box component="input" autoFocus value={editText}
+                onChange={(e) => setEditText(e.target.value)}
+                onBlur={() => saveEdit(n)}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); saveEdit(n); } if (e.key === 'Escape') setEditId(null); }}
+                sx={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', borderBottom: `1px solid ${alpha(D.ox, 0.4)}`, bgcolor: 'transparent', font: 'inherit', fontSize: '0.84rem', color: D.ink, py: 0.1 }} />
+            ) : (
+              <Typography onClick={() => { setEditId(n.id); setEditText(n.text || ''); }} title="Click to edit"
+                sx={{ flex: 1, minWidth: 0, fontSize: '0.84rem', lineHeight: 1.45, cursor: 'text', wordBreak: 'break-word', whiteSpace: 'pre-wrap',
+                  color: n.done ? D.muted : D.ink, textDecoration: n.done ? 'line-through' : 'none' }}>
+                {n.text}
+              </Typography>
+            )}
+            <Box className="note-act" sx={{ display: 'flex', gap: 0.25, opacity: { xs: 1, md: n.pinned ? 1 : 0 }, transition: 'opacity .15s', flexShrink: 0 }}>
+              <IconButton size="small" onClick={() => patch(n, { pinned: !n.pinned })} aria-label={n.pinned ? 'Unpin' : 'Pin to top'}
+                sx={{ p: 0.4, color: n.pinned ? D.gold : D.muted }}>
+                <Pin size={13} fill={n.pinned ? 'currentColor' : 'none'} />
+              </IconButton>
+              <IconButton size="small" onClick={() => deleteItem('notes', n.id)} aria-label="Delete note" sx={{ p: 0.4, color: D.muted, '&:hover': { color: D.red } }}>
+                <Trash2 size={13} />
+              </IconButton>
+            </Box>
+          </Box>
+        ))}
+      </Box>
+    </Card>
+  );
+};
+
+const NO_KPIS = Object.fromEntries(DASHBOARD_KPIS.map(k => [k.id, false]));
+const fmtINR = (v) => `${(v ?? 0) < 0 ? '−' : ''}₹${Math.abs(v ?? 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+
+// Small outline "+ action" chip used on KPI cards.
+const ActionChip = ({ label, onClick, color }) => (
+  <Box component="button" type="button" onClick={onClick} sx={{
+    all: 'unset', boxSizing: 'border-box', display: 'inline-flex', alignItems: 'center', gap: 0.4,
+    px: 1, py: 0.45, borderRadius: 999, border: `1px solid ${D.line}`, cursor: 'pointer',
+    fontSize: '0.68rem', fontWeight: 600, color: D.soft, lineHeight: 1, whiteSpace: 'nowrap',
+    transition: 'all 0.18s ease',
+    '&:hover': { borderColor: alpha(color, 0.55), color, bgcolor: alpha(color, 0.05) },
+    '&:focus-visible': { outline: `2px solid ${alpha(color, 0.5)}`, outlineOffset: 1 },
+  }}>
+    <Plus size={10} strokeWidth={2.4} />{label}
+  </Box>
+);
+
+// Lightweight inline sparkline (no chart lib) — hidden with < 2 points.
+const Sparkline = ({ data, color }) => {
+  const vals = (data || []).map(d => Number(d.v) || 0);
+  if (vals.length < 2) return null;
+  const W = 120, H = 34, max = Math.max(...vals), min = Math.min(...vals), span = max - min || 1;
+  const pts = vals.map((v, i) => [(i / (vals.length - 1)) * W, H - 3 - ((v - min) / span) * (H - 6)]);
+  const line = pts.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`).join(' ');
+  return (
+    <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" aria-hidden="true" style={{ display: 'block' }}>
+      <polygon points={`0,${H} ${line} ${W},${H}`} fill={alpha(color, 0.08)} />
+      <polyline points={line} fill="none" stroke={color} strokeWidth="1.6" strokeLinejoin="round" strokeLinecap="round" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+};
+
+const TrendChip = ({ value, label, invert = false }) => {
+  if (value == null || !Number.isFinite(value)) return null;
+  const up = value >= 0;
+  const good = invert ? !up : up;
+  const c = Math.abs(value) < 0.5 ? D.muted : (good ? D.green : D.red);
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+      <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.25, px: 0.75, py: 0.2, borderRadius: 999, bgcolor: alpha(c, 0.09), color: c, fontSize: '0.7rem', fontWeight: 700 }}>
+        {up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}{Math.abs(value).toFixed(0)}%
+      </Box>
+      <Typography sx={{ fontSize: '0.7rem', color: D.muted }}>{label}</Typography>
+    </Box>
+  );
+};
+
+const SectionLabel = ({ children, right }) => (
+  <Box sx={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 1, mb: 1.25 }}>
+    <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: D.gold }}>{children}</Typography>
+    {right}
+  </Box>
+);
+
+// ─── KPI sections: period performance (big cards) + current balances ────────
+const KpiSections = ({ stats, cash, bank, kpis, onQuickNew, periodLabel }) => {
+  const on = (id) => !kpis || kpis[id] !== false;
+  const q = onQuickNew || (() => {});
+  const perf = [
+    { id: 'sales', label: 'Sales', value: stats.totalSales, color: D.ox, trend: stats.salesTrend, spark: stats.sparkSales,
+      action: { label: 'Invoice', fn: () => q('/sales', 'New Invoice', 'createNew') } },
+    { id: 'purchases', label: 'Purchases', value: stats.totalPurchases, color: D.gold, trend: stats.purchaseTrend, spark: stats.sparkPurch, invert: true,
+      action: { label: 'Purchase', fn: () => q('/purchases', 'New Purchase', 'createNew') } },
+    { id: 'expenses', label: 'Expenses', value: stats.totalExpenses, color: '#a8485c',
+      action: { label: 'Expense', fn: () => q('/expenses', 'Expenses', 'openAdd') } },
+  ].filter(r => on(r.id));
+  const cashBal = cash?.balance ?? 0, bankBal = bank?.balance ?? 0;
+  const bal = [
+    { id: 'receivable', label: 'To receive', value: stats.toGet, color: D.green,
+      actions: [{ label: 'Receive', fn: () => q('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => q('/payment-in', 'Payment In', 'viewOutstanding') }] },
+    { id: 'payable', label: 'To pay', value: stats.toGive, color: '#b7791f',
+      actions: [{ label: 'Pay', fn: () => q('/payment-out', 'Payment Out', 'openAdd') }, { label: 'View', fn: () => q('/payment-out', 'Payment Out', 'viewOutstanding') }] },
+    { id: 'cash', label: 'Cash in hand', value: cashBal, color: '#4f7a78',
+      actions: [{ label: 'In', fn: () => q('/cash', 'Cash Book', 'cash_in') }, { label: 'Out', fn: () => q('/cash', 'Cash Book', 'cash_out') }] },
+    { id: 'bank', label: 'Bank balance', value: bankBal, color: '#6b5a52',
+      actions: [{ label: 'Credit', fn: () => q('/cash', 'Cash Book', 'bank_in') }, { label: 'Debit', fn: () => q('/cash', 'Cash Book', 'bank_out') }] },
+    { id: 'capital', label: 'Total capital', value: cashBal + bankBal, color: D.oxDeep, actions: [] },
+  ].filter(r => on(r.id));
+
+  return (
+    <Stack spacing={2.5}>
+      {perf.length > 0 && (
+        <Box>
+          <SectionLabel>Performance · {periodLabel}</SectionLabel>
+          <Box sx={{ display: 'grid', gap: 2, gridTemplateColumns: { xs: 'minmax(0, 1fr)', sm: `repeat(${Math.min(perf.length, 3)}, minmax(0, 1fr))` } }}>
+            {perf.map(r => (
+              <Box key={r.id} sx={{ ...cardSx, height: 'auto', p: 2.25, display: 'flex', flexDirection: 'column', gap: 1.1, position: 'relative' }}>
+                <Box sx={{ position: 'absolute', inset: '0 auto 0 0', width: 3, bgcolor: r.color, opacity: 0.85 }} />
+                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
+                  <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: D.muted, textTransform: 'uppercase', letterSpacing: '0.14em' }}>{r.label}</Typography>
+                  <ActionChip label={r.action.label} onClick={r.action.fn} color={r.color} />
+                </Box>
+                <Typography noWrap sx={{ fontFamily: D.serif, fontWeight: 500, fontSize: { xs: '1.9rem', md: '2.15rem' }, letterSpacing: '-0.025em', lineHeight: 1.05, color: (r.value ?? 0) < 0 ? D.red : D.ink, fontVariantNumeric: 'tabular-nums' }}>
+                  {fmtINR(r.value)}
+                </Typography>
+                <Box sx={{ minHeight: 20 }}>
+                  {r.trend != null ? <TrendChip value={r.trend} label={stats.trendLabel} invert={r.invert} />
+                    : <Typography sx={{ fontSize: '0.7rem', color: D.muted }}>Recorded {periodLabel?.toLowerCase()}</Typography>}
+                </Box>
+                <Box sx={{ mt: 'auto', mx: -0.5 }}><Sparkline data={r.spark} color={r.color} /></Box>
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )}
+
+      {bal.length > 0 && (
+        <Box>
+          <SectionLabel>Balances · as of now</SectionLabel>
+          <Box sx={{ ...cardSx, height: 'auto', display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', md: `repeat(${Math.min(bal.length, 5)}, minmax(0, 1fr))` } }}>
+            {bal.map((r, i) => (
+              <Box key={r.id} sx={{
+                p: 2, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 0.9,
+                borderLeft: { xs: i % 2 === 1 ? `1px solid ${D.lineSoft}` : 'none', md: i > 0 ? `1px solid ${D.lineSoft}` : 'none' },
+                borderTop: { xs: i > 1 ? `1px solid ${D.lineSoft}` : 'none', md: 'none' },
+                ...(r.id === 'capital' ? { bgcolor: '#faf6f2' } : {}),
+              }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.85 }}>
+                  <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: r.color, flexShrink: 0 }} />
+                  <Typography noWrap sx={{ fontSize: '0.66rem', fontWeight: 600, color: D.muted, textTransform: 'uppercase', letterSpacing: '0.12em' }}>{r.label}</Typography>
+                </Box>
+                <Typography noWrap sx={{ fontFamily: D.serif, fontWeight: 500, fontSize: { xs: '1.3rem', md: '1.4rem' }, letterSpacing: '-0.02em', lineHeight: 1.1, color: (r.value ?? 0) < 0 ? D.red : D.ink, fontVariantNumeric: 'tabular-nums' }}>
+                  {fmtINR(r.value)}
+                </Typography>
+                {r.actions.length > 0 && (
+                  <Box sx={{ display: 'flex', gap: 0.6, flexWrap: 'wrap', mt: 'auto' }}>
+                    {r.actions.map(a => <ActionChip key={a.label} label={a.label} onClick={a.fn} color={r.color} />)}
+                  </Box>
+                )}
+              </Box>
+            ))}
+          </Box>
+        </Box>
+      )}
+    </Stack>
+  );
+};
+
+const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', stats: heroStats, cash, bank, lastCashAmounts, lastBankAmounts, onQuickNew, kpis = null, showClock = true, rail = false }) => {
   const [calBase, setCalBase] = React.useState(() => ({ y: now.getFullYear(), m: now.getMonth() }));
   const gridRef = React.useRef(null);
   const [cardWidth, setCardWidth] = React.useState(0);
@@ -142,26 +455,27 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
   const dash = (secPct / 100) * circ;
 
   const statRows = heroStats ? [
-    { label: 'Sales',        value: heroStats.totalSales,     color: '#5c1f22',      trend: heroStats.salesTrend,    actions: onQuickNew ? [{ label: 'Invoice',  fn: () => onQuickNew('/sales', 'New Invoice', 'createNew') }] : [] },
-    { label: 'Purchases',    value: heroStats.totalPurchases, color: '#a78bfa',      trend: heroStats.purchaseTrend, actions: onQuickNew ? [{ label: 'Purchase', fn: () => onQuickNew('/purchases', 'New Purchase', 'createNew') }] : [] },
-    { label: 'Receivable',   value: heroStats.toGet,          color: '#a9803f',      trend: null,                   actions: onQuickNew ? [{ label: 'Receive',  fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-in', 'Payment In', 'viewOutstanding') }] : [] },
-    { label: 'Payable',      value: heroStats.toGive,         color: '#fbbf24',      trend: null,                   actions: onQuickNew ? [{ label: 'Pay',      fn: () => onQuickNew('/payment-out', 'Payment Out', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-out', 'Payment Out', 'viewOutstanding') }] : [] },
-    { label: 'Expenses',     value: heroStats.totalExpenses,  color: '#fb7185',      trend: null,                   actions: onQuickNew ? [{ label: 'Expense',  fn: () => onQuickNew('/expenses', 'Expenses', 'openAdd') }] : [] },
-    { label: 'Cash in Hand', value: cash?.balance ?? 0,       color: '#22d3ee',      cashIn: lastCashAmounts?.lastIn ?? 0, cashOut: lastCashAmounts?.lastOut ?? 0,
+    { id: 'sales', label: 'Sales',        value: heroStats.totalSales,     color: D.ox, trend: heroStats.salesTrend,    actions: onQuickNew ? [{ label: 'Invoice',  fn: () => onQuickNew('/sales', 'New Invoice', 'createNew') }] : [] },
+    { id: 'purchases', label: 'Purchases',    value: heroStats.totalPurchases, color: D.gold,         trend: heroStats.purchaseTrend, actions: onQuickNew ? [{ label: 'Purchase', fn: () => onQuickNew('/purchases', 'New Purchase', 'createNew') }] : [] },
+    { id: 'receivable', label: 'Receivable',   value: heroStats.toGet,          color: D.green,        trend: null,                   actions: onQuickNew ? [{ label: 'Receive',  fn: () => onQuickNew('/payment-in', 'Payment In', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-in', 'Payment In', 'viewOutstanding') }] : [] },
+    { id: 'payable', label: 'Payable',      value: heroStats.toGive,         color: '#b7791f',      trend: null,                   actions: onQuickNew ? [{ label: 'Pay',      fn: () => onQuickNew('/payment-out', 'Payment Out', 'openAdd') }, { label: 'View', fn: () => onQuickNew('/payment-out', 'Payment Out', 'viewOutstanding') }] : [] },
+    { id: 'expenses', label: 'Expenses',     value: heroStats.totalExpenses,  color: '#a8485c',      trend: null,                   actions: onQuickNew ? [{ label: 'Expense',  fn: () => onQuickNew('/expenses', 'Expenses', 'openAdd') }] : [] },
+    { id: 'cash', label: 'Cash in Hand', value: cash?.balance ?? 0,       color: '#4f7a78',      cashIn: lastCashAmounts?.lastIn ?? 0, cashOut: lastCashAmounts?.lastOut ?? 0,
       actions: onQuickNew ? [{ label: 'Cash In', fn: () => onQuickNew('/cash', 'Cash Book', 'cash_in') }, { label: 'Cash Out', fn: () => onQuickNew('/cash', 'Cash Book', 'cash_out') }] : [] },
-    { label: 'Bank Balance', value: bank?.balance ?? 0,       color: '#1a1a1a',      cashIn: lastBankAmounts?.lastIn ?? 0, cashOut: lastBankAmounts?.lastOut ?? 0,
+    { id: 'bank', label: 'Bank Balance', value: bank?.balance ?? 0,       color: '#6b5a52',      cashIn: lastBankAmounts?.lastIn ?? 0, cashOut: lastBankAmounts?.lastOut ?? 0,
       actions: onQuickNew ? [{ label: 'Credit',   fn: () => onQuickNew('/cash', 'Cash Book', 'bank_in') }, { label: 'Debit',    fn: () => onQuickNew('/cash', 'Cash Book', 'bank_out') }] : [] },
-    { label: 'Total Capital', value: (cash?.balance ?? 0) + (bank?.balance ?? 0), color: '#7c3aed', actions: [] },
-  ] : [];
+    { id: 'capital', label: 'Total Capital', value: (cash?.balance ?? 0) + (bank?.balance ?? 0), color: D.oxDeep, actions: [] },
+  ].filter(r => !kpis || kpis[r.id] !== false) : [];
 
   const { fontSize: kpiFontSize, ProbeEl } = useUniformKpiFontSize(statRows, cardWidth);
+  // Columns per breakpoint for however many KPI cards are switched on — fills
+  // each row evenly (e.g. 6 cards → 3 + 3 on desktop instead of 4 + 2).
+  const nK = statRows.length;
+  const kCols = { xs: Math.min(2, nK), sm: Math.min(3, nK), lg: nK <= 4 ? nK : Math.min(4, Math.ceil(nK / 2)) };
 
   return (
     <Box sx={{
-      borderRadius: 3, overflow: 'hidden',
-      border: `1.5px solid ${alpha(accentColor, 0.2)}`,
-      boxShadow: `0 4px 24px ${alpha(accentColor, 0.12)}`,
-      bgcolor: 'background.paper',
+      ...cardSx, height: 'auto',
       width: '100%',
       display: 'flex', flexDirection: { xs: 'column', lg: 'row' },
     }}>
@@ -170,54 +484,52 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
       {statRows.length > 0 && (
         <Box ref={gridRef} sx={{
           flex: 1, display: 'grid', order: { xs: 2, lg: 1 },
-          gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', lg: 'repeat(4, 1fr)' },
+          gridTemplateColumns: { xs: `repeat(${kCols.xs}, 1fr)`, sm: `repeat(${kCols.sm}, 1fr)`, lg: `repeat(${kCols.lg}, 1fr)` },
           gridAutoRows: '1fr',
-          borderRight: { lg: `1px solid ${alpha(accentColor, 0.1)}` },
-          borderBottom: { xs: `1px solid ${alpha(accentColor, 0.1)}`, lg: 'none' },
+          borderRight: { lg: `1px solid ${D.line}` },
+          borderBottom: { xs: `1px solid ${D.line}`, lg: 'none' },
         }}>
           {statRows.map((r, i) => {
             const hasCashFlow = r.cashIn !== undefined;
             return (
               <Box key={r.label} sx={{
-                px: 1.25, py: 1.1,
-                borderRight: { xs: (i % 2 === 0) ? `1px solid ${alpha(accentColor, 0.07)}` : 'none', sm: (i % 3 !== 2) ? `1px solid ${alpha(accentColor, 0.07)}` : 'none', lg: (i % 4 !== 3) ? `1px solid ${alpha(accentColor, 0.07)}` : 'none' },
-                borderBottom: `1px solid ${alpha(accentColor, 0.07)}`,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                px: 2, py: 1.9,
+                borderRight: Object.fromEntries(Object.entries(kCols).map(([bp, c]) => [bp, (i % c !== c - 1) ? `1px solid ${D.lineSoft}` : 'none'])),
+                borderBottom: `1px solid ${D.lineSoft}`,
+                display: 'flex', flexDirection: 'column', alignItems: 'flex-start', justifyContent: 'center',
                 overflow: 'hidden',
-                bgcolor: alpha(r.color, 0.03),
-                transition: 'background-color 0.18s',
-                '&:hover': { bgcolor: alpha(r.color, 0.07) },
+                transition: 'background-color 0.2s',
+                '&:hover': { bgcolor: alpha(r.color, 0.025) },
               }}>
                 {/* Label */}
-                <Typography sx={{ fontSize: '0.66rem', fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.09em', lineHeight: 1, textAlign: 'center', mb: 0.75 }}>
-                  {r.label}
-                </Typography>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.85, mb: 1.1 }}>
+                  <Box sx={{ width: 7, height: 7, borderRadius: '50%', bgcolor: r.color, flexShrink: 0 }} />
+                  <Typography sx={{ fontSize: '0.66rem', fontWeight: 600, color: D.muted, textTransform: 'uppercase', letterSpacing: '0.14em', lineHeight: 1 }}>
+                    {r.label}
+                  </Typography>
+                </Box>
 
                 {/* Value */}
-                <Box sx={{ width: '100%', mb: r.actions?.length > 0 ? 0.9 : 0, display: 'flex', justifyContent: 'center' }}>
-                  <KpiValue value={r.value} color={(r.value ?? 0) < 0 ? '#dc2626' : '#241f1c'} fontSize={kpiFontSize} />
+                <Box sx={{ width: '100%', mb: r.actions?.length > 0 ? 0.6 : 0, display: 'flex', justifyContent: 'flex-start' }}>
+                  <KpiValue value={r.value} color={(r.value ?? 0) < 0 ? D.red : D.ink} fontSize={kpiFontSize} />
                 </Box>
 
                 {/* Action buttons — pinned to bottom */}
                 {r.actions?.length > 0 && (
-                  <Box sx={{ display: 'flex', gap: 0.5, mt: 0.9, width: '100%' }}>
+                  <Box sx={{ display: 'flex', gap: 0.75, mt: 1, width: '100%', flexWrap: 'wrap' }}>
                     {r.actions.map((a) => (
-                      <Box key={a.label} onClick={a.fn} sx={{
-                        flex: '1 1 0', minWidth: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 0.4,
-                        px: 0.5, py: 0.6, borderRadius: 1.5,
-                        border: `1.5px solid ${alpha(r.color, 0.35)}`,
-                        bgcolor: alpha(r.color, 0.08),
+                      <Box key={a.label} component="button" type="button" onClick={a.fn} sx={{
+                        all: 'unset', boxSizing: 'border-box',
+                        display: 'inline-flex', alignItems: 'center', gap: 0.4,
+                        px: 1, py: 0.45, borderRadius: 999,
+                        border: `1px solid ${D.line}`,
                         cursor: 'pointer', userSelect: 'none',
-                        transition: 'all 0.15s ease',
-                        '&:hover': { bgcolor: r.color, borderColor: r.color, '& .al': { color: '#fff' }, '& .ai': { stroke: '#fff' } },
+                        fontSize: '0.68rem', fontWeight: 600, color: D.soft, lineHeight: 1, whiteSpace: 'nowrap',
+                        transition: 'all 0.18s ease',
+                        '&:hover': { borderColor: alpha(r.color, 0.55), color: r.color, bgcolor: alpha(r.color, 0.05) },
+                        '&:focus-visible': { outline: `2px solid ${alpha(r.color, 0.5)}`, outlineOffset: 1 },
                       }}>
-                        <svg className="ai" width={9} height={9} viewBox="0 0 24 24" fill="none" stroke={r.color} strokeWidth={3} strokeLinecap="round" style={{ flexShrink: 0 }}>
-                          <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-                        </svg>
-                        <Typography className="al" sx={{ fontSize: '0.625rem', fontWeight: 700, color: r.color, lineHeight: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                          {a.label}
-                        </Typography>
+                        <Plus size={10} strokeWidth={2.4} />{a.label}
                       </Box>
                     ))}
                   </Box>
@@ -229,17 +541,15 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
       )}
 
       {/* ── Right: Clock + Calendar stacked ── */}
-      <Box sx={{ flex: '0 0 auto', width: { xs: '100%', lg: 310 }, display: 'flex', flexDirection: { xs: 'row', sm: 'row', lg: 'column' }, overflow: 'hidden', order: { xs: 1, lg: 2 } }}>
+      {showClock && <Box sx={{ flex: '0 0 auto', width: rail ? '100%' : { xs: '100%', lg: 310 }, display: 'flex', flexDirection: { xs: 'row', sm: 'row', lg: 'column' }, overflow: 'hidden', order: { xs: 1, lg: 2 } }}>
         {/* Digital Clock */}
         <Box sx={{
           flex: { xs: '0 0 160px', sm: '0 0 180px', lg: 'none' },
-          background: bgColor,
+          background: `radial-gradient(260px 160px at 85% 0%, ${alpha(D.gold, 0.22)}, transparent 70%), ${bgColor}`,
           display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-          py: 1.75, px: 2, gap: 1, position: 'relative',
-          borderBottom: { lg: `1px solid ${alpha(textOnBg, 0.12)}` },
-          borderRight: { xs: `1px solid ${alpha(accentColor, 0.1)}`, sm: `1px solid ${alpha(accentColor, 0.1)}`, lg: 'none' },
+          pt: 2.25, pb: 4.5, px: 2, gap: 1, position: 'relative',
         }}>
-          <Box sx={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <Box sx={{ position: 'relative', width: 52, height: 52, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width={52} height={52} style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%,-50%) rotate(-90deg)' }}>
               <circle cx={26} cy={26} r={radius} fill="none" stroke={alpha(textOnBg, 0.15)} strokeWidth={3} />
               <circle cx={26} cy={26} r={radius} fill="none" stroke={alpha(textOnBg, 0.85)} strokeWidth={3}
@@ -250,7 +560,7 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
             <Typography sx={{ fontSize: '0.76rem', fontWeight: 800, color: textOnBg, fontVariantNumeric: 'tabular-nums', zIndex: 1, lineHeight: 1 }}>{ss}</Typography>
           </Box>
           <Box sx={{ textAlign: 'center' }}>
-            <Typography sx={{ fontSize: '2.4rem', fontWeight: 900, letterSpacing: '-0.02em', lineHeight: 1, color: textOnBg, fontVariantNumeric: 'tabular-nums', userSelect: 'none' }}>
+            <Typography sx={{ fontFamily: D.serif, fontSize: '2.6rem', fontWeight: 400, letterSpacing: '-0.02em', lineHeight: 1, color: textOnBg, fontVariantNumeric: 'tabular-nums', userSelect: 'none' }}>
               {hh}<Box component="span" sx={{ opacity: blink ? 1 : 0.2, transition: 'opacity 0.1s', mx: '1px' }}>:</Box>{mm}
             </Typography>
             <Box sx={{ display: 'flex', justifyContent: 'center', mt: 0.6 }}>
@@ -262,10 +572,13 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
           <Typography sx={{ fontSize: '0.68rem', color: alpha(textOnBg, 0.7), textAlign: 'center', fontWeight: 500 }}>
             {now.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })}
           </Typography>
-          {/* Logo + app name — bottom right */}
-          <Box sx={{ position: 'absolute', bottom: 10, right: 12, display: 'flex', alignItems: 'center', gap: 0.6 }}>
-            <TallyKraftLogo size={16} variant="icon" />
-            <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: alpha(textOnBg, 0.5), letterSpacing: '0.04em', lineHeight: 1 }}>TallyKraft</Typography>
+          {/* Logo + app name — bottom right. The mark sits on a small white
+              tile so it stays visible on the dark clock panel. */}
+          <Box sx={{ position: 'absolute', bottom: 10, right: 12, display: 'flex', alignItems: 'center', gap: 0.75 }}>
+            <Box sx={{ bgcolor: '#fff', borderRadius: '6px', p: '2px', display: 'flex', lineHeight: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.18)' }}>
+              <BillDhekoLogo size={16} variant="icon" />
+            </Box>
+            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: alpha(textOnBg, 0.85), letterSpacing: '0.02em', lineHeight: 1 }}>BillDheko<TM /></Typography>
           </Box>
         </Box>
 
@@ -302,7 +615,7 @@ const ClockCalendarWidget = ({ now, accentColor, bgColor, textOnBg = '#fff', sta
             ))}
           </Box>
         </Box>
-      </Box>
+      </Box>}
     </Box>
   );
 };
@@ -430,8 +743,8 @@ const Dashboard = () => {
   const { t } = useI18n();
 
   const [codeCopied, setCodeCopied] = useState(false);
-  const [anchorEl, setAnchorEl] = useState(null);
-  const [period, setPeriod] = useState('day');
+  const dash = useMemo(() => resolveDashboard(config?.dashboard), [config?.dashboard]);
+  const [period, setPeriod] = useState(() => dash.defaultPeriod);
   const [customRange, setCustomRange] = useState({ from: '', to: '' });
   const [customOpen, setCustomOpen] = useState(false);
   const [customAnchor, setCustomAnchor] = useState(null);
@@ -456,13 +769,27 @@ const Dashboard = () => {
   // day actually rolls over.
   const today = useMemo(() => new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime(), [now]);
 
-  const handleMenuOpen = (e) => setAnchorEl(e.currentTarget);
-  const handleMenuClose = () => setAnchorEl(null);
 
   const quickNew = (path, label, intent) => {
     openTab(path, label, { duplicate: path === '/sales' });
     dispatchQuickNew({ path, intent });
-    handleMenuClose();
+  };
+
+  // Shortcuts (Settings → Dashboard). Hidden when their module is switched off.
+  const visibleShortcuts = useMemo(
+    () => dash.shortcuts.filter(sc => shortcutAvailable(sc, config?.features || {})),
+    [dash.shortcuts, config?.features],
+  );
+  const runShortcut = (sc) => {
+    if (sc.type === 'link') {
+      const url = /^https?:\/\//i.test(sc.target) ? sc.target : `https://${sc.target}`;
+      window.open(url, '_blank', 'noopener,noreferrer');
+      return;
+    }
+    const p = presetFor(sc);
+    if (!p) return;
+    if (sc.type === 'action') quickNew(p.path, p.tab, p.intent);
+    else openTab(p.target, p.label);
   };
 
   // Memoized on the underlying data[table] array (not getItems itself) —
@@ -525,7 +852,7 @@ const Dashboard = () => {
   }), [currentBusiness?.openingBank, salesRaw, purchasesRaw, paymentsRaw, expenses, cashEntriesRaw]);
 
   // Last cash-in / cash-out amounts (most recent single transaction per direction)
-  const lastCashAmounts = useMemo(() => {
+  const _lastCashAmounts = useMemo(() => {
     const isCashMode = (m) => String(m || '').trim().toLowerCase() === 'cash';
     const isSplitMode = (m) => String(m || '').trim().toLowerCase() === 'split';
     const CARRY = ['cash & carry', 'cash purchase', 'cash sale'];
@@ -548,7 +875,7 @@ const Dashboard = () => {
     return { lastIn: allIn[0]?.amt ?? 0, lastOut: allOut[0]?.amt ?? 0 };
   }, [salesRaw, purchasesRaw, paymentsRaw, expenses, cashEntriesRaw]);
 
-  const lastBankAmounts = useMemo(() => {
+  const _lastBankAmounts = useMemo(() => {
     const isDigitalMode = (m) => { const s = String(m || '').trim().toLowerCase(); return s === 'bank' || s === 'cheque' || s === 'neft' || s === 'rtgs' || s === 'upi' || s === 'card'; };
     const isSplitMode = (m) => String(m || '').trim().toLowerCase() === 'split';
     const CARRY = ['cash & carry', 'cash purchase', 'cash sale'];
@@ -638,7 +965,7 @@ const Dashboard = () => {
       const cat = e.category || e.type || 'Other';
       expenseByCat[cat] = (expenseByCat[cat] || 0) + e.amount;
     });
-    const DONUT_COLORS = ['#5c1f22', '#5c1f22', '#5c1f22', '#d97706', '#e11d48', '#0891b2', '#7c3aed', '#be123c'];
+    const DONUT_COLORS = ['#5c1f22', '#b08d57', '#8a3a3d', '#d4b88f', '#3f1417', '#9c8174', '#e2cfb6', '#6b4c43'];
     const expenseDonut = Object.entries(expenseByCat)
       .sort((a, b) => b[1] - a[1])
       .slice(0, 7)
@@ -758,7 +1085,7 @@ const Dashboard = () => {
 
       {/* ── Command bar: business name + date + period picker + actions ── */}
       <Box sx={{
-        mb: 2.5, px: 0, pt: 0.5,
+        mb: 3, px: 0, pt: 0.5,
         display: 'flex', flexDirection: 'column', gap: 1.5,
       }}>
         {/* Top bar: business name + period + actions */}
@@ -770,7 +1097,10 @@ const Dashboard = () => {
               </Box>
             )}
             <Box>
-              <Typography sx={{ fontWeight: 900, fontSize: { xs: '1.1rem', sm: '1.3rem' }, letterSpacing: '-0.025em', color: 'text.primary', lineHeight: 1.15 }}>
+              <Typography sx={{ fontSize: '0.66rem', fontWeight: 600, letterSpacing: '0.18em', textTransform: 'uppercase', color: D.gold, mb: 0.5 }}>
+                {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+              </Typography>
+              <Typography sx={{ fontFamily: D.serif, fontWeight: 500, fontSize: { xs: '1.5rem', sm: '1.9rem' }, letterSpacing: '-0.02em', color: D.ink, lineHeight: 1.1 }}>
                 {currentBusiness?.name || 'Your Business'}
               </Typography>
               {scopedBiz?.businessCode && (
@@ -785,17 +1115,17 @@ const Dashboard = () => {
                       setTimeout(() => setCodeCopied(false), 2000);
                     }}
                     sx={{
-                      mt: 0.5,
+                      mt: 0.75,
                       height: 22,
                       fontFamily: 'monospace',
-                      fontWeight: 700,
-                      fontSize: '0.68rem',
-                      letterSpacing: '0.06em',
+                      fontWeight: 600,
+                      fontSize: '0.66rem',
+                      letterSpacing: '0.08em',
                       cursor: 'pointer',
-                      bgcolor: codeCopied ? 'success.light' : alpha(BRAND.teal, 0.1),
-                      color: codeCopied ? 'success.dark' : BRAND.tealDark,
+                      bgcolor: codeCopied ? alpha(D.green, 0.08) : 'transparent',
+                      color: codeCopied ? D.green : D.soft,
                       border: '1px solid',
-                      borderColor: codeCopied ? 'success.light' : alpha(BRAND.teal, 0.25),
+                      borderColor: codeCopied ? alpha(D.green, 0.35) : D.line,
                       '& .MuiChip-icon': { color: 'inherit' },
                       transition: 'all 0.2s ease',
                     }}
@@ -805,15 +1135,16 @@ const Dashboard = () => {
             </Box>
           </Stack>
           <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" gap={1} sx={{ alignSelf: { xs: 'flex-end', sm: 'auto' } }}>
-            <Box sx={{ display: 'flex', bgcolor: alpha(BRAND.teal, 0.07), borderRadius: 2, p: 0.35, gap: 0.25, border: '1px solid', borderColor: alpha(BRAND.teal, 0.14) }}>
+            <Box sx={{ display: 'flex', bgcolor: '#f3ece5', borderRadius: 999, p: 0.4, gap: 0.25, border: `1px solid ${D.line}` }}>
               {(['day', 'week', 'month', 'year']).map(p => (
                 <Box key={p} onClick={() => setPeriod(p)} sx={{
-                  px: { xs: 0.875, sm: 1.25 }, py: 0.5, borderRadius: 1.5, cursor: 'pointer', userSelect: 'none',
-                  bgcolor: period === p ? BRAND.teal : 'transparent',
-                  color: period === p ? '#fff' : 'text.secondary',
-                  fontWeight: period === p ? 700 : 500, fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                  transition: 'all 0.15s ease',
-                  '&:hover': { bgcolor: period === p ? BRAND.teal : alpha(BRAND.teal, 0.12), color: period === p ? '#fff' : BRAND.teal },
+                  px: { xs: 1, sm: 1.6 }, py: 0.6, borderRadius: 999, cursor: 'pointer', userSelect: 'none',
+                  bgcolor: period === p ? theme.palette.primary.main : 'transparent',
+                  color: period === p ? theme.palette.primary.contrastText : D.muted,
+                  boxShadow: period === p ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.3)}` : 'none',
+                  fontWeight: period === p ? 600 : 500, fontSize: { xs: '0.72rem', sm: '0.78rem' },
+                  transition: 'all 0.18s ease',
+                  '&:hover': { color: period === p ? theme.palette.primary.contrastText : theme.palette.primary.main },
                 }}>
                   {isMobile ? p.charAt(0).toUpperCase() : p.charAt(0).toUpperCase() + p.slice(1)}
                 </Box>
@@ -821,12 +1152,13 @@ const Dashboard = () => {
               {/* Custom range button */}
               <Box onClick={(e) => { setCustomDraft(customRange.from ? customRange : { from: '', to: '' }); setCustomAnchor(e.currentTarget); setCustomOpen(true); }} sx={{
                 display: 'flex', alignItems: 'center', gap: 0.5,
-                px: { xs: 0.875, sm: 1.25 }, py: 0.5, borderRadius: 1.5, cursor: 'pointer', userSelect: 'none',
-                bgcolor: period === 'custom' ? BRAND.teal : 'transparent',
-                color: period === 'custom' ? '#fff' : 'text.secondary',
-                fontWeight: period === 'custom' ? 700 : 500, fontSize: { xs: '0.7rem', sm: '0.75rem' },
-                transition: 'all 0.15s ease',
-                '&:hover': { bgcolor: period === 'custom' ? BRAND.teal : alpha(BRAND.teal, 0.12), color: period === 'custom' ? '#fff' : BRAND.teal },
+                px: { xs: 1, sm: 1.6 }, py: 0.6, borderRadius: 999, cursor: 'pointer', userSelect: 'none',
+                bgcolor: period === 'custom' ? theme.palette.primary.main : 'transparent',
+                color: period === 'custom' ? theme.palette.primary.contrastText : D.muted,
+                boxShadow: period === 'custom' ? `0 2px 8px ${alpha(theme.palette.primary.main, 0.3)}` : 'none',
+                fontWeight: period === 'custom' ? 600 : 500, fontSize: { xs: '0.72rem', sm: '0.78rem' },
+                transition: 'all 0.18s ease',
+                '&:hover': { color: period === 'custom' ? theme.palette.primary.contrastText : theme.palette.primary.main },
               }}>
                 <CalendarDays size={12} />
                 {!isMobile && <span>Custom</span>}
@@ -839,10 +1171,6 @@ const Dashboard = () => {
                 </IconButton>
               </Tooltip>
             )}
-            <Button variant="contained" startIcon={<Plus size={15} />} onClick={handleMenuOpen}
-              sx={{ fontWeight: 700, borderRadius: 2, textTransform: 'none', boxShadow: `0 2px 10px ${alpha(BRAND.teal, 0.35)}`, px: 2, whiteSpace: 'nowrap', flexShrink: 0 }}>
-              {isMobile ? 'New' : 'New Entry'}
-            </Button>
           </Stack>
         </Box>
         {/* Custom date range popover */}
@@ -873,350 +1201,348 @@ const Dashboard = () => {
           </Stack>
         </Popover>
 
-        {/* Hero widget: clock + calendar + stats */}
-        <ClockCalendarWidget
-          now={now}
-          accentColor={BRAND.teal}
-          accentColorHex="#57433e"
-          bgColor="#ffffff"
-          textOnBg="#5c1f22"
-          stats={stats}
-          cash={cash}
-          bank={bank}
-          lastCashAmounts={lastCashAmounts}
-          lastBankAmounts={lastBankAmounts}
-          trendLabel={stats.trendLabel}
-          onQuickNew={quickNew}
-        />
+
       </Box>
 
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={handleMenuClose}
-        anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}
-        PaperProps={{ sx: { borderRadius: 2, mt: 1, minWidth: 220 } }}>
-        <MenuItem dense onClick={() => quickNew('/sales', 'New Invoice', 'createNew')}><ReceiptText size={15} style={{ marginRight: 10, color: BRAND.teal }} />New Sales Invoice</MenuItem>
-        <MenuItem dense onClick={() => quickNew('/purchases', 'New Purchase', 'createNew')}><ShoppingBag size={15} style={{ marginRight: 10, color: '#5c1f22' }} />New Purchase Bill</MenuItem>
-        <MenuItem dense onClick={() => quickNew('/expenses', 'Expenses', 'openAdd')}><DollarSign size={15} style={{ marginRight: 10, color: '#e11d48' }} />Add Expense</MenuItem>
-        <MenuItem dense onClick={() => quickNew('/payment-in', 'Payment In', 'openAdd')}><Download size={15} style={{ marginRight: 10, color: '#5c1f22' }} />Payment Received</MenuItem>
-        <MenuItem dense onClick={() => quickNew('/payment-out', 'Payment Out', 'openAdd')}><Upload size={15} style={{ marginRight: 10, color: '#d97706' }} />Payment Made</MenuItem>
-      </Menu>
 
-      {/* ── Row 2: area chart + expense donut ── */}
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-
-        {/* ─ Area chart: revenue flow ─ */}
-        <Grid size={{ xs: 12, lg: 8 }}>
-          <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden', height: '100%' }}>
-            <Box sx={{ px: 2.5, py: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, borderBottom: '1px solid', borderColor: 'divider' }}>
-              <Stack direction="row" alignItems="center" spacing={1.25}>
-                <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha(BRAND.teal, 0.1), display: 'flex' }}>
-                  <Activity size={15} color={BRAND.teal} />
+      {/* ── Widgets: order + visibility from Settings → Dashboard ── */}
+      {(() => {
+        const renderWidget = (key) => {
+          switch (key) {
+            case 'shortcuts':
+              return visibleShortcuts.length > 0 ? (
+                <Box key="shortcuts" sx={{ minWidth: 0, height: "100%" }}>
+                  <DashboardShortcuts shortcuts={visibleShortcuts} onRun={runShortcut} />
                 </Box>
-                <Box>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', lineHeight: 1.2 }}>{PERIOD_LABELS[period]} Sales & Purchase</Typography>
-                  <Typography variant="caption" color="text.secondary">Sales vs purchases over time</Typography>
+              ) : null;
+            case 'summary':
+              return DASHBOARD_KPIS.some(k => dash.kpis[k.id] !== false) ? (
+                <Box key="summary" sx={{ minWidth: 0 }}>
+                  <KpiSections stats={stats} cash={cash} bank={bank} kpis={dash.kpis} onQuickNew={quickNew} periodLabel={PERIOD_LABELS[period]} />
                 </Box>
-              </Stack>
-              <Stack direction="row" spacing={2}>
-                {[{ color: BRAND.teal, label: 'Sales' }, { color: '#5c1f22', label: 'Purchase' }].map(({ color, label }) => (
-                  <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
-                    <Box sx={{ width: 10, height: 3, borderRadius: 1.5, bgcolor: color }} />
-                    <Typography variant="caption" color="text.secondary" sx={{ fontWeight: 600, fontSize: '0.7rem' }}>{label}</Typography>
-                  </Box>
-                ))}
-              </Stack>
-            </Box>
-            <Box sx={{ p: { xs: 1, sm: 2 }, height: { xs: 230, sm: 290 } }}>
-              <ChartMountGuard>
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={stats.chartData} margin={{ top: 8, right: 4, left: isMobile ? -28 : -16, bottom: 0 }}>
-                    <defs>
-                      <linearGradient id="gSales" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor={BRAND.teal} stopOpacity={0.32} />
-                        <stop offset="100%" stopColor={BRAND.teal} stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="gPurch" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="#5c1f22" stopOpacity={0.22} />
-                        <stop offset="100%" stopColor="#5c1f22" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={alpha(theme.palette.text.primary, 0.06)} />
-                    <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.disabled, fontSize: 11, fontWeight: 500 }} />
-                    <YAxis axisLine={false} tickLine={false} tick={{ fill: theme.palette.text.disabled, fontSize: 11 }} tickFormatter={v => v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`} />
-                    <ReTooltip content={<AreaTooltip />} />
-                    <Area type="monotone" dataKey="sales" stroke={BRAND.teal} strokeWidth={2.5} fill="url(#gSales)" name="Sales" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
-                    <Area type="monotone" dataKey="purchases" stroke="#5c1f22" strokeWidth={2} fill="url(#gPurch)" name="Purchase" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </ChartMountGuard>
-            </Box>
-          </Card>
-        </Grid>
-
-        {/* Expense breakdown donut */}
-        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-          <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', height: '100%', overflow: 'hidden' }}>
-            <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha('#e11d48', 0.1), display: 'flex' }}>
-                <PieChartIcon size={15} color="#e11d48" />
-              </Box>
-              <Box>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', lineHeight: 1.2 }}>Expense Breakdown</Typography>
-                <Typography variant="caption" color="text.secondary">By category · {PERIOD_LABELS[period].toLowerCase()}</Typography>
-              </Box>
-            </Box>
-            {stats.expenseDonut.length === 0 ? (
-              <Box sx={{ py: 6, textAlign: 'center', opacity: 0.4 }}>
-                <PieChartIcon size={32} strokeWidth={1.2} />
-                <Typography variant="body2" sx={{ mt: 1, fontWeight: 500 }}>No expense data</Typography>
-              </Box>
-            ) : (
-              <Box sx={{ px: 2, pt: 1, pb: 2 }}>
-                <Box sx={{ height: 180, position: 'relative' }}>
-                  <ChartMountGuard>
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={stats.expenseDonut}
-                          cx="50%" cy="50%"
-                          innerRadius="54%" outerRadius="80%"
-                          paddingAngle={2}
-                          dataKey="value"
-                          onMouseEnter={(_, idx) => setActiveDonut(idx)}
-                          onMouseLeave={() => setActiveDonut(null)}
-                          isAnimationActive
-                          animationDuration={200}
-                          animationEasing="ease-out"
-                        >
-                          {stats.expenseDonut.map((entry, i) => (
-                            <Cell
-                              key={i}
-                              fill={entry.color}
-                              opacity={activeDonut === null || activeDonut === i ? 1 : 0.45}
-                              stroke="none"
-                            />
-                          ))}
-                        </Pie>
-                        <ReTooltip content={<DonutTooltip />} />
-                      </PieChart>
-                    </ResponsiveContainer>
-                  </ChartMountGuard>
-                  {/* Center label */}
-                  <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
-                    <Typography sx={{ fontSize: '1.1rem', fontWeight: 900, color: '#e11d48', letterSpacing: '-0.03em', lineHeight: 1 }}>
-                      ₹{stats.totalExpenses >= 1000 ? `${(stats.totalExpenses / 1000).toFixed(1)}k` : stats.totalExpenses.toLocaleString('en-IN')}
-                    </Typography>
-                    <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', fontWeight: 600, mt: 0.25 }}>total</Typography>
-                  </Box>
-                </Box>
-                {/* Legend */}
-                <Stack spacing={0.5} sx={{ mt: 0.5 }}>
-                  {stats.expenseDonut.slice(0, 4).map((entry, i) => (
-                    <Stack key={i} direction="row" alignItems="center" justifyContent="space-between">
-                      <Stack direction="row" alignItems="center" spacing={0.75}>
-                        <Box sx={{ width: 8, height: 8, borderRadius: 1, bgcolor: entry.color, flexShrink: 0 }} />
-                        <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 500 }} noWrap>{entry.name}</Typography>
+              ) : null;
+            case 'chart':
+              return (
+              <Box key="chart" sx={{ minWidth: 0, height: "100%" }}>
+                <Card elevation={0} sx={cardSx}>
+                  <CardHead icon={Activity} title={`${PERIOD_LABELS[period]} · Sales & Purchase`} subtitle="Sales vs purchases over time"
+                    right={(
+                      <Stack direction="row" spacing={2}>
+                        {[{ color: D.ox, label: 'Sales' }, { color: D.gold, label: 'Purchase' }].map(({ color, label }) => (
+                          <Box key={label} sx={{ display: 'flex', alignItems: 'center', gap: 0.75 }}>
+                            <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />
+                            <Typography sx={{ fontWeight: 500, fontSize: '0.74rem', color: D.muted }}>{label}</Typography>
+                          </Box>
+                        ))}
                       </Stack>
-                      <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: 'text.primary', ml: 1, flexShrink: 0 }}>
-                        ₹{entry.value.toLocaleString('en-IN')}
-                      </Typography>
-                    </Stack>
-                  ))}
-                </Stack>
+                    )} />
+                  <Box sx={{ p: { xs: 1, sm: 2 }, height: { xs: 230, sm: 290 } }}>
+                    <ChartMountGuard>
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={stats.chartData} margin={{ top: 8, right: 4, left: isMobile ? -28 : -16, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="gSales" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={D.ox} stopOpacity={0.18} />
+                              <stop offset="100%" stopColor={D.ox} stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="gPurch" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor={D.gold} stopOpacity={0.18} />
+                              <stop offset="100%" stopColor={D.gold} stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid vertical={false} stroke={D.lineSoft} />
+                          <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: D.muted, fontSize: 11, fontWeight: 500 }} />
+                          <YAxis axisLine={false} tickLine={false} tick={{ fill: D.muted, fontSize: 11 }} tickFormatter={v => v >= 1000 ? `₹${(v / 1000).toFixed(0)}k` : `₹${v}`} />
+                          <ReTooltip content={<AreaTooltip />} />
+                          <Area type="monotone" dataKey="sales" stroke={D.ox} strokeWidth={2} fill="url(#gSales)" name="Sales" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                          <Area type="monotone" dataKey="purchases" stroke={D.gold} strokeWidth={2} fill="url(#gPurch)" name="Purchase" dot={false} activeDot={{ r: 4, strokeWidth: 0 }} />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </ChartMountGuard>
+                  </Box>
+                </Card>
               </Box>
-            )}
-          </Card>
-        </Grid>
-
-      </Grid>
-
-      {/* ── Row 3: Activity stream + Due Soon + Vendor payables ── */}
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-
-        {/* Activity stream */}
-        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-          <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', height: '100%', display: 'flex', flexDirection: 'column' }}>
-            <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha(BRAND.teal, 0.1), display: 'flex' }}>
-                <Layers size={15} color={BRAND.teal} />
-              </Box>
-              <Box sx={{ flex: 1 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', lineHeight: 1.2 }}>Activity Stream</Typography>
-                <Typography variant="caption" color="text.secondary">{recentTx.length} recent entries</Typography>
-              </Box>
-              <Button size="small" endIcon={<ChevronRight size={13} />} onClick={() => openTab('/sales', 'Sales')}
-                sx={{ fontSize: '0.7rem', textTransform: 'none', color: BRAND.teal, p: 0, minWidth: 0, fontWeight: 700, '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' } }}>
-                View all
-              </Button>
-            </Box>
-            <Box sx={{ flex: 1, overflow: 'auto', py: 0.5 }}>
-              {recentTx.length === 0 ? (
-                <Box sx={{ py: 6, textAlign: 'center', opacity: 0.38 }}>
-                  <Activity size={32} strokeWidth={1.2} />
-                  <Typography variant="body2" sx={{ mt: 1, fontWeight: 500 }}>No transactions yet</Typography>
-                </Box>
-              ) : (
-                recentTx.map((tx, idx) => {
-                  const isSale = tx.type === 'Sales';
-                  const clr = isSale ? BRAND.teal : '#5c1f22';
-                  const IcoComp = isSale ? ReceiptText : ShoppingBag;
-                  return (
-                    <Box key={tx.id}
-                      onClick={() => { setPreviewTx(tx); setPreviewOpen(true); }}
-                      sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.25, px: 2, py: 1.1, cursor: 'pointer', '&:hover': { bgcolor: alpha(clr, 0.04) }, position: 'relative' }}>
-                      {/* Timeline dot + line */}
-                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, flexShrink: 0, pt: 0.25 }}>
-                        <Box sx={{ width: 28, height: 28, borderRadius: '50%', bgcolor: alpha(clr, 0.12), display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                          <IcoComp size={13} color={clr} />
+              );
+            case 'expenses':
+              return (
+              <Box key="expenses" sx={{ minWidth: 0, height: "100%" }}>
+                <Card elevation={0} sx={cardSx}>
+                  <CardHead icon={PieChartIcon} title="Expense Breakdown" subtitle={`By category · ${PERIOD_LABELS[period].toLowerCase()}`} />
+                  {stats.expenseDonut.length === 0 ? (
+                    <Box sx={{ py: 6, textAlign: 'center', opacity: 0.4 }}>
+                      <PieChartIcon size={32} strokeWidth={1.2} />
+                      <Typography variant="body2" sx={{ mt: 1, fontWeight: 500 }}>No expense data</Typography>
+                    </Box>
+                  ) : (
+                    <Box sx={{ px: 2, pt: 1, pb: 2 }}>
+                      <Box sx={{ height: 180, position: 'relative' }}>
+                        <ChartMountGuard>
+                          <ResponsiveContainer width="100%" height="100%">
+                            <PieChart>
+                              <Pie
+                                data={stats.expenseDonut}
+                                cx="50%" cy="50%"
+                                innerRadius="54%" outerRadius="80%"
+                                paddingAngle={2}
+                                dataKey="value"
+                                onMouseEnter={(_, idx) => setActiveDonut(idx)}
+                                onMouseLeave={() => setActiveDonut(null)}
+                                isAnimationActive
+                                animationDuration={200}
+                                animationEasing="ease-out"
+                              >
+                                {stats.expenseDonut.map((entry, i) => (
+                                  <Cell
+                                    key={i}
+                                    fill={entry.color}
+                                    opacity={activeDonut === null || activeDonut === i ? 1 : 0.45}
+                                    stroke="none"
+                                  />
+                                ))}
+                              </Pie>
+                              <ReTooltip content={<DonutTooltip />} />
+                            </PieChart>
+                          </ResponsiveContainer>
+                        </ChartMountGuard>
+                        {/* Center label */}
+                        <Box sx={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', pointerEvents: 'none' }}>
+                          <Typography sx={{ fontFamily: D.serif, fontSize: '1.35rem', fontWeight: 500, color: D.ink, letterSpacing: '-0.02em', lineHeight: 1 }}>
+                            ₹{stats.totalExpenses >= 1000 ? `${(stats.totalExpenses / 1000).toFixed(1)}k` : stats.totalExpenses.toLocaleString('en-IN')}
+                          </Typography>
+                          <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', fontWeight: 600, mt: 0.25 }}>total</Typography>
                         </Box>
-                        {idx < recentTx.length - 1 && (
-                          <Box sx={{ width: 1, flex: 1, minHeight: 12, bgcolor: alpha(clr, 0.1), mt: 0.4 }} />
-                        )}
                       </Box>
-                      <Box sx={{ flex: 1, minWidth: 0, pb: idx < recentTx.length - 1 ? 1 : 0 }}>
-                        <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
-                          <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.79rem', lineHeight: 1.3 }} noWrap>
-                            {tx.partyName || (isSale ? 'Cash & Carry' : 'Cash Purchase')}
-                          </Typography>
-                          <Typography sx={{ fontSize: '0.8rem', fontWeight: 800, color: isSale ? BRAND.teal : '#5c1f22', ml: 1, flexShrink: 0, whiteSpace: 'nowrap' }}>
-                            {isSale ? '+' : '−'}₹{tx.totalAmount?.toLocaleString('en-IN') ?? '0'}
-                          </Typography>
-                        </Stack>
-                        <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mt: 0.25 }}>
-                          <Typography variant="caption" color="text.disabled" sx={{ fontSize: '0.66rem' }}>{tx.date}</Typography>
-                          <Box sx={{ width: 3, height: 3, borderRadius: '50%', bgcolor: 'text.disabled' }} />
-                          <Typography variant="caption" sx={{ fontSize: '0.66rem', color: clr, fontWeight: 600 }}>{tx.type}</Typography>
-                        </Stack>
-                      </Box>
-                    </Box>
-                  );
-                })
-              )}
-            </Box>
-          </Card>
-        </Grid>
-
-        {/* Overdue bills / invoices */}
-        <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-          <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', height: '100%', overflow: 'hidden' }}>
-            <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1.25 }}>
-              <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha('#dc2626', 0.1), display: 'flex' }}>
-                <Clock size={15} color="#dc2626" />
-              </Box>
-              <Box sx={{ flex: 1 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', lineHeight: 1.2 }}>Overdue</Typography>
-                <Typography variant="caption" color="text.secondary">Unpaid, past due date</Typography>
-              </Box>
-              {dueDates.length > 0 && (
-                <Chip label={dueDates.length} size="small" sx={{ fontWeight: 800, height: 20, fontSize: '0.66rem', bgcolor: alpha('#dc2626', 0.1), color: '#dc2626', border: 'none' }} />
-              )}
-            </Box>
-            {dueDates.length === 0 ? (
-              <Box sx={{ py: 5, textAlign: 'center', opacity: 0.4 }}>
-                <Clock size={28} strokeWidth={1.3} />
-                <Typography variant="body2" sx={{ mt: 1, fontWeight: 500 }}>No overdue bills</Typography>
-              </Box>
-            ) : (
-              dueDates.map((tx, idx) => {
-                const clr = '#dc2626';
-                const daysLate = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(tx.dueDate + 'T00:00:00')) / 86400000);
-                return (
-                  <Box key={tx.id}>
-                    <Stack direction="row" alignItems="center" spacing={1.25}
-                      onClick={() => { setPreviewTx(tx); setPreviewOpen(true); }}
-                      sx={{ px: 2, py: 1.2, cursor: 'pointer', '&:hover': { bgcolor: alpha(clr, 0.06) } }}>
-                      <Box sx={{ p: 0.875, borderRadius: 1.5, bgcolor: alpha(clr, 0.1), flexShrink: 0, display: 'flex' }}>
-                        <FileText size={14} color={clr} />
-                      </Box>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.79rem' }} noWrap>{tx.partyName}</Typography>
-                        <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>{tx.txType} · due {tx.dueDate}</Typography>
-                      </Box>
-                      <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
-                        <Typography sx={{ fontSize: '0.79rem', fontWeight: 700 }}>₹{tx.totalAmount?.toLocaleString('en-IN')}</Typography>
-                        <Chip label={daysLate > 0 ? `${daysLate}d late` : 'Overdue'} size="small" color="error" sx={{ fontWeight: 700, fontSize: '0.6rem', height: 16, mt: 0.25 }} />
-                      </Box>
-                    </Stack>
-                    {idx < dueDates.length - 1 && <Divider sx={{ mx: 2 }} />}
-                  </Box>
-                );
-              })
-            )}
-          </Card>
-        </Grid>
-        {/* Vendor payables */}
-        {stats.vendorsWithBalance.length > 0 && (
-          <Grid size={{ xs: 12, sm: 6, lg: 4 }}>
-            <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: 'divider', overflow: 'hidden', height: '100%' }}>
-              <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', alignItems: 'center', gap: 1.25 }}>
-                <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha('#d97706', 0.1), display: 'flex' }}>
-                  <Upload size={15} color="#d97706" />
-                </Box>
-                <Box sx={{ flex: 1 }}>
-                  <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', lineHeight: 1.2 }}>{t('dash.vendorPayables')}</Typography>
-                  <Typography variant="caption" color="text.secondary">Amounts owed to vendors</Typography>
-                </Box>
-                <Chip label={`₹${stats.toGive.toLocaleString('en-IN')}`} size="small"
-                  sx={{ fontWeight: 800, bgcolor: alpha('#d97706', 0.1), color: '#d97706', border: 'none', fontSize: '0.72rem', height: 22 }} />
-              </Box>
-              <Stack spacing={0}>
-                {stats.vendorsWithBalance.slice(0, 10).map((v, idx, arr) => {
-                  const owed = (v.balance || 0) < 0 ? -v.balance : 0;
-                  return (
-                    <Box key={v.id}>
-                      <Stack direction="row" alignItems="center" spacing={1.25} sx={{ px: 2, py: 1.2 }}>
-                        <Avatar sx={{ width: 32, height: 32, fontSize: '0.75rem', fontWeight: 800, bgcolor: alpha('#d97706', 0.1), color: '#d97706', flexShrink: 0 }}>
-                          {v.name?.[0]?.toUpperCase() || 'V'}
-                        </Avatar>
-                        <Typography variant="body2" sx={{ flex: 1, fontWeight: 600, fontSize: '0.79rem' }} noWrap>{v.name}</Typography>
-                        <Typography sx={{ fontWeight: 800, color: '#d97706', whiteSpace: 'nowrap', fontSize: '0.79rem' }}>
-                          ₹{owed.toLocaleString('en-IN')}
-                        </Typography>
+                      {/* Legend */}
+                      <Stack spacing={0.5} sx={{ mt: 0.5 }}>
+                        {stats.expenseDonut.slice(0, 4).map((entry, i) => (
+                          <Stack key={i} direction="row" alignItems="center" justifyContent="space-between">
+                            <Stack direction="row" alignItems="center" spacing={0.75}>
+                              <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: entry.color, flexShrink: 0 }} />
+                              <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', fontWeight: 500 }} noWrap>{entry.name}</Typography>
+                            </Stack>
+                            <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: 'text.primary', ml: 1, flexShrink: 0 }}>
+                              ₹{entry.value.toLocaleString('en-IN')}
+                            </Typography>
+                          </Stack>
+                        ))}
                       </Stack>
-                      {idx < arr.length - 1 && <Divider sx={{ mx: 2 }} />}
                     </Box>
-                  );
-                })}
-                {stats.vendorsWithBalance.length > 10 && (
-                  <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 1, display: 'block', textAlign: 'center' }}>
-                    +{stats.vendorsWithBalance.length - 10} more vendors
-                  </Typography>
-                )}
-              </Stack>
-            </Card>
-          </Grid>
-        )}
-
-      </Grid>
-
-      {/* ── Exam reminders ── */}
-      {examReminders.length > 0 && (
-        <Card elevation={0} sx={{ borderRadius: 3, border: '1px solid', borderColor: alpha('#d97706', 0.22), bgcolor: alpha('#d97706', 0.03), overflow: 'hidden' }}>
-          <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid', borderColor: alpha('#d97706', 0.15), display: 'flex', alignItems: 'center', gap: 1.25 }}>
-            <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: alpha('#d97706', 0.15), display: 'flex' }}>
-              <Bell size={15} color="#d97706" />
-            </Box>
-            <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', color: '#b45309' }}>{t('dash.examReminders')}</Typography>
-            <Chip label={examReminders.length} size="small" color="warning" sx={{ fontWeight: 800, height: 20 }} />
-          </Box>
-          <Stack spacing={0}>
-            {examReminders.slice(0, 5).map((o, idx) => (
-              <Box key={o.id}>
-                <Stack direction="row" alignItems="center" spacing={1.25} sx={{ px: 2.5, py: 1.2 }}>
-                  <Avatar sx={{ width: 32, height: 32, fontSize: '0.75rem', fontWeight: 800, bgcolor: alpha('#d97706', 0.12), color: '#d97706', flexShrink: 0 }}>
-                    {(o.patientName || '?')[0].toUpperCase()}
-                  </Avatar>
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.79rem' }} noWrap>{o.patientName}</Typography>
-                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>Exam {o.date} · {o.examReminder}</Typography>
-                  </Box>
-                  <Chip label="Due" size="small" color="warning" variant="outlined" sx={{ fontWeight: 700, fontSize: '0.66rem', height: 20 }} />
-                </Stack>
-                {idx < Math.min(examReminders.length, 5) - 1 && <Divider sx={{ mx: 2.5 }} />}
+                  )}
+                </Card>
               </Box>
-            ))}
-          </Stack>
-        </Card>
-      )}
+              );
+            case 'activity':
+              return (
+              <Box key="activity" sx={{ minWidth: 0, height: "100%" }}>
+                <Card elevation={0} sx={{ ...cardSx, display: 'flex', flexDirection: 'column', maxHeight: 470 }}>
+                  <CardHead icon={Layers} title="Activity" subtitle={`${recentTx.length} recent entries`}
+                    right={(
+                      <Button size="small" endIcon={<ChevronRight size={13} />} onClick={() => openTab('/sales', 'Sales')}
+                        sx={{ fontSize: '0.74rem', textTransform: 'none', color: D.ox, p: 0, minWidth: 0, fontWeight: 600, '&:hover': { bgcolor: 'transparent', textDecoration: 'underline' } }}>
+                        View all
+                      </Button>
+                    )} />
+                  <Box sx={{ flex: 1, overflow: 'auto', py: 0.5 }}>
+                    {recentTx.length === 0 ? (
+                      <Box sx={{ py: 6, textAlign: 'center', opacity: 0.38 }}>
+                        <Activity size={32} strokeWidth={1.2} />
+                        <Typography variant="body2" sx={{ mt: 1, fontWeight: 500 }}>No transactions yet</Typography>
+                      </Box>
+                    ) : (
+                      recentTx.map((tx, idx) => {
+                        const isSale = tx.type === 'Sales';
+                        const clr = isSale ? D.ox : D.gold;
+                        const IcoComp = isSale ? ReceiptText : ShoppingBag;
+                        return (
+                          <Box key={tx.id}
+                            onClick={() => { setPreviewTx(tx); setPreviewOpen(true); }}
+                            sx={{ display: 'flex', alignItems: 'flex-start', gap: 1.5, px: 2.5, py: 1, cursor: 'pointer', '&:hover': { bgcolor: '#faf6f2' }, position: 'relative' }}>
+                            {/* Timeline dot + line */}
+                            <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 0, flexShrink: 0, pt: 0.25 }}>
+                              <Box sx={{ width: 28, height: 28, borderRadius: '50%', border: `1px solid ${alpha(clr, 0.35)}`, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                <IcoComp size={13} color={clr} />
+                              </Box>
+                              {idx < recentTx.length - 1 && (
+                                <Box sx={{ width: '1px', flex: 1, minHeight: 12, bgcolor: D.line, mt: 0.4 }} />
+                              )}
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0, pb: idx < recentTx.length - 1 ? 1 : 0 }}>
+                              <Stack direction="row" justifyContent="space-between" alignItems="flex-start">
+                                <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.79rem', lineHeight: 1.3 }} noWrap>
+                                  {tx.partyName || (isSale ? 'Cash & Carry' : 'Cash Purchase')}
+                                </Typography>
+                                <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: isSale ? D.green : D.ink, ml: 1, flexShrink: 0, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                                  {isSale ? '+' : '−'}₹{tx.totalAmount?.toLocaleString('en-IN') ?? '0'}
+                                </Typography>
+                              </Stack>
+                              <Stack direction="row" alignItems="center" spacing={0.75} sx={{ mt: 0.25 }}>
+                                <Typography variant="caption" sx={{ fontSize: '0.68rem', color: D.muted }}>{tx.date}</Typography>
+                                <Box sx={{ width: 3, height: 3, borderRadius: '50%', bgcolor: D.line }} />
+                                <Typography variant="caption" sx={{ fontSize: '0.68rem', color: D.muted }}>{tx.type}</Typography>
+                              </Stack>
+                            </Box>
+                          </Box>
+                        );
+                      })
+                    )}
+                  </Box>
+                </Card>
+              </Box>
+              );
+            case 'overdue':
+              return (
+              <Box key="overdue" sx={{ minWidth: 0, height: "100%" }}>
+                <Card elevation={0} sx={cardSx}>
+                  <CardHead icon={Clock} title="Overdue" subtitle="Unpaid, past due date"
+                    right={dueDates.length > 0 ? <CountPill color={D.red}>{dueDates.length}</CountPill> : null} />
+                  {dueDates.length === 0 ? (
+                    <Box sx={{ py: 5, textAlign: 'center', opacity: 0.4 }}>
+                      <Clock size={28} strokeWidth={1.3} />
+                      <Typography variant="body2" sx={{ mt: 1, fontWeight: 500 }}>No overdue bills</Typography>
+                    </Box>
+                  ) : (
+                    dueDates.map((tx, idx) => {
+                      const clr = D.red;
+                      const daysLate = Math.floor((new Date().setHours(0, 0, 0, 0) - new Date(tx.dueDate + 'T00:00:00')) / 86400000);
+                      return (
+                        <Box key={tx.id}>
+                          <Stack direction="row" alignItems="center" spacing={1.25}
+                            onClick={() => { setPreviewTx(tx); setPreviewOpen(true); }}
+                            sx={{ px: 2.5, py: 1.2, cursor: 'pointer', '&:hover': { bgcolor: '#faf6f2' } }}>
+                            <Box sx={{ width: 30, height: 30, borderRadius: '50%', border: `1px solid ${D.line}`, flexShrink: 0, display: 'grid', placeItems: 'center' }}>
+                              <FileText size={13} color={D.soft} />
+                            </Box>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.79rem' }} noWrap>{tx.partyName}</Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>{tx.txType} · due {tx.dueDate}</Typography>
+                            </Box>
+                            <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                              <Typography sx={{ fontSize: '0.82rem', fontWeight: 600, color: D.ink, fontVariantNumeric: 'tabular-nums' }}>₹{tx.totalAmount?.toLocaleString('en-IN')}</Typography>
+                              <Typography sx={{ fontSize: '0.66rem', fontWeight: 600, color: clr, mt: 0.2 }}>{daysLate > 0 ? `${daysLate} days late` : 'Overdue'}</Typography>
+                            </Box>
+                          </Stack>
+                          {idx < dueDates.length - 1 && <Divider sx={{ mx: 2.5, borderColor: D.lineSoft }} />}
+                        </Box>
+                      );
+                    })
+                  )}
+                </Card>
+              </Box>
+              );
+            case 'payables':
+              return stats.vendorsWithBalance.length > 0 ? (
+              <Box key="payables" sx={{ minWidth: 0, height: "100%" }}>
+                <Card elevation={0} sx={cardSx}>
+                  <CardHead icon={Upload} title={t('dash.vendorPayables')} subtitle="Amounts owed to vendors"
+                    right={<CountPill color="#9a6517">₹{stats.toGive.toLocaleString('en-IN')}</CountPill>} />
+                  <Stack spacing={0}>
+                    {stats.vendorsWithBalance.slice(0, 10).map((v, idx, arr) => {
+                      const owed = (v.balance || 0) < 0 ? -v.balance : 0;
+                      return (
+                        <Box key={v.id}>
+                          <Stack direction="row" alignItems="center" spacing={1.5} sx={{ px: 2.5, py: 1.2 }}>
+                            <Avatar sx={{ width: 30, height: 30, fontSize: '0.74rem', fontWeight: 600, bgcolor: '#f3ece5', color: D.soft, flexShrink: 0 }}>
+                              {v.name?.[0]?.toUpperCase() || 'V'}
+                            </Avatar>
+                            <Typography variant="body2" sx={{ flex: 1, fontWeight: 600, fontSize: '0.79rem' }} noWrap>{v.name}</Typography>
+                            <Typography sx={{ fontWeight: 600, color: D.ink, whiteSpace: 'nowrap', fontSize: '0.82rem', fontVariantNumeric: 'tabular-nums' }}>
+                              ₹{owed.toLocaleString('en-IN')}
+                            </Typography>
+                          </Stack>
+                          {idx < arr.length - 1 && <Divider sx={{ mx: 2.5, borderColor: D.lineSoft }} />}
+                        </Box>
+                      );
+                    })}
+                    {stats.vendorsWithBalance.length > 10 && (
+                      <Typography variant="caption" color="text.secondary" sx={{ px: 2, py: 1, display: 'block', textAlign: 'center' }}>
+                        +{stats.vendorsWithBalance.length - 10} more vendors
+                      </Typography>
+                    )}
+                  </Stack>
+                </Card>
+              </Box>
+              ) : null;
+            case 'notes':
+              return <Box key="notes" sx={{ minWidth: 0 }}><NotesBoard /></Box>;
+            case 'examReminders':
+              return examReminders.length > 0 ? (
+                <Box key="examReminders" sx={{ minWidth: 0, height: "100%" }}>
+                  <Card elevation={0} sx={{ ...cardSx, height: 'auto' }}>
+                    <CardHead icon={Bell} title={t('dash.examReminders')} right={<CountPill color="#9a6517">{examReminders.length}</CountPill>} />
+                    <Stack spacing={0}>
+                      {examReminders.slice(0, 5).map((o, idx) => (
+                        <Box key={o.id}>
+                          <Stack direction="row" alignItems="center" spacing={1.25} sx={{ px: 2.5, py: 1.2 }}>
+                            <Avatar sx={{ width: 32, height: 32, fontSize: '0.75rem', fontWeight: 800, bgcolor: alpha('#d97706', 0.12), color: '#d97706', flexShrink: 0 }}>
+                              {(o.patientName || '?')[0].toUpperCase()}
+                            </Avatar>
+                            <Box sx={{ flex: 1, minWidth: 0 }}>
+                              <Typography variant="body2" sx={{ fontWeight: 600, fontSize: '0.79rem' }} noWrap>{o.patientName}</Typography>
+                              <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.68rem' }}>Exam {o.date} · {o.examReminder}</Typography>
+                            </Box>
+                            <Chip label="Due" size="small" color="warning" variant="outlined" sx={{ fontWeight: 700, fontSize: '0.66rem', height: 20 }} />
+                          </Stack>
+                          {idx < Math.min(examReminders.length, 5) - 1 && <Divider sx={{ mx: 2.5 }} />}
+                        </Box>
+                      ))}
+                    </Stack>
+                  </Card>
+                </Box>
+              ) : null;
+            default:
+              return null;
+          }
+        };
+        // Desktop: main column + a right rail for "needs attention" lists.
+        // Settings → Dashboard still controls visibility and order (within
+        // each column). Narrow screens show everything in one column.
+        const RAIL = new Set(['overdue', 'payables', 'examReminders']);
+        const HALF = new Set(['expenses', 'activity']);
+        const keys = dash.widgets.filter(w => w.visible).map(w => w.key);
+        const mainKeys = keys.filter(k => !RAIL.has(k));
+        const railKeys = keys.filter(k => RAIL.has(k));
+        // Chart + Notes always share a row (half width each) when both are on;
+        // other adjacent half-width widgets (expense donut + activity) too.
+        const pairNotes = mainKeys.includes('chart') && mainKeys.includes('notes');
+        const mainBlocks = [];
+        mainKeys.forEach((k) => {
+          if (pairNotes && k === 'notes') return;
+          if (pairNotes && k === 'chart') { mainBlocks.push(['chart', 'notes']); return; }
+          const last = mainBlocks[mainBlocks.length - 1];
+          if (HALF.has(k) && Array.isArray(last) && last.length === 1) last.push(k);
+          else mainBlocks.push(HALF.has(k) ? [k] : k);
+        });
+        const showClockCard = dash.showClock && keys.includes('summary');
+        const railItems = railKeys.map(k => ({ k, node: renderWidget(k) })).filter(x => x.node);
+        return (
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', lg: 'minmax(0, 1fr) 340px' }, gap: 2.5, alignItems: 'start' }}>
+            <Stack spacing={2.5} sx={{ minWidth: 0 }}>
+              {mainBlocks.map((b) => (Array.isArray(b) ? (
+                <Box key={b.join('+')} sx={{ display: 'grid', gridTemplateColumns: { xs: 'minmax(0, 1fr)', md: b.length > 1 ? 'repeat(2, minmax(0, 1fr))' : 'minmax(0, 1fr)' }, gap: 2.5 }}>
+                  {b.map(renderWidget)}
+                </Box>
+              ) : renderWidget(b)))}
+            </Stack>
+            {(showClockCard || railItems.length > 0) && (
+              <Stack spacing={2.5} sx={{ minWidth: 0, position: { lg: 'sticky' }, top: { lg: 16 } }}>
+                {showClockCard && (
+                  <ClockCalendarWidget
+                    now={now}
+                    accentColor={BRAND.teal}
+                    bgColor={`linear-gradient(150deg, ${D.ox} 0%, ${D.oxDeep} 100%)`}
+                    textOnBg="#f6ecdf"
+                    stats={stats}
+                    kpis={NO_KPIS}
+                    showClock
+                    rail
+                  />
+                )}
+                {railItems.map(x => x.node)}
+              </Stack>
+            )}
+          </Box>
+        );
+      })()}
 
       {/* ── QR Code Dialog ── */}
       <Dialog open={qrOpen} onClose={() => setQrOpen(false)} maxWidth="xs" fullWidth

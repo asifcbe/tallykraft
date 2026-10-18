@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTableScrollReset } from './useTableScrollReset';
 import {
   Box, Button, Card, CardContent, Typography, TextField, Dialog,
   DialogTitle, DialogContent, DialogActions, Grid, Table, TableBody,
@@ -15,6 +16,8 @@ import { useConfig } from './ConfigContext';
 import { useSubscription } from './SubscriptionContext';
 import { useDialog } from './DialogContext';
 import { useData } from './DataContext';
+import { useAuth } from './AuthContext';
+import { canSeeSummaries } from './staffScope';
 import { useI18n } from './i18n/I18nContext';
 import { FitPreview } from './TxListView';
 import { acknowledgeQuickNew } from './quickNewBridge';
@@ -34,8 +37,10 @@ const ExpensesPage = () => {
   const { t } = useI18n();
 
   const { data, addItem, updateItem, deleteItem, getItems } = useData();
+  const { staffSession } = useAuth();
+  const showSummaries = canSeeSummaries(staffSession);
   const { confirm } = useDialog();
-  // TallyKraft billing: data layer blocks the write; this greys the CTA.
+  // BillDheko billing: data layer blocks the write; this greys the CTA.
   const { isBusinessActive } = useSubscription();
   const canWrite = isBusinessActive(currentBusiness?.id);
   const location = useLocation();
@@ -84,18 +89,19 @@ const ExpensesPage = () => {
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewRecord, setPreviewRecord] = useState(null);
   const printRef = useRef();
+  const txScrollRef = useTableScrollReset(page, rowsPerPage);
 
   const handlePrint = useReactToPrint({
     contentRef: printRef,
   });
 
   const handleShare = (row) => {
-    const text = `*Expense Voucher from ${currentBusiness?.name || 'TallyKraft'}*\n\n` +
+    const text = `*Expense Voucher from ${currentBusiness?.name || 'BillDheko'}*\n\n` +
       `Amount: ₹${row.amount.toLocaleString()}\n` +
       `Date: ${row.date}\n` +
       `Category: ${row.category}\n` +
       `Description: ${row.description}\n\n` +
-      `Shared via TallyKraft`;
+      `Shared via BillDheko`;
     
     if (navigator.share) {
       navigator.share({ title: `Expense Voucher`, text }).catch(e => console.error(e));
@@ -326,8 +332,8 @@ const ExpensesPage = () => {
         </Box>
       </Box>
 
-      {/* Stat strip */}
-      <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: { xs: 1.25, md: 2 }, mb: 2.5 }}>
+      {/* Stat strip — hidden for staff logins */}
+      {showSummaries && <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', md: 'repeat(4, 1fr)' }, gap: { xs: 1.25, md: 2 }, mb: 2.5 }}>
         {[
           { label: t('exp.totalFiltered'), value: fmt(totalExpenses), icon: <DollarSign size={18} />, color: '#dc2626' },
           { label: t('dash.thisMonth'), value: fmt(thisMonthTotal), icon: <CalendarDays size={18} />, color: '#d97706' },
@@ -344,7 +350,7 @@ const ExpensesPage = () => {
             </CardContent>
           </Card>
         ))}
-      </Box>
+      </Box>}
 
       <Card elevation={0} sx={{ mb: 2, border: '1px solid', borderColor: 'divider' }}>
         <CardContent>
@@ -515,7 +521,7 @@ const ExpensesPage = () => {
           </Box>
 
           {/* Desktop / tablet: table */}
-          <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, display: { xs: 'none', sm: 'block' } }}>
+          <TableContainer ref={txScrollRef} component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, display: { xs: 'none', sm: 'block' } }}>
             <Table sx={{ minWidth: 650 }}>
               <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.02)' }}>
                 <TableRow>

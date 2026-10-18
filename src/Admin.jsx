@@ -13,7 +13,7 @@ import {
   ShoppingBag, Truck, FileText, Package, Car, Coffee, Layers, Eye,
   Users, CreditCard, Award, Calendar, Building2,
   CheckCircle2, XCircle, Gift, Search, BarChart3, TrendingUp, RefreshCw,
-  Lock, Cloud, IndianRupee, Wallet
+  Lock, Cloud, IndianRupee, Wallet, FileSpreadsheet, Archive
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, XAxis, YAxis, CartesianGrid,
@@ -24,6 +24,8 @@ import { collection, doc, onSnapshot, setDoc, deleteDoc, getDoc, getDocs, query,
 import { useAuth } from './AuthContext';
 import { useDialog } from './DialogContext';
 import AdminBilling from './AdminBilling';
+import AdminSubscriptionRecords from './AdminSubscriptionRecords';
+import { TRIAL_DAYS } from './planTiers';
 
 // --- Constants ---
 const featureKeys = [
@@ -47,8 +49,8 @@ const featureLabels = {
 
 // --- Subscription plan helpers ---
 const PLAN_META = {
-  monthly_pro:  { label: '₹299/mo',          short: 'Plan',   color: '#5c1f22', tier: 'pro' },
-  yearly_pro:   { label: '₹2999/yr',         short: 'Plan',   color: '#5c1f22', tier: 'pro' },
+  monthly_pro:  { label: '₹299 / 30 days',   short: 'Plan',   color: '#5c1f22', tier: 'pro' },
+  yearly_pro:   { label: '₹2999/yr (legacy)', short: 'Plan',  color: '#5c1f22', tier: 'pro' },
   trial:        { label: 'Trial',            short: 'Trial',  color: '#f59e0b', tier: 'trial' },
   admin_granted:{ label: 'Admin Granted',    short: 'Admin',  color: '#8b5cf6', tier: 'admin' },
 };
@@ -64,14 +66,13 @@ const isBasicPlan = (plan) => plan === 'monthly' || plan === 'yearly';
 const isProPlan = (plan) => plan === 'monthly_pro' || plan === 'yearly_pro';
 
 const GRANT_PLAN_OPTIONS = [
-  { value: 'trial',       label: 'Trial',      desc: '3-day free trial (all features)',            color: '#f59e0b' },
-  { value: 'monthly_pro', label: '₹299/mo',    desc: 'All features + cloud backup, 1 business',    color: '#5c1f22' },
-  { value: 'yearly_pro',  label: '₹2999/yr',   desc: 'All features + cloud backup, 1 business',    color: '#5c1f22' },
+  { value: 'trial',       label: 'Trial',          desc: `${TRIAL_DAYS}-day free trial (all features)`,           color: '#f59e0b' },
+  { value: 'monthly_pro', label: '₹299 / 30 days', desc: 'All features + cloud backup, 1 business (no charge)', color: '#5c1f22' },
 ];
 
 const DURATION_OPTIONS = [
   { value: '7d',     label: '7 Days' },
-  { value: '1m',     label: '1 Month' },
+  { value: '1m',     label: '30 Days' },
   { value: '3m',     label: '3 Months' },
   { value: '6m',     label: '6 Months' },
   { value: '1y',     label: '1 Year' },
@@ -161,7 +162,6 @@ const defaultUserForm = () => ({
   allowed: true,
   isAdmin: false,
   grantAdminAccess: false,
-  businessType: 'general',
   multiBusiness: true,
   maxBusinesses: 0,
   useIndexedDB: true,
@@ -332,6 +332,9 @@ const Admin = () => {
   const [form, setForm] = useState(defaultUserForm());
   const [message, setMessage] = useState({ type: '', text: '' });
   const [userSearch, setUserSearch] = useState('');
+  // Bulk "Export Users" (all users → Excel) state
+  const [usersExcelExporting, setUsersExcelExporting] = useState(false);
+  const [allBizExport, setAllBizExport] = useState({ running: false, done: 0, total: 0, current: '', failed: [], finished: false });
 
   // Sections state
   const [sections, setSections] = useState([]);
@@ -477,7 +480,7 @@ const Admin = () => {
     const planDistribution = [
       // "Basic" is a legacy tier (no longer sold); fold any remaining legacy
       // Basic subs into the single paid bucket so the chart isn't misleading.
-      { name: 'Paid (₹299 / ₹2999)', value: proActive + basicActive, color: '#5c1f22' },
+      { name: 'Paid (₹299 / 30 days)', value: proActive + basicActive, color: '#5c1f22' },
       { name: 'Trial', value: stats.trial, color: '#f59e0b' },
       { name: 'Expired', value: stats.expired, color: '#ef4444' },
     ].filter((s) => s.value > 0);
@@ -523,7 +526,6 @@ const Admin = () => {
       allowed: user.allowed !== false,
       isAdmin: !!user.isAdmin,
       grantAdminAccess: !!(subscriptions[email]?.adminGrantedAll),
-      businessType: cfg.businessType || 'general',
       multiBusiness: cfg.multiBusiness !== false,
       maxBusinesses: cfg.maxBusinesses || 0,
       useIndexedDB: cfg.useIndexedDB !== false,
@@ -575,8 +577,10 @@ const Admin = () => {
         email: form.email,
         allowed: form.allowed,
         isAdmin: form.isAdmin,
+        // Makes these feature toggles win over every business's own saved
+        // copy (see ConfigContext buildConfig).
+        adminFeaturesAt: Date.now(),
         config: {
-          businessType: form.businessType,
           multiBusiness: form.multiBusiness,
           maxBusinesses: Number(form.maxBusinesses) || 0,
           useIndexedDB: form.useIndexedDB,
@@ -614,9 +618,294 @@ const Admin = () => {
     }
   };
 
+  // ── Bulk "Export Users" — a multi-sheet Excel workbook covering every user ──
+  // Sheet 1 "Summary" — headline counts, so opening the file immediately tells
+  //   the story without scrolling any list.
+  // Sheet 2 "All Users" — one row per USER (account-level: access/admin/plan/
+  //   business count), the natural "who is everyone" view.
+  // Sheet 3 "Admins" — subset of All Users who are admins, isolated so a
+  //   security/access review doesn't have to filter it out manually.
+  // Sheet 4 "Access Granted" — subset of All Users who currently have app
+  //   access (`allowed !== false`).
+  // Sheet 5 "No Access / Blocked" — the complement of sheet 4.
+  // Sheet 6 "Business Details" — one row per user-business pair (a user with no
+  //   business still gets one row; several businesses → several rows) — the
+  //   detailed drill-down for anyone who needs business name/code/plan.
+  // Business name/code come from the `businesses/{id}` profile doc (joined by
+  // ownerEmail); plan/subscription status come from `subscriptions/{email}`
+  // (already held in state), matching per-business subs the same way the
+  // Subscriptions tab does via parseBizSubsAdmin/PLAN_META.
+  const handleExportAllUsersExcel = async () => {
+    setUsersExcelExporting(true);
+    try {
+      // 1) Every userConfig doc (paginated collection — read it all here,
+      // independent of the sidebar list's own 50-at-a-time paging).
+      const userDocs = [];
+      let cursor = null;
+      while (true) {
+        const q = cursor
+          ? query(collection(firestore, 'userConfig'), orderBy('email'), startAfter(cursor), limit(500))
+          : query(collection(firestore, 'userConfig'), orderBy('email'), limit(500));
+        const snap = await getDocs(q);
+        snap.docs.forEach(d => userDocs.push({ id: d.id, ...d.data() }));
+        if (snap.docs.length < 500) break;
+        cursor = snap.docs[snap.docs.length - 1];
+      }
+
+      // 2) Every businesses/{id} profile doc, grouped by owner email — read
+      // once for everyone instead of resolving it per-user.
+      const bizSnap = await getDocs(collection(firestore, 'businesses'));
+      const bizByOwnerEmail = {};
+      bizSnap.docs.forEach(d => {
+        const b = d.data();
+        const ownerEmail = (b.ownerEmail || '').toLowerCase();
+        if (!ownerEmail) return;
+        if (!bizByOwnerEmail[ownerEmail]) bizByOwnerEmail[ownerEmail] = [];
+        bizByOwnerEmail[ownerEmail].push({ _docId: d.id, ...b });
+      });
+
+      // 3) subscriptions/{email} already live in state (`subscriptions`).
+
+      // ── Build one account-level record per user (used to derive most sheets) ──
+      const userRecords = userDocs.map(u => {
+        const email = u.email || u.id;
+        const emailKey = email.toLowerCase();
+        const cfg = u.config || {};
+        const sub = subscriptions[email] || null;
+        const badge = getSubBadge(sub);
+        const businesses = bizByOwnerEmail[emailKey] || [];
+        const hasAccess = u.allowed !== false;
+        return { email, cfg, sub, badge, businesses, hasAccess, isAdmin: !!u.isAdmin };
+      });
+
+      const allUsersRow = (r) => ({
+        'Email': r.email,
+        'Access': r.hasAccess ? 'Granted' : 'Blocked',
+        'Admin': r.isAdmin ? 'Yes' : 'No',
+        'Admin-Granted Subscription': r.sub?.adminGrantedAll ? 'Yes' : 'No',
+        'Plan': r.badge ? r.badge.label : 'No plan',
+        'Businesses': r.businesses.length,
+        'Multi-Business Enabled': r.cfg.multiBusiness !== false ? 'Yes' : 'No',
+        'Max Businesses': r.cfg.maxBusinesses || 0,
+        'Cloud Backup Enabled': r.cfg.backupOnlineEnabled === true ? 'Yes' : 'No',
+      });
+
+      const allUsersRows = userRecords.map(allUsersRow);
+      const adminRows = userRecords.filter(r => r.isAdmin).map(allUsersRow);
+      const accessGrantedRows = userRecords.filter(r => r.hasAccess).map(allUsersRow);
+      const noAccessRows = userRecords.filter(r => !r.hasAccess).map(allUsersRow);
+
+      const businessRows = [];
+      userRecords.forEach(r => {
+        const bizSubs = parseBizSubsAdmin(r.sub);
+        if (r.businesses.length === 0) {
+          businessRows.push({
+            'Email': r.email, 'Access': r.hasAccess ? 'Granted' : 'Blocked', 'Admin': r.isAdmin ? 'Yes' : 'No',
+            'Business Name': '', 'Business Code': '', 'Business ID': '',
+            'Plan (this business)': '', 'Subscription Status': '', 'Subscription End Date': '',
+          });
+          return;
+        }
+        r.businesses.forEach(biz => {
+          const bizSub = bizSubs[biz._docId] || bizSubs['1'] || null;
+          businessRows.push({
+            'Email': r.email, 'Access': r.hasAccess ? 'Granted' : 'Blocked', 'Admin': r.isAdmin ? 'Yes' : 'No',
+            'Business Name': biz.name || bizSub?.businessName || '',
+            'Business Code': biz.businessCode || '',
+            'Business ID': biz._docId,
+            'Plan (this business)': bizSub?.plan ? (PLAN_META[bizSub.plan]?.label || bizSub.plan) : '',
+            'Subscription Status': bizSub?.status || '',
+            'Subscription End Date': bizSub?.endDate || '',
+          });
+        });
+      });
+
+      const summaryRows = [
+        { 'Metric': 'Total users', 'Count': userRecords.length },
+        { 'Metric': 'Access granted', 'Count': accessGrantedRows.length },
+        { 'Metric': 'Blocked / no access', 'Count': noAccessRows.length },
+        { 'Metric': 'Admins', 'Count': adminRows.length },
+        { 'Metric': 'Admin-granted subscription', 'Count': userRecords.filter(r => r.sub?.adminGrantedAll).length },
+        { 'Metric': 'Users with ≥1 business', 'Count': userRecords.filter(r => r.businesses.length > 0).length },
+        { 'Metric': 'Users with no business', 'Count': userRecords.filter(r => r.businesses.length === 0).length },
+        { 'Metric': 'Total businesses', 'Count': businessRows.filter(r => r['Business ID']).length },
+        { 'Metric': '', 'Count': '' },
+        { 'Metric': 'Exported at', 'Count': new Date().toLocaleString('en-IN') },
+      ];
+
+      const XLSX = await import('xlsx');
+      const autoWidth = (rows) => Object.keys(rows[0] || {}).map(key => ({
+        wch: Math.max(key.length, 12, ...rows.slice(0, 300).map(r => String(r[key] ?? '').length)) + 2,
+      }));
+      const addSheet = (wb, rows, name) => {
+        const ws = XLSX.utils.json_to_sheet(rows);
+        ws['!cols'] = autoWidth(rows);
+        XLSX.utils.book_append_sheet(wb, ws, name.slice(0, 31));
+      };
+
+      const wb = XLSX.utils.book_new();
+      addSheet(wb, summaryRows, 'Summary');
+      addSheet(wb, allUsersRows, 'All Users');
+      addSheet(wb, adminRows.length ? adminRows : [{ 'Note': 'No admin users' }], 'Admins');
+      addSheet(wb, accessGrantedRows.length ? accessGrantedRows : [{ 'Note': 'No users with access' }], 'Access Granted');
+      addSheet(wb, noAccessRows.length ? noAccessRows : [{ 'Note': 'No blocked users' }], 'No Access');
+      addSheet(wb, businessRows, 'Business Details');
+      XLSX.writeFile(wb, `billdheko-users-${new Date().toISOString().slice(0, 10)}.xlsx`);
+      setMessage({ type: 'success', text: `Exported ${userRecords.length} user(s) across ${businessRows.length} business row(s) to Excel.` });
+    } catch (err) {
+      setMessage({ type: 'error', text: 'Bulk user export failed: ' + (err.message || 'Unknown error') });
+    } finally {
+      setUsersExcelExporting(false);
+    }
+  };
+
+  // Reads one business's full data (every table, re-assembled from its
+  // chunk docs) plus its meta doc. Shared by the single-business export and
+  // "Export All Businesses" so both produce the exact same file format.
+  const readBizExportData = async (uid, id) => {
+      const tSnap = await getDocs(collection(firestore, 'users', uid, 'biz', id, 't'));
+      const ALL_TABLES = ['parties','items','sales','purchases','expenses','payments','estimates','orders','creditNotes','debitNotes','deliveryNotes','journalEntries','opticals','opticalOrders','opticalSettings','customSectionRecords','settings','memberships','cashEntries','staffMembers','staffAttendance','staffSalary','investors'];
+      const chunkMap = {};
+      tSnap.docs.forEach(d => {
+        const li = d.id.lastIndexOf('_');
+        const tName = d.id.substring(0, li);
+        const ci = parseInt(d.id.substring(li + 1), 10);
+        if (!chunkMap[tName]) chunkMap[tName] = {};
+        chunkMap[tName][ci] = d.data().d || [];
+      });
+      const tableData = {};
+      ALL_TABLES.forEach(t => {
+        const chunks = chunkMap[t];
+        if (!chunks) { tableData[t] = []; return; }
+        const maxIdx = Math.max(...Object.keys(chunks).map(Number));
+        tableData[t] = [];
+        for (let i = 0; i <= maxIdx; i++) tableData[t].push(...(chunks[i] || []));
+      });
+
+      // Keep any table present in Firestore even if not in the list above.
+      Object.keys(chunkMap).forEach(t => {
+        if (tableData[t]) return;
+        const chunks = chunkMap[t];
+        const maxIdx = Math.max(...Object.keys(chunks).map(Number));
+        tableData[t] = [];
+        for (let i = 0; i <= maxIdx; i++) tableData[t].push(...(chunks[i] || []));
+      });
+
+      // Also read business meta from users/{uid}/biz/{bizId}
+      const metaSnap = await getDoc(doc(firestore, 'users', uid, 'biz', id));
+      const meta = metaSnap.exists() ? metaSnap.data() : {};
+      delete meta._cc;
+      return { meta, tableData };
+  };
+
+  // ── Export ALL businesses — one JSON per business, bundled in one ZIP ─────
+  // Every file has the same format as the per-business "Export to File"
+  // (restorable via Backup → Restore from File or Admin → Import from File).
+  const handleExportAllBusinesses = async () => {
+    setAllBizExport({ running: true, done: 0, total: 0, current: 'Finding all businesses…', failed: [], finished: false });
+    try {
+      // 1. Owners: uid → email, from userConfig, businesses and (if allowed) users.
+      const owners = new Map();
+      // Add an owner, or fill in their email if an earlier source didn't have it.
+      const addOwner = (uid, email) => { if (!uid) return; if (!owners.has(uid) || (!owners.get(uid) && email)) owners.set(uid, email || ''); };
+      const cfgSnap = await getDocs(collection(firestore, 'userConfig'));
+      cfgSnap.forEach(d => { const v = d.data(); addOwner(v.uid, d.id); });
+      const profSnap = await getDocs(collection(firestore, 'businesses'));
+      const profiles = {};
+      profSnap.forEach(d => { const v = d.data(); profiles[d.id] = v; addOwner(v.ownerId, v.ownerEmail); });
+      try {
+        const usersSnap = await getDocs(collection(firestore, 'users'));
+        usersSnap.forEach(d => addOwner(d.id, d.data()?.email));
+      } catch { /* listing users may be restricted — the other sources usually cover everyone */ }
+
+      // 2. Every business of every owner.
+      const jobs = [];
+      for (const [uid, email] of owners) {
+        const bizSnap = await getDocs(collection(firestore, 'users', uid, 'biz')).catch(() => null);
+        bizSnap?.forEach(d => {
+          const profileId = d.data()?.firestoreBizDocId || (String(d.id) === '1' ? `biz_${uid}` : `biz_${uid}_${d.id}`);
+          jobs.push({ uid, email, bizId: d.id, profile: profiles[profileId] || {} });
+        });
+      }
+      if (!jobs.length) {
+        setAllBizExport({ running: false, done: 0, total: 0, current: 'No businesses found.', failed: [], finished: true });
+        return;
+      }
+
+      // 3. Export each one, one by one, into the ZIP.
+      const { default: JSZip } = await import('jszip');
+      const zip = new JSZip();
+      const safe = (v) => String(v || '').replace(/[^a-z0-9@._-]/gi, '_').slice(0, 80);
+      const index = [['Owner email', 'Owner UID', 'Business', 'Business ID', 'Business code', 'Sales', 'Purchases', 'Items', 'Parties', 'File', 'Status']];
+      const failed = [];
+      const stamp = new Date().toISOString().slice(0, 10);
+      for (let i = 0; i < jobs.length; i++) {
+        const job = jobs[i];
+        const label = job.profile.name || job.bizId;
+        setAllBizExport(st => ({ ...st, total: jobs.length, done: i, current: `${label} (${job.email || job.uid})` }));
+        try {
+          const { meta, tableData } = await readBizExportData(job.uid, job.bizId);
+          const name = meta.name || job.profile.name || job.bizId;
+          const payload = {
+            exportedAt: new Date().toISOString(),
+            appVersion: 'billdheko',
+            email: job.email,
+            businesses: { [job.bizId]: { ...meta, ...job.profile, _uid: job.uid, data: tableData } },
+          };
+          const file = `${safe(job.email || job.uid)}/${safe(name)}__${safe(job.bizId)}.json`;
+          zip.file(file, JSON.stringify(payload, null, 2));
+          index.push([job.email, job.uid, name, job.bizId, job.profile.businessCode || '', tableData.sales?.length || 0, tableData.purchases?.length || 0, tableData.items?.length || 0, tableData.parties?.length || 0, file, 'OK']);
+        } catch (err) {
+          failed.push({ name: label, error: err.message });
+          index.push([job.email, job.uid, label, job.bizId, job.profile.businessCode || '', '', '', '', '', '', `FAILED: ${err.message}`]);
+        }
+      }
+
+      setAllBizExport(st => ({ ...st, done: jobs.length, current: 'Building ZIP…' }));
+      const csv = index.map(r => r.map(c => `"${String(c ?? '').replace(/"/g, '""')}"`).join(',')).join('\n');
+      zip.file('_index.csv', csv);
+      const blob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `billdheko-all-businesses-${stamp}.zip`;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      setAllBizExport({ running: false, done: jobs.length, total: jobs.length, current: '', failed, finished: true });
+    } catch (err) {
+      console.error('Export all businesses failed:', err);
+      setAllBizExport(st => ({ ...st, running: false, finished: true, current: `Error: ${err.message}` }));
+    }
+  };
+
+  // Progress / result block shown under both "Export All Businesses" buttons.
+  const allBizExportStatus = (allBizExport.running || allBizExport.finished) && (
+    <Box sx={{ mt: 1.25 }}>
+      {allBizExport.running && (
+        <>
+          <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }} noWrap>
+            {allBizExport.total ? `Exporting ${Math.min(allBizExport.done + 1, allBizExport.total)} of ${allBizExport.total}: ` : ''}{allBizExport.current}
+          </Typography>
+          <LinearProgress variant={allBizExport.total ? 'determinate' : 'indeterminate'}
+            value={allBizExport.total ? (allBizExport.done / allBizExport.total) * 100 : 0} sx={{ borderRadius: 4, height: 6 }} />
+        </>
+      )}
+      {!allBizExport.running && allBizExport.finished && (
+        allBizExport.current?.startsWith('Error') || allBizExport.current === 'No businesses found.'
+          ? <Alert severity={allBizExport.current === 'No businesses found.' ? 'info' : 'error'} sx={{ py: 0.25 }}>{allBizExport.current}</Alert>
+          : (
+            <Alert severity={allBizExport.failed.length ? 'warning' : 'success'} sx={{ py: 0.25 }}>
+              {allBizExport.total - allBizExport.failed.length} of {allBizExport.total} businesses exported — ZIP downloaded.
+              {allBizExport.failed.length > 0 && ` Failed: ${allBizExport.failed.map(f => f.name).join(', ')} (see _index.csv).`}
+            </Alert>
+          )
+      )}
+    </Box>
+  );
+
   // ── Subscription grant handlers ────────────────────────────────────────────
-  const openGrantDialog = (email) => {
-    setGrantForm({ plan: 'monthly_pro', businessId: '1', durationType: '1m', customEndDate: '' });
+  const openGrantDialog = (email, businessId = '1') => {
+    setGrantForm({ plan: 'monthly_pro', businessId: String(businessId || '1'), durationType: '1m', customEndDate: '' });
     setGrantDialog({ open: true, email });
   };
 
@@ -637,17 +926,30 @@ const Admin = () => {
       const now = new Date();
       const sub = subscriptions[email] || {};
       const bizSubs = parseBizSubsAdmin(sub);
+      const bKey = businessId.trim();
+      const existing = bizSubs[bKey] || {};
+      const grants = Array.isArray(existing.grants) ? existing.grants : [];
       await setDoc(doc(firestore, 'subscriptions', email), {
         email,
+        ...(plan === 'trial' ? { trialUsed: true } : {}),
         businesses: {
           ...bizSubs,
-          [businessId.trim()]: {
+          [bKey]: {
+            // Keep payment history + trial dates — a grant only changes the
+            // current plan window.
+            ...existing,
             plan,
             status: 'active',
             startDate: now.toISOString(),
             endDate: endDate.toISOString(),
             grantedBy: currentUser?.email || 'admin',
             grantedAt: now.toISOString(),
+            ...(plan === 'trial' ? {
+              trialStartDate: now.toISOString(),
+              trialEndDate: endDate.toISOString(),
+              trialDays: Math.round((endDate - now) / 86400000),
+            } : {}),
+            grants: [...grants, { plan, date: now.toISOString(), endDate: endDate.toISOString(), by: currentUser?.email || 'admin' }],
           },
         },
       }, { merge: true });
@@ -672,7 +974,7 @@ const Admin = () => {
       const sub = subscriptions[email] || {};
       const bizSubs = parseBizSubsAdmin(sub);
       const updated = { ...bizSubs };
-      updated[bizId] = { ...updated[bizId], status: 'expired' };
+      updated[bizId] = { ...updated[bizId], status: 'expired', revokedAt: new Date().toISOString(), revokedBy: currentUser?.email || 'admin' };
       await setDoc(doc(firestore, 'subscriptions', email), { businesses: updated }, { merge: true });
       setMessage({ type: 'success', text: `Subscription revoked for Business ${bizId}.` });
     } catch (err) {
@@ -931,16 +1233,16 @@ const Admin = () => {
             </Box>
           </Stack>
           <Grid container spacing={2.5} sx={{ mb: 3 }}>
-            <Grid item xs={6} md={3}>
+            <Grid size={{ xs: 6, md: 3 }}>
               <HeroMetric icon={IndianRupee} label="MRR" value={inr(analytics.mrr)} color="#0891b2" sublabel="Monthly recurring revenue" />
             </Grid>
-            <Grid item xs={6} md={3}>
+            <Grid size={{ xs: 6, md: 3 }}>
               <HeroMetric icon={Wallet} label="Total Collected" value={inr(analytics.lifetimeRevenue)} color="#5c1f22" sublabel="All payments to date" />
             </Grid>
-            <Grid item xs={6} md={3}>
+            <Grid size={{ xs: 6, md: 3 }}>
               <HeroMetric icon={Users} label="Paying Customers" value={analytics.payingCustomers} color="#5c1f22" sublabel="Active paid plans" />
             </Grid>
-            <Grid item xs={6} md={3}>
+            <Grid size={{ xs: 6, md: 3 }}>
               <HeroMetric icon={TrendingUp} label="On Trial" value={stats.trial} color="#f59e0b" sublabel="Evaluating the app" />
             </Grid>
           </Grid>
@@ -948,7 +1250,7 @@ const Admin = () => {
           {/* ── Paid plan summary (single tier: ₹299/mo · ₹2999/yr) ── */}
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>Paid subscriptions</Typography>
           <Grid container spacing={2.5} sx={{ mb: 3 }}>
-            <Grid item xs={12} sm={6}>
+            <Grid size={{ xs: 12, sm: 6 }}>
               <TierCard tier="Paid" priceLabel="₹299/mo · ₹2999/yr · cloud backup" color="#5c1f22" icon={Cloud}
                 activeCount={analytics.proActive + analytics.basicActive} mrr={analytics.proMrr + analytics.basicMrr}
                 share={100} />
@@ -958,7 +1260,7 @@ const Admin = () => {
           {/* ── Charts ── */}
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>Trends</Typography>
           <Grid container spacing={2.5} sx={{ mb: 3 }}>
-            <Grid item xs={12} md={7}>
+            <Grid size={{ xs: 12, md: 7 }}>
               <ChartCard title="Revenue over time" subtitle="Last 6 months" icon={IndianRupee} color="#0891b2"
                 empty={analytics.lifetimeRevenue === 0}>
                 <ResponsiveContainer width="100%" height={240}>
@@ -979,7 +1281,7 @@ const Admin = () => {
                 </ResponsiveContainer>
               </ChartCard>
             </Grid>
-            <Grid item xs={12} md={5}>
+            <Grid size={{ xs: 12, md: 5 }}>
               <ChartCard title="Plan distribution" subtitle="Current mix" icon={BarChart3} color="#5c1f22"
                 empty={analytics.planDistribution.length === 0}>
                 <ResponsiveContainer width="100%" height={240}>
@@ -994,7 +1296,7 @@ const Admin = () => {
                 </ResponsiveContainer>
               </ChartCard>
             </Grid>
-            <Grid item xs={12}>
+            <Grid size={12}>
               <ChartCard title="New subscriptions" subtitle="Paid activations per month (last 6 months)" icon={TrendingUp} color="#5c1f22"
                 empty={analytics.months.every((m) => m.signups === 0)}>
                 <ResponsiveContainer width="100%" height={220}>
@@ -1013,19 +1315,19 @@ const Admin = () => {
           {/* ── Secondary stats strip ── */}
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>User base</Typography>
           <Grid container spacing={2} sx={{ mb: 4 }}>
-            <Grid item xs={6} sm={4} md={2.4}>
+            <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
               <StatCard icon={Users}        label="Total Users"     value={stats.total}        color="#1976d2" />
             </Grid>
-            <Grid item xs={6} sm={4} md={2.4}>
+            <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
               <StatCard icon={CheckCircle2} label="Active Plans"    value={stats.active}       color="#5c1f22" />
             </Grid>
-            <Grid item xs={6} sm={4} md={2.4}>
+            <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
               <StatCard icon={XCircle}      label="Expired"         value={stats.expired}      color="#ef4444" />
             </Grid>
-            <Grid item xs={6} sm={4} md={2.4}>
+            <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
               <StatCard icon={Award}        label="Admin Granted"   value={stats.adminGranted} color="#8b5cf6" />
             </Grid>
-            <Grid item xs={6} sm={4} md={2.4}>
+            <Grid size={{ xs: 6, sm: 4, md: 2.4 }}>
               <StatCard icon={BarChart3}    label="No Subscription" value={stats.noSub}        color="#57433e" />
             </Grid>
           </Grid>
@@ -1039,7 +1341,7 @@ const Admin = () => {
               { label: 'Build Sections',     desc: 'Create custom data sections',       tab: 'sections',      icon: Layers,       color: '#7c3aed' },
               { label: 'Global Settings',    desc: 'Landing page and app settings',     tab: 'global',        icon: Globe,        color: '#0891b2' },
             ].map(a => (
-              <Grid item xs={12} sm={6} md={3} key={a.tab}>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }} key={a.tab}>
                 <Card elevation={0} onClick={() => setAdminTab(a.tab)} sx={{
                   border: '1px solid', borderColor: 'divider', borderRadius: 2, cursor: 'pointer',
                   transition: 'all 0.15s',
@@ -1108,7 +1410,7 @@ const Admin = () => {
       {adminTab === 'users' && (
         <Grid container spacing={3}>
           {/* Left: User list */}
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
               <CardContent sx={{ p: 2.5 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
@@ -1120,6 +1422,26 @@ const Admin = () => {
                     <Button size="small" startIcon={<Plus size={16} />} onClick={resetUserForm}>New</Button>
                   </Stack>
                 </Stack>
+
+                <Button
+                  size="small" fullWidth variant="outlined"
+                  startIcon={<FileSpreadsheet size={15} />}
+                  onClick={handleExportAllUsersExcel}
+                  disabled={usersExcelExporting}
+                  sx={{ mb: 2, borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+                >
+                  {usersExcelExporting ? 'Exporting…' : 'Export Users (Excel)'}
+                </Button>
+                <Button
+                  size="small" fullWidth variant="outlined"
+                  startIcon={<Archive size={15} />}
+                  onClick={handleExportAllBusinesses}
+                  disabled={allBizExport.running}
+                  sx={{ mb: allBizExport.running || allBizExport.finished ? 0 : 2, borderRadius: 2, textTransform: 'none', fontWeight: 700 }}
+                >
+                  {allBizExport.running ? 'Exporting all businesses…' : 'Export All Businesses (ZIP)'}
+                </Button>
+                {allBizExportStatus && <Box sx={{ mb: 2 }}>{allBizExportStatus}</Box>}
 
                 {/* Search */}
                 <TextField
@@ -1180,26 +1502,26 @@ const Admin = () => {
           </Grid>
 
           {/* Right: User config form */}
-          <Grid item xs={12} md={8}>
+          <Grid size={{ xs: 12, md: 8 }}>
             <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 2 }}>User Configuration</Typography>
                 <Grid container spacing={2.5}>
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <TextField label="Email" fullWidth value={form.email}
                       onChange={e => setForm(f => ({ ...f, email: e.target.value }))} />
                   </Grid>
 
                   {/* Access flags */}
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <FormControlLabel control={<Switch checked={form.allowed} onChange={e => setForm(f => ({ ...f, allowed: e.target.checked }))} />}
                       label="App Access" />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <FormControlLabel control={<Switch checked={form.isAdmin} onChange={e => setForm(f => ({ ...f, isAdmin: e.target.checked }))} />}
                       label="Admin Panel" />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <FormControlLabel
                       control={<Switch checked={form.grantAdminAccess} color="secondary"
                         onChange={e => setForm(f => ({ ...f, grantAdminAccess: e.target.checked }))} />}
@@ -1211,19 +1533,15 @@ const Admin = () => {
                   </Grid>
 
                   {/* Business settings */}
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Divider sx={{ mb: 1 }} />
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1.5 }}>Business Settings</Typography>
                   </Grid>
-                  <Grid item xs={12} sm={4}>
-                    <TextField label="Business Type" fullWidth value={form.businessType}
-                      onChange={e => setForm(f => ({ ...f, businessType: e.target.value }))} />
-                  </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <FormControlLabel control={<Switch checked={form.multiBusiness} onChange={e => setForm(f => ({ ...f, multiBusiness: e.target.checked }))} />}
                       label="Allow Multiple Businesses" />
                   </Grid>
-                  <Grid item xs={12} sm={4}>
+                  <Grid size={{ xs: 12, sm: 4 }}>
                     <TextField
                       label="Max Businesses"
                       type="number"
@@ -1239,7 +1557,7 @@ const Admin = () => {
                   </Grid>
 
                   {/* Subscription status */}
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Divider sx={{ mb: 1.5 }} />
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Subscription Status</Typography>
@@ -1287,7 +1605,7 @@ const Admin = () => {
                   </Grid>
 
                   {/* Cloud backup */}
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Divider sx={{ mb: 1.5 }} />
                     <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>Cloud Backup Override</Typography>
                     <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1.5 }}>
@@ -1300,19 +1618,19 @@ const Admin = () => {
                   </Grid>
 
                   {/* Theme */}
-                  <Grid item xs={12} sm={3}>
+                  <Grid size={{ xs: 12, sm: 3 }}>
                     <TextField label="Primary Color" fullWidth value={form.themePrimary}
                       onChange={e => setForm(f => ({ ...f, themePrimary: e.target.value }))}
                       InputProps={{ startAdornment: <Box sx={{ width: 20, height: 20, borderRadius: '50%', bgcolor: form.themePrimary, mr: 1, border: '1px solid rgba(0,0,0,.15)', flexShrink: 0 }} /> }} />
                   </Grid>
-                  <Grid item xs={12} sm={3}>
+                  <Grid size={{ xs: 12, sm: 3 }}>
                     <TextField label="Secondary Color" fullWidth value={form.themeSecondary}
                       onChange={e => setForm(f => ({ ...f, themeSecondary: e.target.value }))}
                       InputProps={{ startAdornment: <Box sx={{ width: 20, height: 20, borderRadius: '50%', bgcolor: form.themeSecondary, mr: 1, border: '1px solid rgba(0,0,0,.15)', flexShrink: 0 }} /> }} />
                   </Grid>
 
                   {/* Feature flags */}
-                  <Grid item xs={12}>
+                  <Grid size={12}>
                     <Divider sx={{ mb: 1.5 }} />
                     <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1 }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>Enabled Features</Typography>
@@ -1334,7 +1652,7 @@ const Admin = () => {
 
                   {/* Assigned Sections */}
                   {sections.length > 0 && (
-                    <Grid item xs={12}>
+                    <Grid size={12}>
                       <Divider sx={{ mb: 1.5 }} />
                       <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 0.5 }}>Custom Sections</Typography>
 
@@ -1413,7 +1731,7 @@ const Admin = () => {
                     </Grid>
                   )}
 
-                  <Grid item xs={12} sx={{ mt: 1 }}>
+                  <Grid size={12} sx={{ mt: 1 }}>
                     <Stack direction="row" spacing={1.5} justifyContent="flex-end">
                       <Button variant="outlined" onClick={resetUserForm}>Cancel</Button>
                       <Button variant="contained" startIcon={<Save size={18} />} onClick={handleSaveUser}>
@@ -1431,6 +1749,9 @@ const Admin = () => {
       {/* ===================== SUBSCRIPTIONS TAB ===================== */}
       {adminTab === 'subscriptions' && (
         <Box>
+          <AdminSubscriptionRecords subscriptions={subscriptions} users={users} onGrant={openGrantDialog} />
+
+          <Typography variant="subtitle1" sx={{ fontWeight: 800, mb: 1.5 }}>Per-user management</Typography>
           {/* Stats row */}
           <Grid container spacing={2} sx={{ mb: 3 }}>
             {[
@@ -1441,7 +1762,7 @@ const Admin = () => {
               { label: 'Total Collected', value: inr(analytics.lifetimeRevenue), color: '#0891b2', icon: IndianRupee },
               { label: 'Paying Customers',value: analytics.payingCustomers, color: '#5c1f22', icon: Users },
             ].map(s => (
-              <Grid item xs={6} sm={4} md={2} key={s.label}>
+              <Grid size={{ xs: 6, sm: 4, md: 2 }} key={s.label}>
                 <Card elevation={0} sx={{ border: '1px solid', borderColor: alpha(s.color, 0.2), borderRadius: 2, bgcolor: alpha(s.color, 0.04) }}>
                   <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
                     <Stack direction="row" alignItems="center" justifyContent="space-between">
@@ -1652,7 +1973,7 @@ const Admin = () => {
       {/* ===================== SECTION BUILDER TAB ===================== */}
       {adminTab === 'sections' && (
         <Grid container spacing={3}>
-          <Grid item xs={12} md={4}>
+          <Grid size={{ xs: 12, md: 4 }}>
             <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
               <CardContent sx={{ p: 2.5 }}>
                 <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 2 }}>
@@ -1711,7 +2032,7 @@ const Admin = () => {
             </Card>
           </Grid>
 
-          <Grid item xs={12} md={8}>
+          <Grid size={{ xs: 12, md: 8 }}>
             <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 2.5 }}>
@@ -1719,12 +2040,12 @@ const Admin = () => {
                 </Typography>
 
                 <Grid container spacing={2.5}>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField fullWidth label="Section Name *" value={sectionForm.name}
                       onChange={e => setSectionForm(f => ({ ...f, name: e.target.value }))}
                       placeholder="e.g., Measurements, Readings" />
                   </Grid>
-                  <Grid item xs={12} sm={6}>
+                  <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField fullWidth label="Description" value={sectionForm.description}
                       onChange={e => setSectionForm(f => ({ ...f, description: e.target.value }))}
                       placeholder="Short description of this section" />
@@ -1979,7 +2300,7 @@ const Admin = () => {
       {/* ===================== GLOBAL SETTINGS TAB ===================== */}
       {adminTab === 'global' && (
         <Grid container spacing={3}>
-          <Grid item xs={12} md={6}>
+          <Grid size={{ xs: 12, md: 6 }}>
             <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
               <CardContent sx={{ p: 3 }}>
                 <Typography variant="h6" sx={{ fontWeight: 700, mb: 0.5 }}>Landing Page Theme</Typography>
@@ -2006,7 +2327,7 @@ const Admin = () => {
                   ].map(opt => {
                     const selected = landingTheme === opt.value;
                     return (
-                      <Grid item xs={12} sm={6} key={opt.value}>
+                      <Grid size={{ xs: 12, sm: 6 }} key={opt.value}>
                         <Box
                           onClick={() => setLandingTheme(opt.value)}
                           sx={{
@@ -2096,7 +2417,7 @@ const Admin = () => {
                 {GRANT_PLAN_OPTIONS.map(opt => (
                   <Box
                     key={opt.value}
-                    onClick={() => setGrantForm(f => ({ ...f, plan: opt.value }))}
+                    onClick={() => setGrantForm(f => ({ ...f, plan: opt.value, durationType: opt.value === 'trial' ? '7d' : '1m' }))}
                     sx={{
                       p: 1.5, borderRadius: 2, cursor: 'pointer', border: '2px solid',
                       borderColor: grantForm.plan === opt.value ? opt.color : 'divider',

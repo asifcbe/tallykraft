@@ -73,7 +73,7 @@ const buildMessage = ({ tx, businessName, isSale, customMsg }) => {
   lines.push(paymentLine);
   if (tx.dueDate) lines.push(`⏰ Due Date: ${tx.dueDate}`);
   if (tx.description?.trim()) lines.push(`\n📝 Notes: ${tx.description.trim()}`);
-  lines.push('\n_Sent via TallyKraft_');
+  lines.push('\n_Sent via BillDheko_');
   return lines.filter(l => l !== null).join('\n');
 };
 

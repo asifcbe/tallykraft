@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useRef, useEffect } from 'react';
 import {
   Box, Table, TableHead, TableBody, TableRow, TableCell, TableSortLabel,
   Checkbox, IconButton, Chip, Tooltip, TablePagination, Menu, MenuItem,
@@ -6,6 +6,7 @@ import {
 } from '@mui/material';
 import { Filter, Eye, Share2, Printer, MoreVertical, X, ReceiptText } from 'lucide-react';
 import { txSortKey, formatCreatedTime } from './txTimeUtils';
+import { isPartPaid, txPaidSoFar, txOutstanding, txWrittenOff } from './paymentUtils';
 
 // Same visual language as TxListView.jsx's own ConvertedChip — small green
 // "Converted" indicator shown next to a row's number once it has already
@@ -46,7 +47,7 @@ const daysOverdue = (dueDate) => {
 // across Sales, Purchases, Estimates, Credit/Debit/Delivery Notes. Used
 // for both the Status chip and the full-row mild tint below, so a row's
 // background always agrees with its own chip and the filter pills above.
-const STATUS_COLOR = { paid: '#16a34a', unpaid: '#ca8a04', overdue: '#dc2626' };
+const STATUS_COLOR = { paid: '#16a34a', unpaid: '#ca8a04', overdue: '#dc2626', partial: '#2563eb' };
 
 // Column filter popover — text contains-match for strings, exact-match
 // checkbox list for a fixed set of options (e.g. Payment Type, Status).
@@ -216,6 +217,7 @@ const TxDataTable = ({
       return null;
     }).filter(Boolean));
     const opts = [...set].map((v) => ({ value: v, label: v === 'paid' ? 'Paid' : 'Unpaid' }));
+    if (records.some((r) => isPartPaid(r))) opts.push({ value: 'partial', label: 'Part Paid' });
     if (records.some((r) => a.dueDate(r) && a.status(r) !== 'paid' && daysOverdue(a.dueDate(r)) > 0)) {
       opts.push({ value: 'overdue', label: 'Overdue' });
     }
@@ -249,7 +251,7 @@ const TxDataTable = ({
       list = list.filter((r) => {
         const isPaid = a.status(r) === 'paid';
         const overdue = !isPaid && a.dueDate(r) && daysOverdue(a.dueDate(r)) > 0;
-        const tags = [isPaid ? 'paid' : 'unpaid', ...(overdue ? ['overdue'] : [])];
+        const tags = [isPaid ? 'paid' : 'unpaid', ...(overdue ? ['overdue'] : []), ...(isPartPaid(r) ? ['partial'] : [])];
         return tags.some((tag) => statusFilter.has(tag));
       });
     }
@@ -279,9 +281,16 @@ const TxDataTable = ({
 
   const headerProps = { sortBy, sortDir, onSort: handleSort, onOpenFilter: openFilter };
 
+  // Land on the first row of a new page — scroll the table body back to the top
+  // whenever the page or page-size changes.
+  const scrollBoxRef = useRef(null);
+  useEffect(() => {
+    scrollBoxRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [page, rowsPerPage]);
+
   return (
     <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1, width: '100%' }}>
-      <Box sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
+      <Box ref={scrollBoxRef} sx={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
         <Table size="small" stickyHeader sx={{ minWidth: 900 }}>
           <TableHead>
             <TableRow>
@@ -332,6 +341,7 @@ const TxDataTable = ({
               const due = a.dueDate(r);
               const status = a.status(r);
               const overdue = due && status !== 'paid' && daysOverdue(due) > 0;
+              const partPaid = isPartPaid(r);
               const statusKey = overdue ? 'overdue' : status === 'unpaid' ? 'unpaid' : status === 'paid' ? 'paid' : null;
               const rowColor = statusKey && statusKey !== 'paid' ? STATUS_COLOR[statusKey] : null;
               const statusTint = hasCol.status && rowColor ? alpha(rowColor, 0.055) : null;
@@ -396,10 +406,23 @@ const TxDataTable = ({
                   {hasCol.status && (
                     <TableCell>
                       {overdue ? (
-                        <Chip size="small" label={`Overdue (${daysOverdue(due)}d)`} sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20, bgcolor: alpha(STATUS_COLOR.overdue, 0.1), color: STATUS_COLOR.overdue }} />
+                        <Chip size="small" label={`Overdue (${daysOverdue(due)}d)${partPaid ? ' · Part Paid' : ''}`} sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20, bgcolor: alpha(STATUS_COLOR.overdue, 0.1), color: STATUS_COLOR.overdue }} />
+                      ) : partPaid ? (
+                        <Chip size="small" label="Part Paid" sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20, bgcolor: alpha(STATUS_COLOR.partial, 0.1), color: STATUS_COLOR.partial }} />
                       ) : status ? (
                         <Chip size="small" label={status === 'paid' ? 'Paid' : 'Unpaid'} sx={{ fontWeight: 700, fontSize: '0.65rem', height: 20, bgcolor: alpha(status === 'paid' ? STATUS_COLOR.paid : STATUS_COLOR.unpaid, 0.1), color: status === 'paid' ? STATUS_COLOR.paid : STATUS_COLOR.unpaid }} />
                       ) : '—'}
+                      {partPaid && (
+                        <Typography sx={{ fontSize: '0.66rem', color: 'text.secondary', mt: 0.25, whiteSpace: 'nowrap' }}>
+                          Paid <Box component="span" sx={{ fontWeight: 700, color: STATUS_COLOR.paid }}>₹{txPaidSoFar(r).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Box>
+                          {' · '}Bal <Box component="span" sx={{ fontWeight: 700, color: '#b45309' }}>₹{txOutstanding(r).toLocaleString('en-IN', { maximumFractionDigits: 2 })}</Box>
+                        </Typography>
+                      )}
+                      {txWrittenOff(r) > 0 && (
+                        <Typography sx={{ fontSize: '0.6rem', color: 'text.disabled', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                          ₹{txWrittenOff(r).toLocaleString('en-IN', { maximumFractionDigits: 2 })} written off
+                        </Typography>
+                      )}
                     </TableCell>
                   )}
                   {/* Sticky to the right edge, matching the header's Actions

@@ -35,7 +35,7 @@ const Backup = () => {
   const { currentBusiness } = useBusiness();
   const { isBusinessActive } = useSubscription();
   // Cloud backup/restore requires an active subscription for the current
-  // business (every active plan is cloud-sync in TallyKraft).
+  // business (every active plan is cloud-sync in BillDheko).
   const isPro = isBusinessActive(currentBusiness?.id);
   const canExportFile = config.features?.backupExportFile !== false;
   const canRestoreFile = config.features?.backupRestoreFile !== false;
@@ -139,7 +139,7 @@ const Backup = () => {
         const { default: JSZip } = await import('jszip');
         const zip = await JSZip.loadAsync(file);
         const dataEntry = zip.file('data.json');
-        if (!dataEntry) throw new Error('This .zip does not contain a data.json — not a valid TallyKraft backup.');
+        if (!dataEntry) throw new Error('This .zip does not contain a data.json — not a valid BillDheko backup.');
         text = await dataEntry.async('string');
 
         const manifestEntry = zip.file('images-manifest.json');

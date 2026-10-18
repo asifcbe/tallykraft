@@ -9,7 +9,6 @@ import { useAuth } from './AuthContext';
 const BusinessSetup = () => {
   const { createBusiness, logout, currentUser } = useAuth();
   const [name, setName] = useState('');
-  const [businessType, setBusinessType] = useState('general');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [done, setDone] = useState(false);
@@ -20,7 +19,7 @@ const BusinessSetup = () => {
     if (!name.trim()) { setError('Business name is required.'); return; }
     setLoading(true);
     setError('');
-    const result = await createBusiness(name.trim(), businessType);
+    const result = await createBusiness(name.trim());
     if (result.success) {
       setBusinessCode(result.businessCode);
       setDone(true);
@@ -99,17 +98,6 @@ const BusinessSetup = () => {
                 onKeyDown={e => e.key === 'Enter' && handleCreate()}
                 autoFocus
               />
-
-              <TextField
-                select
-                label="Business Type"
-                fullWidth
-                value={businessType}
-                onChange={e => setBusinessType(e.target.value)}
-              >
-                <MenuItem value="general">General Business</MenuItem>
-                <MenuItem value="opticals">Opticals / Eye Care</MenuItem>
-              </TextField>
 
               <Stack direction="row" spacing={1.5} justifyContent="flex-end">
                 <Button

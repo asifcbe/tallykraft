@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead,
   TableRow, TablePagination, TextField, InputAdornment, Button,
@@ -40,9 +40,26 @@ const DataGrid = ({
   const [showFilters, setShowFilters] = useState(false);
   const [internalFilters, setInternalFilters] = useState({});
 
-  const filters = { ...internalFilters, ...externalFilters };
+  const filters = useMemo(
+    () => ({ ...internalFilters, ...externalFilters }),
+    [internalFilters, externalFilters]
+  );
 
-  useEffect(() => { setPage(0); }, [searchQuery, filters, sortConfig]);
+  // Reset to the first page ONLY when a search / filter / sort actually changes.
+  // `filters` is derived, so we key the effect on a stable string snapshot of it
+  // — keying on the object itself re-fired setPage(0) on every parent re-render
+  // (a fresh object identity each time), which made pagination look frozen on
+  // page 1 whenever the parent recomputed its `data` array inline.
+  const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
+  const sortKey = `${sortConfig.key || ''}:${sortConfig.direction}`;
+  useEffect(() => { setPage(0); }, [searchQuery, filtersKey, sortKey]);
+
+  // On a page change, scroll the table body back to the top so the reader lands
+  // on the first row of the new page instead of wherever they'd scrolled to.
+  const scrollBoxRef = useRef(null);
+  useEffect(() => {
+    scrollBoxRef.current?.scrollTo({ top: 0, behavior: 'auto' });
+  }, [page, rowsPerPage]);
 
   const processedData = useMemo(() => {
     let result = [...data];
@@ -327,7 +344,7 @@ const DataGrid = ({
         {/* ── Data: mobile card list or desktop table ────────────────────── */}
         {isMobile ? (
           /* Mobile: card-per-row layout */
-          <Box>
+          <Box ref={scrollBoxRef}>
             {loading ? (
               <LoadingState />
             ) : paginatedData.length === 0 ? (
@@ -340,7 +357,7 @@ const DataGrid = ({
           </Box>
         ) : (
           /* Desktop: horizontal-scrollable table */
-          <TableContainer sx={{ maxHeight: enablePagination ? height : 'none', overflowX: 'auto' }}>
+          <TableContainer ref={scrollBoxRef} sx={{ maxHeight: enablePagination ? height : 'none', overflowX: 'auto' }}>
             <Table stickyHeader size="small" sx={{ '& .MuiTableCell-root': { py: '8px' }, minWidth: 480 }}>
               <TableHead>
                 <TableRow>

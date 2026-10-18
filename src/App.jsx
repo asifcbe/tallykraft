@@ -13,7 +13,7 @@ import { SubscriptionProvider, useSubscription } from './SubscriptionContext';
 import { BillingProvider } from './BillingContext';
 import { I18nProvider } from './i18n/I18nContext';
 import SubscriptionPage from './SubscriptionPage';
-import TallyKraftLogo from './TallyKraftLogo';
+import BillDhekoLogo from './BillDhekoLogo';
 import Login from './Login';
 import LandingPage from './LandingPage';
 import PrivacyPolicy from './PrivacyPolicy';
@@ -22,6 +22,7 @@ import { useData } from './DataContext';
 import { TabsProvider } from './TabsContext';
 import { NetworkProvider } from './NetworkContext';
 import NetworkStatusBanner from './NetworkStatusBanner';
+import OverflowTooltip from './OverflowTooltip';
 import { warmQrModule } from './qrReady';
 
 const BeforeUnloadGuard = () => {
@@ -35,7 +36,7 @@ const BeforeUnloadGuard = () => {
     const handlePopState = () => {
       // Re-push so the back button never leaves the app.
       window.history.pushState({ appEntry: true }, '');
-      if (window.confirm('Are you sure you want to leave TallyKraft?')) {
+      if (window.confirm('Are you sure you want to leave BillDheko?')) {
         window.history.go(-2); // actually navigate away
       }
       // MUI Dialogs set body overflow:hidden while open; native confirm() can
@@ -122,7 +123,7 @@ const AppLoadingSplash = () => (
     width: '100vw', height: '100vh', display: 'flex', flexDirection: 'column',
     alignItems: 'center', justifyContent: 'center', gap: 2.5, bgcolor: '#ffffff',
   }}>
-    <TallyKraftLogo size={56} variant="icon" />
+    <BillDhekoLogo size={56} variant="icon" />
     <CircularProgress size={26} sx={{ color: BRAND.teal }} />
   </Box>
 );
@@ -167,7 +168,7 @@ const AppContent = () => {
       <Box sx={{ width: '100vw', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: 'background.default', p: 2 }}>
         <Paper elevation={6} sx={{ maxWidth: 420, width: '100%', p: 4, textAlign: 'center', borderRadius: 3 }}>
           <Box sx={{ display: 'flex', justifyContent: 'center', mb: 2.5 }}>
-            <TallyKraftLogo size={56} variant="icon" />
+            <BillDhekoLogo size={56} variant="icon" />
           </Box>
           <Typography variant="h5" sx={{ fontWeight: 700, mb: 1 }}>Access Denied</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
@@ -236,6 +237,7 @@ function App() {
                     <TabsProvider>
                       <BeforeUnloadGuard />
                       <NetworkStatusBanner />
+                      <OverflowTooltip />
                       <AppContent />
                     </TabsProvider>
                   </BrowserRouter>

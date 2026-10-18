@@ -18,7 +18,7 @@ import { useDialog } from './DialogContext';
 import { useTabs } from './TabsContext';
 import { dispatchQuickNew, acknowledgeQuickNew } from './quickNewBridge';
 import { useReactToPrint } from 'react-to-print';
-import { PAPER_SIZES, getPaperWidthMm, getJsPdfFormat } from './InvoiceTemplate';
+import { PAPER_SIZES } from './InvoiceTemplate';
 import OrderSlipTemplate from './OrderSlipTemplate';
 import PartySelect from './PartySelect';
 import PartyFormDialog from './PartyFormDialog';
@@ -26,6 +26,7 @@ import ItemSelect from './ItemSelect';
 import ItemFormDialog from './ItemFormDialog';
 import BarcodeScanner from './BarcodeScanner';
 import SendDialog from './SendDialog';
+import { captureElement, canvasToPdf } from './pdfCapture';
 
 const PAPER_SIZE_VALUES = PAPER_SIZES.map(p => p.value);
 
@@ -184,7 +185,7 @@ const buildOrderMessage = ({ tx, businessName }) => {
   }
   lines.push(`*Total: ₹${(Number(tx.totalAmount) || 0).toFixed(2)}*`);
   if (tx.notes?.trim()) lines.push(`\n📝 Notes: ${tx.notes.trim()}`);
-  lines.push('\n_Sent via TallyKraft_');
+  lines.push('\n_Sent via BillDheko_');
   return lines.filter(l => l !== null).join('\n');
 };
 
@@ -574,9 +575,8 @@ const Orders = () => {
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   };
   const captureOrderCanvas = async () => {
-    const { default: html2canvas } = await import('html2canvas');
     await waitForCaptureReady(pdfRef.current);
-    return html2canvas(pdfRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+    return captureElement(pdfRef.current, { scale: 1.5 });
   };
   const showDeliverResult = (result) => {
     if (result.method === 'clipboard') setSnack({ open: true, msg: 'Copied — paste it into the WhatsApp chat' });
@@ -596,12 +596,7 @@ const Orders = () => {
       if (_shareCancelledRef.current || !pdfRef.current) return;
       const [canvas, { jsPDF }] = await Promise.all([captureOrderCanvas(), import('jspdf').then(m => ({ jsPDF: m.jsPDF }))]);
       if (_shareCancelledRef.current) return;
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfWidthMm = getPaperWidthMm(paperSize);
-      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
-      const namedFormat = getJsPdfFormat(paperSize);
-      const pdf = new jsPDF({ unit: 'mm', format: namedFormat || [pdfWidthMm, pdfHeightMm] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const pdf = canvasToPdf(canvas, jsPDF, paperSize);
       if (_shareCancelledRef.current) return;
       const fileName = `${target.orderNumber || 'order'}.pdf`;
       const pdfBlob = pdf.output('blob');
@@ -979,8 +974,8 @@ const Orders = () => {
         onClose={() => setSendOpen(false)}
         tx={sendTx}
         party={sendParty}
-        businessName={currentBusiness?.name || 'TallyKraft'}
-        initialMessage={buildOrderMessage({ tx: sendTx, businessName: currentBusiness?.name || 'TallyKraft' })}
+        businessName={currentBusiness?.name || 'BillDheko'}
+        initialMessage={buildOrderMessage({ tx: sendTx, businessName: currentBusiness?.name || 'BillDheko' })}
         dialogTitle="Share Order Status"
         onSharePDF={() => shareAsPDF(sendTx)}
         onShareImage={() => shareAsImage(sendTx)}

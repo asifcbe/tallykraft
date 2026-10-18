@@ -60,7 +60,7 @@ function BarcodeDemo({ isDark, C }) {
     <DemoCard isDark={isDark} C={C} accent={P}
       label="Built-In Barcode Scanner"
       title="No External Scanner Needed"
-      desc="Open your phone camera, point at any barcode or QR code — TallyKraft identifies the item and adds it to your bill in one tap."
+      desc="Open your phone camera, point at any barcode or QR code — BillDheko identifies the item and adds it to your bill in one tap."
       preview={
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
           {/* viewfinder */}

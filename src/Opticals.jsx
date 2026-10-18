@@ -20,6 +20,7 @@ import DataGrid from './DataGrid';
 import { useReactToPrint } from 'react-to-print';
 import OpticalTemplate from './OpticalTemplate';
 import SendDialog from './SendDialog';
+import { captureElement, canvasToPdf } from './pdfCapture';
 
 // --- ReadingField Component ---
 const ReadingField = ({ label, value, onChange, unit, color }) => (
@@ -287,7 +288,7 @@ const OpticalsPage = () => {
     const l = row.leftEye || {};
     const fmt = (v) => v || '—';
     return [
-      `*Optical Prescription from ${currentBusiness?.name || 'TallyKraft'}*`,
+      `*Optical Prescription from ${currentBusiness?.name || 'BillDheko'}*`,
       '',
       `👤 Patient: ${row.patientName}`,
       (row.gender || row.age) ? `⚧ ${[row.gender, row.age ? `${row.age} yrs` : ''].filter(Boolean).join(' · ')}` : '',
@@ -302,7 +303,7 @@ const OpticalsPage = () => {
       row.lensType ? `🔍 Lens: ${row.lensType}` : '',
       row.notes ? `\n📝 Notes: ${row.notes}` : '',
       '',
-      `_Sent via TallyKraft_`,
+      `_Sent via BillDheko_`,
     ].filter(x => x !== '').join('\n');
   };
 
@@ -322,8 +323,7 @@ const OpticalsPage = () => {
     await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
     if (!pdfCaptureRef.current) throw new Error('Prescription template not ready');
     await waitForCaptureReady(pdfCaptureRef.current);
-    const { default: html2canvas } = await import('html2canvas');
-    return html2canvas(pdfCaptureRef.current, { scale: 2, useCORS: true, backgroundColor: '#ffffff' });
+    return captureElement(pdfCaptureRef.current, { scale: 2 });
   };
 
   const handleSharePDF = async () => {
@@ -335,11 +335,7 @@ const OpticalsPage = () => {
         captureRxCanvas(),
         import('jspdf').then(m => ({ jsPDF: m.jsPDF })),
       ]);
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfWidthMm = 210;
-      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: [pdfWidthMm, pdfHeightMm] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const pdf = canvasToPdf(canvas, jsPDF, 'A4');
       const fileName = `prescription-${sendRow.patientName || 'patient'}.pdf`;
       const pdfBlob = pdf.output('blob');
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });
@@ -1688,7 +1684,7 @@ const OpticalsPage = () => {
         onClose={() => setSendOpen(false)}
         tx={sendRow}
         party={{ phone: sendRow?.phone || '', email: '' }}
-        businessName={currentBusiness?.name || 'TallyKraft'}
+        businessName={currentBusiness?.name || 'BillDheko'}
         isSale={true}
         dialogTitle="Send Prescription"
         initialMessage={buildPrescriptionMessage(sendRow)}

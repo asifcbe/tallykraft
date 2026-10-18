@@ -4,13 +4,13 @@ import {
   DialogTitle, DialogContent, DialogActions, MenuItem,
   InputAdornment, Chip, IconButton, Snackbar, Alert, Stack, Divider,
   Tooltip, alpha, useTheme, useMediaQuery, Pagination, Menu, Avatar,
-  Grid, Checkbox,
+  Grid, Checkbox, Table, TableHead, TableBody, TableRow, TableCell,
 } from '@mui/material';
 import { X as CloseIcon } from 'lucide-react';
 import {
   Plus, Edit2, Trash2, Box as BoxIcon, Barcode, Printer,
   Package, TrendingUp, AlertTriangle, Upload, Download, Search,
-  Palette, Ruler, Users as UsersIcon, LayoutList, MoreHorizontal,
+  Palette, Users as UsersIcon, LayoutList, LayoutGrid, MoreHorizontal, Ruler,
   FolderOpen, Tag, Filter, X, CheckSquare, QrCode, MousePointerClick, Eye, EyeOff,
 } from 'lucide-react';
 import ItemFormDialog from './ItemFormDialog';
@@ -18,6 +18,7 @@ import BulkAddDialog from './BulkAddDialog';
 import ItemBulkEditDialog from './ItemBulkEditDialog';
 import { useBusiness } from './BusinessContext';
 import { useData } from './DataContext';
+import { canSeeSummaries } from './staffScope';
 import { useI18n } from './i18n/I18nContext';
 import ImportDialog from './ImportDialog';
 import { exportToExcel, ITEM_COLUMNS } from './exportUtils';
@@ -28,8 +29,14 @@ import { useAuth } from './AuthContext';
 import { useReactToPrint } from 'react-to-print';
 import JsBarcode from 'jsbarcode';
 import QRCode from 'qrcode';
-import { BUILTIN_PRODUCT_CATEGORIES, loadCustomItemCategories, saveCustomItemCategories } from './partyUtils';
+import { BUILTIN_PRODUCT_CATEGORIES } from './partyUtils';
 import { useFillHeight } from './TxListView';
+import { DesignedLabel } from './LabelDesigner';
+import { LABEL_SIZES, resolveLabelEntry, labelPrintable } from './labelDesignerUtils';
+import { waitForQrReady } from './qrReady';
+import { useResizableWidth, ResizeHandle } from './PanelResizer';
+import { usePersistedState } from './usePersistedState';
+import { useItemCategories } from './useItemCategories';
 
 const DEFAULT_UNITS = ['NOS', 'BAGS', 'BOX', 'KGS', 'Ltr', 'Mtr', 'Pcs'];
 const TAX_SLABS = [0, 5, 12, 18, 28];
@@ -51,6 +58,22 @@ const generateBarcode = () => String(Math.floor(Math.random() * 9e8 + 1e8));
 const barcodeCache = new Map();
 const qrCache = new Map();
 
+// All label sizing (buildSizeConfig below) is derived in 96 CSS-DPI pixels —
+// the standard screen resolution — but a real label/thermal printer's native
+// resolution is almost always higher (203dpi for most thermal label
+// printers, 300dpi for many desktop laser/inkjet printers, some receipt
+// printers even 600dpi). Rasterizing the barcode/QR canvas at literal 96dpi
+// pixel dimensions and then printing it on a 203-600dpi device forces the
+// printer driver to upscale an already-low-resolution bitmap — bars land on
+// inconsistent, blurred pixel boundaries, which is exactly what makes a
+// barcode unreliable or unscannable on higher-DPI printers. Fix: render the
+// canvas/QR at PRINT_DPI_SCALE× the CSS pixel size (~300dpi worth of actual
+// source resolution) while keeping the displayed <img> element's own
+// width/height at the original 96dpi CSS size — the browser then supplies a
+// crisp, high-resolution source image to whatever DPI the printer actually
+// prints at, instead of stretching a coarse one.
+const PRINT_DPI_SCALE = 300 / 96;
+
 const BarcodeImage = ({ value, height = 70, fontSize = 13, barWidth = 1.5 }) => {
   const key = `${value}|${height}|${fontSize}|${barWidth}`;
   let src = barcodeCache.get(key);
@@ -58,14 +81,27 @@ const BarcodeImage = ({ value, height = 70, fontSize = 13, barWidth = 1.5 }) => 
     try {
       const canvas = document.createElement('canvas');
       JsBarcode(canvas, value, {
-        format: 'CODE128', width: barWidth, height, displayValue: true,
-        fontSize, margin: 2, background: '#ffffff', lineColor: '#000000',
+        format: 'CODE128',
+        // width/height/fontSize/margin all scaled up together so the bars,
+        // text, and quiet-zone margin stay in the exact same proportion to
+        // each other as before — only the actual pixel resolution the whole
+        // barcode is rendered at increases.
+        width: barWidth * PRINT_DPI_SCALE,
+        height: height * PRINT_DPI_SCALE,
+        displayValue: true,
+        fontSize: fontSize * PRINT_DPI_SCALE,
+        margin: 2 * PRINT_DPI_SCALE,
+        background: '#ffffff', lineColor: '#000000',
       });
       src = canvas.toDataURL('image/png');
       barcodeCache.set(key, src);
     } catch (e) { src = null; }
   }
   if (!src) return <svg style={{ maxWidth: '100%', display: 'block' }} />;
+  // The <img> itself is NOT given explicit width/height — it's always laid
+  // out at its natural CSS size within the label (maxWidth:100% + the
+  // parent's own sizing), same as before. Only the underlying bitmap (src)
+  // now carries several times the pixel data for that same displayed size.
   return <img src={src} alt={value} style={{ maxWidth: '100%', display: 'block' }} />;
 };
 
@@ -77,8 +113,12 @@ const QRImage = ({ value, size = 80 }) => {
     if (cached) { setSrc(cached); return; }
     if (!value) return;
     let cancelled = false;
+    // Same DPI reasoning as BarcodeImage — encode at PRINT_DPI_SCALE× the
+    // CSS pixel size, then display it at the original size via the <img>'s
+    // own width/height attributes below (which are the LAYOUT size, not the
+    // bitmap's actual resolution).
     QRCode.toDataURL(value, {
-      width: size, margin: 1, color: { dark: '#000000', light: '#ffffff' },
+      width: size * PRINT_DPI_SCALE, margin: 1, color: { dark: '#000000', light: '#ffffff' },
     }).then((url) => {
       qrCache.set(key, url);
       if (!cancelled) setSrc(url);
@@ -136,8 +176,10 @@ const LabelContent = ({ item, lbl, fontSize, smallFontSize, align = 'center' }) 
   const fStyle = (key, baseFs) => {
     const s = fieldStyles[key] || {};
     const scale = FIELD_SIZE_SCALE[s.size] ?? 1.0;
+    // An exact font size (pt) set in Settings wins over the XS–2XL step.
+    const exactPx = Number(s.fontPt) > 0 ? Number(s.fontPt) * (96 / 72) : null;
     return {
-      fontSize: baseFs * scale,
+      fontSize: exactPx ?? baseFs * scale,
       color: s.color || globalTextColor,
     };
   };
@@ -175,7 +217,7 @@ const LabelContent = ({ item, lbl, fontSize, smallFontSize, align = 'center' }) 
         const st = fStyle(key, smallFontSize);
         const prefix = fLabel(key);
         return (
-          <p key={key} style={{ margin: '0 0 2px', opacity: 0.7, ...st }}>
+          <p key={key} style={{ margin: '0 0 2px', ...st }}>
             {prefix != null ? (prefix ? `${prefix}: ` : '') : ''}{item.itemCode}
           </p>
         );
@@ -185,7 +227,7 @@ const LabelContent = ({ item, lbl, fontSize, smallFontSize, align = 'center' }) 
         const st = fStyle(key, smallFontSize);
         const prefix = fLabel(key);
         return (
-          <p key={key} style={{ margin: '0 0 2px', opacity: 0.75, ...st }}>
+          <p key={key} style={{ margin: '0 0 2px', ...st }}>
             {prefix != null ? (prefix ? `${prefix}: ` : '') : ''}{item.category}
           </p>
         );
@@ -195,7 +237,7 @@ const LabelContent = ({ item, lbl, fontSize, smallFontSize, align = 'center' }) 
         const st = fStyle(key, smallFontSize);
         const prefix = fLabel(key);
         return (
-          <p key={key} style={{ margin: '0 0 2px', opacity: 0.75, ...st }}>
+          <p key={key} style={{ margin: '0 0 2px', ...st }}>
             {prefix != null ? (prefix ? `${prefix}: ` : '') : 'Size: '}{item.size}
           </p>
         );
@@ -205,7 +247,7 @@ const LabelContent = ({ item, lbl, fontSize, smallFontSize, align = 'center' }) 
         const st = fStyle(key, smallFontSize);
         const prefix = fLabel(key);
         return (
-          <p key={key} style={{ margin: '0 0 2px', opacity: 0.75, ...st }}>
+          <p key={key} style={{ margin: '0 0 2px', ...st }}>
             {prefix != null ? (prefix ? `${prefix}: ` : '') : ''}{item.variant}
           </p>
         );
@@ -216,7 +258,7 @@ const LabelContent = ({ item, lbl, fontSize, smallFontSize, align = 'center' }) 
         const prefix = fLabel(key);
         const label = prefix != null ? prefix : 'HSN';
         return (
-          <p key={key} style={{ margin: '0 0 2px', opacity: 0.6, ...st }}>
+          <p key={key} style={{ margin: '0 0 2px', ...st }}>
             {label ? `${label}: ` : ''}{item.hsnCode}
           </p>
         );
@@ -237,7 +279,7 @@ const LabelContent = ({ item, lbl, fontSize, smallFontSize, align = 'center' }) 
         return (
           <div key="prices" style={{ display: 'flex', alignItems: 'baseline', justifyContent: ta === 'center' ? 'center' : ta === 'right' ? 'flex-end' : 'flex-start', flexWrap: 'wrap', gap: 3, margin: '3px 0 1px' }}>
             {hasMrp && (
-              <span style={{ textDecoration: 'line-through', opacity: 0.5, ...mrpSt }}>
+              <span style={{ textDecoration: 'line-through', ...mrpSt }}>
                 {mrpPrefix != null ? (mrpPrefix ? `${mrpPrefix} ` : '') : 'MRP '}₹{Number(item.mrp).toLocaleString('en-IN')}
               </span>
             )}
@@ -277,6 +319,17 @@ const LabelContent = ({ item, lbl, fontSize, smallFontSize, align = 'center' }) 
 
 /* ── Generic label that supports all layout positions ── */
 export const UnifiedLabel = ({ item, sizeConfig, lbl, mode = 'barcode', fitContent = false }) => {
+  // Custom (designer) layout — every element placed exactly where the user put it.
+  if (lbl?.layoutMode === 'custom' && lbl?.customLayout?.elements?.length) {
+    return (
+      <DesignedLabel
+        item={item} lbl={lbl} layout={lbl.customLayout}
+        widthMm={sizeConfig.widthPx / PX_PER_MM}
+        heightMm={(sizeConfig.heightPx || sizeConfig.widthPx) / PX_PER_MM}
+        scale={sizeConfig.previewScale || 1}
+      />
+    );
+  }
   const { width, height, barcodeHeight, qrSize, barWidth, fontSize, smallFontSize } = sizeConfig;
   const show = (key) => lbl?.[key] !== false;
   const pos = lbl?.codePosition || 'top';
@@ -341,40 +394,43 @@ export const UnifiedLabel = ({ item, sizeConfig, lbl, mode = 'barcode', fitConte
 const QRLabel = ({ item, sizeConfig, lbl }) => <UnifiedLabel item={item} sizeConfig={sizeConfig} lbl={lbl} mode="qr" />;
 const BarcodeLabel = ({ item, sizeConfig, lbl }) => <UnifiedLabel item={item} sizeConfig={sizeConfig} lbl={lbl} mode="barcode" />;
 
-const QRPrintSheet = React.forwardRef(({ item, copies, sizeConfig, lbl, columns = 1 }, ref) => {
+// Print layout for label sheets. Every row of `columns` labels is rendered as
+// its own fixed-size page (the exact @page size, with no padding or gaps between
+// rows) followed by a hard page break. Labels are never laid out as one long
+// continuous sheet, so a sub-millimetre offset can't build up row after row;
+// label #1000 lands exactly where label #1 did. A4 = one full-page label per page.
+const LabelPages = React.forwardRef(({ labels, sizeConfig, columns = 1 }, ref) => {
   const isA4 = sizeConfig.key === 'a4';
+  const perPage = isA4 ? 1 : Math.max(1, columns);
+  const wMm = parseFloat(sizeConfig.width) || 80;
+  const hMm = parseFloat(sizeConfig.height) || 40;
+  const pages = [];
+  for (let i = 0; i < labels.length; i += perPage) pages.push(labels.slice(i, i + perPage));
   return (
-    <div ref={ref} style={{
-      padding: isA4 ? 16 : 4, backgroundColor: '#fff', fontFamily: 'Arial, sans-serif',
-      display: 'grid',
-      gridTemplateColumns: `repeat(${isA4 ? Math.max(1, columns) : columns}, ${sizeConfig.width})`,
-      gap: isA4 ? 8 : 2,
-      width: isA4 ? '210mm' : undefined,
-    }}>
-      {Array.from({ length: copies }).map((_, i) => (
-        <QRLabel key={i} item={item} sizeConfig={sizeConfig} lbl={lbl} />
+    <div ref={ref} style={{ margin: 0, padding: 0, backgroundColor: '#fff' }}>
+      {pages.map((row, p) => (
+        <div key={p} style={{
+          // A hair under the page height so rounding can never spill a blank page.
+          width: `${wMm * perPage}mm`, height: `calc(${hMm}mm - 0.3mm)`,
+          display: 'flex', flexWrap: 'nowrap', alignItems: 'flex-start',
+          overflow: 'hidden', boxSizing: 'border-box', margin: 0, padding: 0,
+          breakInside: 'avoid', pageBreakInside: 'avoid',
+          ...(p < pages.length - 1 ? { breakAfter: 'page', pageBreakAfter: 'always' } : {}),
+        }}>
+          {row.map((node, j) => (
+            <div key={j} style={{ display: 'flex', width: `${wMm}mm`, height: `${hMm}mm`, flex: '0 0 auto', overflow: 'hidden' }}>{node}</div>
+          ))}
+        </div>
       ))}
     </div>
   );
 });
-QRPrintSheet.displayName = 'QRPrintSheet';
+LabelPages.displayName = 'LabelPages';
 
-export const LABEL_SIZES = [
-  { key: 'standard',  label: '80×40mm (Standard)',        widthMm: 80,  heightMm: 40  },
-  { key: '50x40',     label: '50×40mm',                   widthMm: 50,  heightMm: 40  },
-  { key: '50x30',     label: '50×30mm',                   widthMm: 50,  heightMm: 30  },
-  { key: '50x25',     label: '50×25mm',                   widthMm: 50,  heightMm: 25  },
-  { key: '38x25',     label: '38×25mm (Jewellery)',        widthMm: 38,  heightMm: 25  },
-  { key: '30x20',     label: '30×20mm (Mini)',             widthMm: 30,  heightMm: 20  },
-  { key: 'small',     label: '58×30mm (Narrow Thermal)',   widthMm: 58,  heightMm: 30  },
-  { key: '60x40',     label: '60×40mm',                   widthMm: 60,  heightMm: 40  },
-  { key: '70x40',     label: '70×40mm',                   widthMm: 70,  heightMm: 40  },
-  { key: '100x50',    label: '100×50mm (Large)',           widthMm: 100, heightMm: 50  },
-  { key: '100x75',    label: '100×75mm (Shipping)',        widthMm: 100, heightMm: 75  },
-  { key: '100x150',   label: '100×150mm (Large Shipping)', widthMm: 100, heightMm: 150 },
-  { key: 'large',     label: '100×60mm',                  widthMm: 100, heightMm: 60  },
-  { key: 'a4',        label: 'A4 Full Page',              widthMm: 210, heightMm: 297 },
-];
+const QRPrintSheet = React.forwardRef(({ item, copies, sizeConfig, lbl, columns = 1 }, ref) => (
+  <LabelPages ref={ref} sizeConfig={sizeConfig} columns={columns} labels={Array.from({ length: copies }, (_, i) => <QRLabel key={i} item={item} sizeConfig={sizeConfig} lbl={lbl} />)} />
+));
+QRPrintSheet.displayName = 'QRPrintSheet';
 
 const PX_PER_MM = 3.7795;
 
@@ -415,44 +471,17 @@ export const buildSizeConfig = (entry, contentScale = 1.0, codeScale = 1.0) => {
 };
 
 
-const BarcodePrintSheet = React.forwardRef(({ item, copies, sizeConfig, lbl, columns = 1 }, ref) => {
-  const isA4 = sizeConfig.key === 'a4';
-  return (
-    <div ref={ref} style={{
-      padding: isA4 ? 16 : 4, backgroundColor: '#fff', fontFamily: 'Arial, sans-serif',
-      display: 'grid',
-      gridTemplateColumns: `repeat(${isA4 ? Math.max(1, columns) : columns}, ${sizeConfig.width})`,
-      gap: isA4 ? 8 : 2,
-      width: isA4 ? '210mm' : undefined,
-    }}>
-      {Array.from({ length: copies }).map((_, i) => (
-        <BarcodeLabel key={i} item={item} sizeConfig={sizeConfig} lbl={lbl} />
-      ))}
-    </div>
-  );
-});
+const BarcodePrintSheet = React.forwardRef(({ item, copies, sizeConfig, lbl, columns = 1 }, ref) => (
+  <LabelPages ref={ref} sizeConfig={sizeConfig} columns={columns} labels={Array.from({ length: copies }, (_, i) => <BarcodeLabel key={i} item={item} sizeConfig={sizeConfig} lbl={lbl} />)} />
+));
 BarcodePrintSheet.displayName = 'BarcodePrintSheet';
 
 // Renders all selected items (each with individual copies) in one printable sheet
-const BulkBarcodePrintSheet = React.forwardRef(({ entries, sizeConfig, lbl, columns = 1, mode = 'barcode' }, ref) => {
-  const isA4 = sizeConfig.key === 'a4';
-  const LabelComp = mode === 'qr' ? QRLabel : BarcodeLabel;
-  return (
-    <div ref={ref} style={{
-      padding: isA4 ? 16 : 4, backgroundColor: '#fff', fontFamily: 'Arial, sans-serif',
-      display: 'grid',
-      gridTemplateColumns: `repeat(${isA4 ? Math.max(1, columns) : columns}, ${sizeConfig.width})`,
-      gap: isA4 ? 8 : 2,
-      width: isA4 ? '210mm' : undefined,
-    }}>
-      {entries.map(({ item, copies }) =>
-        Array.from({ length: copies }).map((_, i) => (
-          <LabelComp key={`${item.id}-${i}`} item={item} sizeConfig={sizeConfig} lbl={lbl} />
-        ))
-      )}
-    </div>
-  );
-});
+const BulkBarcodePrintSheet = React.forwardRef(({ entries, sizeConfig, lbl, columns = 1, mode = 'barcode' }, ref) => (
+  <LabelPages ref={ref} sizeConfig={sizeConfig} columns={columns} labels={entries.flatMap(({ item, copies }) => Array.from({ length: copies }, (_, i) => mode === 'qr'
+    ? <QRLabel key={`${item.id}-${i}`} item={item} sizeConfig={sizeConfig} lbl={lbl} />
+    : <BarcodeLabel key={`${item.id}-${i}`} item={item} sizeConfig={sizeConfig} lbl={lbl} />))} />
+));
 BulkBarcodePrintSheet.displayName = 'BulkBarcodePrintSheet';
 
 export const CODE_POSITIONS = [
@@ -478,18 +507,21 @@ export const BORDER_STYLES = [
 // Barcode or a QR code) is Settings-only (Settings → Barcode Label) — this
 // dialog only offers Columns (shared) and per-item Copies, since those
 // genuinely vary print-run to print-run.
-const BulkBarcodeDialog = ({ items, onClose }) => {
+export const BulkBarcodeDialog = ({ items, onClose, defaultCopies }) => {
   const { config, saveConfig } = useConfig();
   const { currentBusiness } = useBusiness();
   const baseLbl = config.barcodeLabel || {};
   const [columns, setColumns] = useState(baseLbl.columns || 1);
   const printMode = baseLbl.codeType === 'qr' ? 'qr' : 'barcode';
-  // per-item copies: { [itemId]: number }
-  const [copiesMap, setCopiesMap] = useState({});
+  // per-item copies: { [itemId]: number } — seeded from defaultCopies when the
+  // caller supplies one (e.g. Sales.jsx's auto-print-after-purchase passes
+  // each item's purchased qty, so copies match what was actually bought
+  // instead of always defaulting to 1).
+  const [copiesMap, setCopiesMap] = useState(() => ({ ...(defaultCopies || {}) }));
   const fieldOrder = resolveFieldOrder(baseLbl);
   const printRef = useRef(null);
 
-  const getCopies = (id) => copiesMap[id] ?? 1;
+  const getCopies = (id) => copiesMap[id] ?? (defaultCopies?.[id] ?? 1);
   // Store the raw typed value (allows clearing the field); clamp only when actually consumed.
   const setCopies = (id, val) => setCopiesMap(prev => ({ ...prev, [id]: val === '' ? '' : Math.max(1, Math.min(500, Number(val) || 1)) }));
   const commitCopies = (id) => setCopiesMap(prev => ({ ...prev, [id]: Math.max(1, Math.min(500, Number(prev[id]) || 1)) }));
@@ -509,8 +541,7 @@ const BulkBarcodeDialog = ({ items, onClose }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [columns]);
 
-  const labelSizeKey = baseLbl.defaultLabelSize || 'standard';
-  const sizeEntry = LABEL_SIZES.find(s => s.key === labelSizeKey) || LABEL_SIZES[0];
+  const sizeEntry = resolveLabelEntry(baseLbl);
   const sizeConfig = buildSizeConfig(sizeEntry, baseLbl.contentScale || 1.0, baseLbl.codeScale || 1.0);
   const lblWithOrder = { ...baseLbl, fieldOrder };
   const columnsNum = Math.max(1, Number(columns) || 1);
@@ -524,13 +555,13 @@ const BulkBarcodeDialog = ({ items, onClose }) => {
 
   const getPageStyle = () => {
     const isA4 = sizeConfig.key === 'a4';
-    if (isA4) return '@page { size: A4 portrait; margin: 8mm; }';
+    if (isA4) return '@page { size: A4 portrait; margin: 0; } html, body { margin: 0; padding: 0; }';
     const wMm = parseFloat(sizeConfig.width) || 80;
     const hMm = parseFloat(sizeConfig.height) || 40;
-    return `@page { size: ${wMm * columnsNum}mm ${hMm}mm; margin: 0; } body { margin: 0; padding: 0; }`;
+    return `@page { size: ${wMm * columnsNum}mm ${hMm}mm; margin: 0; } html, body { margin: 0; padding: 0; }`;
   };
 
-  const handlePrint = useReactToPrint({ contentRef: printRef, pageStyle: getPageStyle() });
+  const handlePrint = useReactToPrint({ contentRef: printRef, pageStyle: getPageStyle(), onBeforePrint: waitForQrReady });
 
   if (!items?.length) return null;
 
@@ -557,7 +588,7 @@ const BulkBarcodeDialog = ({ items, onClose }) => {
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
           {entries.map(({ item }) => {
             const copies = copiesMap[item.id] ?? 1;
-            const previewCfg = { ...sizeConfig, width: 'auto', height: 'auto' };
+            const previewCfg = { ...sizeConfig, width: 'auto', height: 'auto', previewScale: Math.min(120 / sizeConfig.widthPx, 64 / (sizeConfig.heightPx || sizeConfig.widthPx)) };
             return (
               <Box key={item.id} sx={{
                 display: 'flex', alignItems: 'center', gap: 2,
@@ -624,8 +655,7 @@ const BarcodeDialog = ({ item, onClose }) => {
   const barcodePrintRef = useRef(null);
   const qrPrintRef = useRef(null);
 
-  const labelSizeKey = baseLbl.defaultLabelSize || 'standard';
-  const sizeEntry = LABEL_SIZES.find(s => s.key === labelSizeKey) || LABEL_SIZES[0];
+  const sizeEntry = resolveLabelEntry(baseLbl);
   const sizeConfig = buildSizeConfig(sizeEntry, baseLbl.contentScale || 1.0, baseLbl.codeScale || 1.0);
   const fieldOrder = resolveFieldOrder(baseLbl);
   const lblWithOrder = { ...baseLbl, fieldOrder };
@@ -637,22 +667,23 @@ const BarcodeDialog = ({ item, onClose }) => {
   // trigger the browser to swap the dimensions; passing raw mm is more reliable.
   const getPageStyle = () => {
     const isA4 = sizeConfig.key === 'a4';
-    if (isA4) return '@page { size: A4 portrait; margin: 8mm; }';
+    if (isA4) return '@page { size: A4 portrait; margin: 0; } html, body { margin: 0; padding: 0; }';
     const wMm = parseFloat(sizeConfig.width) || 80;
     const hMm = parseFloat(sizeConfig.height) || 40;
     const totalW = wMm * (Math.max(1, Number(columns) || 1));
     // Feed direction on label printers (e.g. TVS LP46) is always along the longer
     // edge. Passing W×H as-is keeps content upright without driver rotation.
-    return `@page { size: ${totalW}mm ${hMm}mm; margin: 0; } body { margin: 0; padding: 0; }`;
+    return `@page { size: ${totalW}mm ${hMm}mm; margin: 0; } html, body { margin: 0; padding: 0; }`;
   };
 
-  const handleBarcodePrint = useReactToPrint({ contentRef: barcodePrintRef, pageStyle: getPageStyle() });
-  const handleQrPrint = useReactToPrint({ contentRef: qrPrintRef, pageStyle: getPageStyle() });
+  const handleBarcodePrint = useReactToPrint({ contentRef: barcodePrintRef, pageStyle: getPageStyle(), onBeforePrint: waitForQrReady });
+  const handleQrPrint = useReactToPrint({ contentRef: qrPrintRef, pageStyle: getPageStyle(), onBeforePrint: waitForQrReady });
 
   if (!item) return null;
 
   const itemWithBiz = { ...item, _businessName: currentBusiness?.name || '' };
-  const previewSizeConfig = { ...sizeConfig, width: 'auto', height: 'auto' };
+  const previewSizeConfig = { ...sizeConfig, width: 'auto', height: 'auto', previewScale: Math.min(1, 300 / sizeConfig.widthPx, 280 / (sizeConfig.heightPx || sizeConfig.widthPx)) };
+  const canPrint = labelPrintable(item, baseLbl);
 
   return (
     <Dialog open={!!item} onClose={onClose} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
@@ -666,7 +697,7 @@ const BarcodeDialog = ({ item, onClose }) => {
             mode), not editable here */}
         <Box sx={{ textAlign: 'center', mb: 2 }}>
           <Typography variant="caption" sx={{ color: 'text.disabled', textTransform: 'uppercase', letterSpacing: '0.07em', fontSize: '0.6rem', display: 'block', mb: 1 }}>Preview</Typography>
-          {(item.barcode || printMode === 'qr') ? (
+          {canPrint ? (
             <Box sx={{ display: 'inline-block', border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 1.5, bgcolor: '#f8f8f8' }}>
               {printMode === 'qr'
                 ? <QRLabel item={itemWithBiz} sizeConfig={previewSizeConfig} lbl={lblWithOrder} />
@@ -678,7 +709,7 @@ const BarcodeDialog = ({ item, onClose }) => {
           )}
         </Box>
 
-        {(item.barcode || printMode === 'qr') && (
+        {canPrint && (
           <Box sx={{ display: 'flex', gap: 1.5 }}>
             <TextField label="Columns" type="number" size="small" value={columns}
               onChange={e => { const v = e.target.value; setColumns(v === '' ? '' : Math.max(1, Math.min(8, Number(v) || 1))); }}
@@ -703,7 +734,7 @@ const BarcodeDialog = ({ item, onClose }) => {
 
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button onClick={onClose} sx={{ fontWeight: 600 }}>Close</Button>
-        {(item.barcode || printMode === 'qr') && (
+        {canPrint && (
           <Button variant="contained" startIcon={<Printer size={16} />}
             onClick={() => printMode === 'qr' ? handleQrPrint() : handleBarcodePrint()}
             sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, background: '#5c1f22' }}>
@@ -746,16 +777,20 @@ const TopCustomersForItem = ({ customers, primary }) => {
 };
 
 const ItemsPage = () => {
+  // Grid (cards) or List (table) on desktop — remembered on this device.
+  const [viewMode, setViewMode] = usePersistedState('items_view', 'grid');
+  const detailPanel = useResizableWidth('items-detail', 300, { min: 260, max: 560 });
   const { currentBusiness } = useBusiness();
   const { addItem, addItems, updateItem, deleteItem, getItems, data } = useData();
   const { config } = useConfig();
   const { confirm } = useDialog();
   const { t } = useI18n();
   const { staffSession } = useAuth();
-  // TallyKraft billing: writes are also blocked at the data layer when the
+  // BillDheko billing: writes are also blocked at the data layer when the
   // business subscription is inactive; this just greys the primary CTA.
   const { isBusinessActive } = useSubscription();
   const canWrite = isBusinessActive(currentBusiness?.id);
+  const showSummaries = canSeeSummaries(staffSession);
   const canViewPurchasePrice = !staffSession || staffSession.role === 'admin' || !!staffSession.features?.viewPurchasePrice;
   const barcodeEnabled = !!config.features?.barcode;
   const UNITES = [...new Set([...DEFAULT_UNITS, ...(config.itemUnits || [])])];
@@ -793,30 +828,21 @@ const ItemsPage = () => {
   const [snackbar, setSnackbar] = useState({ open: false, message: '', severity: 'error' });
   const [catManagerOpen, setCatManagerOpen] = useState(false);
   const [catManagerInput, setCatManagerInput] = useState('');
-  const [customItemCats, setCustomItemCats] = useState([]);
-
-  useEffect(() => {
-    if (!currentBusiness?.id) return;
-    setCustomItemCats(loadCustomItemCategories(currentBusiness.id, 'product'));
-  }, [currentBusiness?.id]);
-
-  const allItemCategories = [...BUILTIN_PRODUCT_CATEGORIES, ...customItemCats.filter(c => !BUILTIN_PRODUCT_CATEGORIES.includes(c))];
+  // Shared, synced category list (see useItemCategories.js).
+  const itemCats = useItemCategories('product');
+  const customItemCats = itemCats.custom;
+  const allItemCategories = itemCats.all;
 
   const handleCatManagerAdd = () => {
     const name = catManagerInput.trim();
     if (!name || !currentBusiness?.id) return;
-    if (allItemCategories.some(c => c.toLowerCase() === name.toLowerCase())) { setCatManagerInput(''); return; }
-    const updated = [...customItemCats, name];
-    setCustomItemCats(updated);
-    saveCustomItemCategories(currentBusiness.id, 'product', updated);
+    itemCats.add(name).catch(() => showSnackbar('Could not save the category — check your connection.', 'error'));
     setCatManagerInput('');
   };
 
   const handleCatManagerDelete = (cat) => {
     if (!currentBusiness?.id) return;
-    const updated = customItemCats.filter(c => c !== cat);
-    setCustomItemCats(updated);
-    saveCustomItemCategories(currentBusiness.id, 'product', updated);
+    itemCats.remove(cat);
   };
 
   // Memoized: with thousands of items, re-running filter/sort on every render
@@ -939,6 +965,17 @@ const ItemsPage = () => {
     return               { color: '#dc2626', bg: alpha('#dc2626', 0.08), border: alpha('#dc2626', 0.2), label: t('items.outOfStock') };
   };
 
+  // A batch-tracked item's own `expiryDate` field is blank (each batch has
+  // its own) — this finds the soonest-expiring batch that still has stock,
+  // so the card's expiry warning below reflects the actual nearest date
+  // instead of silently showing nothing for every batch-tracked item.
+  const nearestExpiringBatch = (item) => {
+    if (item.stockMode !== 'batch' || !Array.isArray(item.batches)) return null;
+    const withExpiry = item.batches.filter((b) => b.expiryDate && Number(b.stock) > 0);
+    if (!withExpiry.length) return null;
+    return withExpiry.reduce((soonest, b) => (new Date(b.expiryDate) < new Date(soonest.expiryDate) ? b : soonest));
+  };
+
   return (
     <Box sx={{ mx: 0 }}>
 
@@ -1011,8 +1048,8 @@ const ItemsPage = () => {
         {/* Stats row */}
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(3, 1fr)' }, gap: 1.5, position: 'relative' }}>
           {[
-            { label: t('items.totalItems'), value: items.length, icon: Package, color: '#57433e' },
-            { label: t('items.stockValue'), value: `₹${totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#16a34a' },
+            { label: t('items.totalItems'), value: items.length, icon: Package, color: '#a5b4fc' },
+            ...(showSummaries ? [{ label: t('items.stockValue'), value: `₹${totalStockValue.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#6ee7b7' }] : []),
             { label: t('items.lowNoStock'), value: lowStockItems, icon: AlertTriangle, color: lowStockItems > 0 ? '#fca5a5' : '#86efac' },
           ].map(({ label, value, icon: Icon, color }) => (
             <Box key={label} sx={{
@@ -1052,6 +1089,18 @@ const ItemsPage = () => {
           }}
           sx={{ flex: 1, minWidth: 0, '& .MuiOutlinedInput-root': { borderRadius: 2, bgcolor: 'background.paper' } }}
         />
+        {!isMobile && (
+          <Box role="group" aria-label="View" sx={{ display: 'flex', flexShrink: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 0.25, gap: 0.25, bgcolor: 'background.paper' }}>
+            {[{ v: 'grid', label: 'Grid view', Icon: LayoutGrid }, { v: 'list', label: 'List view', Icon: LayoutList }].map((opt) => (
+              <Tooltip key={opt.v} title={opt.label}>
+                <IconButton size="small" aria-label={opt.label} aria-pressed={viewMode === opt.v} onClick={() => setViewMode(opt.v)}
+                  sx={{ borderRadius: 1, p: 0.6, color: viewMode === opt.v ? 'primary.main' : 'text.secondary', bgcolor: viewMode === opt.v ? alpha(primary, 0.1) : 'transparent' }}>
+                  <opt.Icon size={15} />
+                </IconButton>
+              </Tooltip>
+            ))}
+          </Box>
+        )}
         <Button
           onClick={() => setShowFilters(v => !v)}
           variant={showFilters ? 'contained' : 'outlined'}
@@ -1228,6 +1277,103 @@ const ItemsPage = () => {
         <>
           <Box sx={{ flex: 1, minWidth: 0, height: `${gridFillHeight}px`, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
           <Box sx={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
+          {viewMode === 'list' && !isMobile ? (
+          <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden', bgcolor: 'background.paper', mb: 2 }}>
+            <Table size="small" stickyHeader sx={{ '& td, & th': { whiteSpace: 'nowrap' } }}>
+              <TableHead>
+                <TableRow>
+                  {barcodePrintMode && <TableCell padding="checkbox" />}
+                  <TableCell sx={{ fontWeight: 700 }}>Item</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }}>Category</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="right">Sale Price</TableCell>
+                  {canViewPurchasePrice && <TableCell sx={{ fontWeight: 700 }} align="right">Purchase</TableCell>}
+                  {canViewPurchasePrice && <TableCell sx={{ fontWeight: 700 }} align="right">Margin</TableCell>}
+                  <TableCell sx={{ fontWeight: 700 }} align="right">GST</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="right">Stock</TableCell>
+                  <TableCell sx={{ fontWeight: 700 }} align="center">In Sales/POS</TableCell>
+                  <TableCell sx={{ fontWeight: 700, position: 'sticky', right: 0, zIndex: 3, bgcolor: 'background.paper', boxShadow: '-4px 0 6px -4px rgba(0,0,0,0.12)' }} align="right">Actions</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {paginatedItems.map((item) => {
+                  const sm = getStockMeta(item);
+                  const isSelected = selectedItem?.id === item.id;
+                  const isChecked = checkedIds.has(item.id);
+                  const isService = item.itemType === 'service' || item.itemType === 'membership' || item.isMembership;
+                  const margin = item.salePrice && item.purchasePrice && canViewPurchasePrice
+                    ? Math.round(((item.salePrice - item.purchasePrice) / item.salePrice) * 100) : null;
+                  const onRowClick = () => {
+                    if (barcodePrintMode) {
+                      setCheckedIds(prev => { const next = new Set(prev); if (next.has(item.id)) next.delete(item.id); else next.add(item.id); return next; });
+                    } else {
+                      setSelectedItem(prev => prev?.id === item.id ? null : item);
+                    }
+                  };
+                  const rowBg = (barcodePrintMode ? isChecked : isSelected) ? alpha(primary, 0.06) : 'background.paper';
+                  const hidden = item.showInSalesAndPOS === false;
+                  return (
+                    <TableRow key={item.id} hover onClick={onRowClick} sx={{ cursor: 'pointer', bgcolor: rowBg, '&:hover td': { bgcolor: alpha(primary, 0.04) } }}>
+                      {barcodePrintMode && (
+                        <TableCell padding="checkbox" onClick={e => e.stopPropagation()}>
+                          <Checkbox size="small" checked={isChecked} onChange={onRowClick} sx={{ p: 0.25, '&.Mui-checked': { color: primary } }} />
+                        </TableCell>
+                      )}
+                      <TableCell sx={{ maxWidth: 280 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.84rem', lineHeight: 1.3 }} noWrap>{item.name}</Typography>
+                        <Typography variant="caption" sx={{ color: 'text.disabled', fontFamily: 'monospace', fontSize: '0.68rem', display: 'block' }} noWrap>
+                          {[item.itemCode, item.unit, item.hsnCode && `HSN: ${item.hsnCode}`].filter(Boolean).join(' · ') || ''}
+                        </Typography>
+                      </TableCell>
+                      <TableCell sx={{ maxWidth: 160 }}>
+                        {item.category ? (
+                          <Chip label={item.category} size="small" sx={{ height: 20, fontSize: '0.68rem', fontWeight: 600, bgcolor: alpha(primary, 0.08), color: primary }} />
+                        ) : <Typography variant="caption" color="text.disabled">—</Typography>}
+                      </TableCell>
+                      <TableCell align="right" sx={{ fontWeight: 700 }}>₹{Number(item.salePrice || 0).toLocaleString('en-IN')}</TableCell>
+                      {canViewPurchasePrice && <TableCell align="right" sx={{ color: 'text.secondary' }}>{item.purchasePrice ? `₹${Number(item.purchasePrice).toLocaleString('en-IN')}` : '—'}</TableCell>}
+                      {canViewPurchasePrice && (
+                        <TableCell align="right" sx={{ fontWeight: 600, color: margin == null ? 'text.disabled' : margin < 0 ? '#dc2626' : '#16a34a' }}>
+                          {margin == null ? '—' : `${margin}%`}
+                        </TableCell>
+                      )}
+                      <TableCell align="right" sx={{ color: 'text.secondary' }}>{Number(item.taxRate) > 0 ? `${item.taxRate}%` : '—'}</TableCell>
+                      <TableCell align="right">
+                        {isService ? <Typography variant="caption" color="text.disabled">Service</Typography> : (
+                          <Chip label={`${item.stock || 0}${item.unit ? ` ${item.unit}` : ''}`} size="small"
+                            sx={{ height: 20, fontSize: '0.7rem', fontWeight: 700, bgcolor: sm.bg, color: sm.color, border: `1px solid ${sm.border}` }} />
+                        )}
+                      </TableCell>
+                      <TableCell align="center" onClick={e => e.stopPropagation()}>
+                        <Tooltip title={hidden ? 'Hidden from Sales & POS — click to show' : 'Shown in Sales & POS — click to hide'}>
+                          <IconButton size="small" onClick={() => updateItem('items', item.id, { showInSalesAndPOS: hidden ? true : false })}
+                            sx={{ color: hidden ? 'text.disabled' : primary }}>
+                            {hidden ? <EyeOff size={15} /> : <Eye size={15} />}
+                          </IconButton>
+                        </Tooltip>
+                      </TableCell>
+                      <TableCell align="right" onClick={e => e.stopPropagation()}
+                        sx={{ position: 'sticky', right: 0, zIndex: 1, bgcolor: rowBg, boxShadow: '-4px 0 6px -4px rgba(0,0,0,0.12)' }}>
+                        <Box sx={{ display: 'inline-flex', gap: 0.25 }}>
+                          {barcodeEnabled && (
+                            <Tooltip title="View barcode">
+                              <IconButton size="small" onClick={() => setBarcodeItem(item)} sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main' } }}><Barcode size={14} /></IconButton>
+                            </Tooltip>
+                          )}
+                          <Tooltip title="Edit item">
+                            <IconButton size="small" onClick={() => handleOpen(item)} sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main' } }}><Edit2 size={14} /></IconButton>
+                          </Tooltip>
+                          <Tooltip title="Delete item">
+                            <IconButton size="small" onClick={() => handleDelete(item.id)} sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}><Trash2 size={14} /></IconButton>
+                          </Tooltip>
+                        </Box>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </Box>
+          ) : (
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(auto-fill, minmax(260px, 1fr))' }, gap: { xs: 1.25, sm: 2 }, mb: 3 }}>
             {paginatedItems.map((item) => {
               const stock = item.stock || 0;
@@ -1309,28 +1455,40 @@ const ItemsPage = () => {
                       </Box>
                     </Box>
 
-                    {/* Attribute chips: category / color / size */}
-                    {(item.category || item.color || item.size) && (
-                      <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.75 }}>
-                        {item.category && (
-                          <Chip label={item.category} size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#111111', 0.08), color: '#5c1f22' }} />
-                        )}
-                        {item.color && (
-                          <Chip
-                            icon={<Palette size={10} />}
-                            label={item.color} size="small"
-                            sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#71717a', 0.08), color: '#5c1f22', '& .MuiChip-icon': { color: '#5c1f22', ml: '4px' } }}
-                          />
-                        )}
-                        {item.size && (
-                          <Chip
-                            icon={<Ruler size={10} />}
-                            label={item.size} size="small"
-                            sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#5c1f22', 0.08), color: '#5c1f22', '& .MuiChip-icon': { color: '#5c1f22', ml: '4px' } }}
-                          />
-                        )}
-                      </Box>
-                    )}
+                    {/* Attribute chips: category / default variant name / batch tracking.
+                        A single-variant item (the common case — see
+                        ItemFormDialog.jsx, Sales.jsx/POS.jsx's stockRows()) shows its
+                        one variant's label only when it's a real description (not the
+                        blank default "Default"); 2+ variants show a count instead. */}
+                    {(() => {
+                      const variantCount = item.stockMode === 'variant' ? (item.variants?.length || 0) : 0;
+                      const defaultVariantLabel = variantCount === 1 && item.variants[0]?.label && item.variants[0].label !== 'Default'
+                        ? item.variants[0].label
+                        : null;
+                      if (!(item.category || defaultVariantLabel || variantCount > 1 || item.stockMode === 'batch')) return null;
+                      return (
+                        <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mb: 0.75 }}>
+                          {variantCount > 1 && (
+                            <Chip icon={<Palette size={10} />} label={`${variantCount} variants`} size="small"
+                              sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: alpha(primary, 0.08), color: primary, '& .MuiChip-icon': { color: primary, ml: '4px' } }} />
+                          )}
+                          {item.stockMode === 'batch' && (
+                            <Chip icon={<Package size={10} />} label={`${item.batches?.length || 0} batches`} size="small"
+                              sx={{ height: 18, fontSize: '0.62rem', fontWeight: 700, bgcolor: alpha(primary, 0.08), color: primary, '& .MuiChip-icon': { color: primary, ml: '4px' } }} />
+                          )}
+                          {item.category && (
+                            <Chip label={item.category} size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#111111', 0.08), color: '#5c1f22' }} />
+                          )}
+                          {defaultVariantLabel && (
+                            <Chip
+                              icon={<Palette size={10} />}
+                              label={defaultVariantLabel} size="small"
+                              sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#71717a', 0.08), color: '#5c1f22', '& .MuiChip-icon': { color: '#5c1f22', ml: '4px' } }}
+                            />
+                          )}
+                        </Box>
+                      );
+                    })()}
 
                     {/* Description */}
                     {item.description && (
@@ -1349,6 +1507,11 @@ const ItemsPage = () => {
                         <Box>
                           <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1, mb: 0.25 }}>
                             Sale Price
+                            {config.itemDefaults?.autoUpdateSalePrice && (
+                              <Tooltip title="Auto-updates from the last invoice's rate (Settings → Features → Others)">
+                                <Box component="span" sx={{ color: primary, fontWeight: 700, textTransform: 'none', letterSpacing: 0, ml: 0.5 }}>(From Last Price)</Box>
+                              </Tooltip>
+                            )}
                           </Typography>
                           <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, color: primary, lineHeight: 1 }}>
                             ₹{(item.salePrice || 0).toLocaleString('en-IN')}
@@ -1360,6 +1523,11 @@ const ItemsPage = () => {
                             <Box>
                               <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', lineHeight: 1, mb: 0.25 }}>
                                 Purchase
+                                {config.itemDefaults?.autoUpdatePurchasePrice && (
+                                  <Tooltip title="Auto-updates from the last bill's rate (Settings → Features → Others)">
+                                    <Box component="span" sx={{ color: 'text.secondary', fontWeight: 700, textTransform: 'none', letterSpacing: 0, ml: 0.5 }}>(From Last Price)</Box>
+                                  </Tooltip>
+                                )}
                               </Typography>
                               <Typography sx={{ fontSize: '0.9rem', fontWeight: 700, color: 'text.secondary', lineHeight: 1 }}>
                                 ₹{(item.purchasePrice || 0).toLocaleString('en-IN')}
@@ -1439,16 +1607,20 @@ const ItemsPage = () => {
                       </Tooltip>
                     </Box>
 
-                    {/* Expiry warning */}
-                    {item.expiryDate && (() => {
-                      const days = Math.ceil((new Date(item.expiryDate) - new Date()) / 86400000);
+                    {/* Expiry warning — plain items read their own single
+                        expiryDate; batch-tracked items show the SOONEST
+                        expiring batch that still has stock instead. */}
+                    {(item.expiryDate || nearestExpiringBatch(item)) && (() => {
+                      const nb = nearestExpiringBatch(item);
+                      const expiryDate = nb ? nb.expiryDate : item.expiryDate;
+                      const days = Math.ceil((new Date(expiryDate) - new Date()) / 86400000);
                       if (days > 90) return null;
                       const expColor = days < 0 ? '#dc2626' : '#d97706';
                       return (
                         <Box sx={{ mt: 1, px: 1, py: 0.5, borderRadius: 1, bgcolor: alpha(expColor, 0.08), display: 'flex', alignItems: 'center', gap: 0.5 }}>
                           <AlertTriangle size={11} color={expColor} />
                           <Typography sx={{ fontSize: '0.68rem', fontWeight: 600, color: expColor }}>
-                            {days < 0 ? `Expired ${Math.abs(days)}d ago` : `Expires in ${days}d`}
+                            {nb ? `Batch "${nb.label}" — ` : ''}{days < 0 ? `Expired ${Math.abs(days)}d ago` : `Expires in ${days}d`}
                           </Typography>
                         </Box>
                       );
@@ -1458,6 +1630,7 @@ const ItemsPage = () => {
               );
             })}
           </Box>
+          )}
           </Box>{/* end inner scroll region */}
 
           {/* Pagination — pinned outside the scroll region so it's always visible without an extra scroll */}
@@ -1476,8 +1649,9 @@ const ItemsPage = () => {
       )}
 
       {/* ── Item Detail Panel ── */}
+      <ResizeHandle panel={detailPanel} side="left" label="Resize item details" />
       {!selectedItem && (
-        <Box sx={{ width: 300, flexShrink: 0, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, border: '1px dashed', borderColor: 'divider', borderRadius: 2, position: 'sticky', top: 16, height: 260, bgcolor: 'background.paper' }}>
+        <Box sx={{ width: detailPanel.width, flexShrink: 0, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 1.5, border: '1px dashed', borderColor: 'divider', borderRadius: 2, position: 'sticky', top: 16, height: 260, bgcolor: 'background.paper' }}>
           <Box sx={{ width: 56, height: 56, borderRadius: '50%', bgcolor: 'rgba(92,31,34,0.07)', border: '2px dashed rgba(92,31,34,0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <MousePointerClick size={24} color="rgba(92,31,34,0.4)" />
           </Box>
@@ -1493,7 +1667,7 @@ const ItemsPage = () => {
         const margin = it.salePrice && it.purchasePrice && canViewPurchasePrice
           ? Math.round(((it.salePrice - it.purchasePrice) / it.salePrice) * 100) : null;
         return (
-          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, width: 300, flexShrink: 0, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', position: 'sticky', top: 16, maxHeight: 'calc(100vh - 120px)', overflow: 'hidden' }}>
+          <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, width: detailPanel.width, flexShrink: 0, display: { xs: 'none', md: 'flex' }, flexDirection: 'column', position: 'sticky', top: 16, maxHeight: 'calc(100vh - 120px)', overflow: 'hidden' }}>
             {/* Header */}
             <Box sx={{ background: '#ffffff', border: '1px solid #ece2db', p: 2.5, position: 'relative', overflow: 'hidden' }}>
               <Box sx={{ position: 'absolute', top: -30, right: -30, width: 100, height: 100, borderRadius: '50%', bgcolor: 'transparent', pointerEvents: 'none' }} />
@@ -1540,6 +1714,48 @@ const ItemsPage = () => {
                 <Chip label={`${(it.stock || 0).toLocaleString('en-IN')} ${it.unit || 'NOS'}`} size="small"
                   sx={{ height: 22, fontSize: '0.72rem', fontWeight: 700, bgcolor: sm.bg, color: sm.color, border: `1px solid ${sm.border}` }} />
               </Box>
+
+              {/* Variant / batch breakdown — each row's own stock (and, for
+                  batches, expiry) so it's clear at a glance which one is
+                  running low or expiring, not just the item's flat total.
+                  A single-variant item's one row IS the item's own stock
+                  (already shown above), so it's skipped here to avoid
+                  listing the same number twice. */}
+              {it.stockMode === 'variant' && Array.isArray(it.variants) && it.variants.length > 1 && (
+                <Stack spacing={0.5} sx={{ mb: 1 }}>
+                  {it.variants.map((v) => (
+                    <Box key={v.id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1, py: 0.5, borderRadius: 1, bgcolor: alpha('#111', 0.02) }}>
+                      <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.76rem' }}>{v.label}</Typography>
+                      <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.76rem', color: Number(v.stock) <= 0 ? '#dc2626' : 'text.secondary' }}>
+                        {v.stock} {it.unit}{v.priceOverride != null ? ` · ₹${v.priceOverride}` : ''}
+                      </Typography>
+                    </Box>
+                  ))}
+                </Stack>
+              )}
+              {it.stockMode === 'batch' && Array.isArray(it.batches) && it.batches.length > 0 && (
+                <Stack spacing={0.5} sx={{ mb: 1 }}>
+                  {it.batches.map((b) => {
+                    const days = b.expiryDate ? Math.ceil((new Date(b.expiryDate) - new Date()) / 86400000) : null;
+                    const expired = days != null && days < 0;
+                    return (
+                      <Box key={b.id} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', px: 1, py: 0.5, borderRadius: 1, bgcolor: expired ? alpha('#dc2626', 0.05) : alpha('#111', 0.02) }}>
+                        <Box>
+                          <Typography variant="caption" sx={{ fontWeight: 600, fontSize: '0.76rem', display: 'block' }}>{b.label}</Typography>
+                          {b.expiryDate && (
+                            <Typography variant="caption" sx={{ fontSize: '0.68rem', color: expired ? 'error.main' : 'text.disabled', fontWeight: expired ? 700 : 400 }}>
+                              {expired ? `Expired ${Math.abs(days)}d ago` : `Exp. ${b.expiryDate}`}
+                            </Typography>
+                          )}
+                        </Box>
+                        <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.76rem', color: Number(b.stock) <= 0 ? '#dc2626' : 'text.secondary' }}>
+                          {b.stock} {it.unit}
+                        </Typography>
+                      </Box>
+                    );
+                  })}
+                </Stack>
+              )}
 
               {/* Pricing */}
               <Divider sx={{ my: 0.5 }} />
@@ -1600,10 +1816,9 @@ const ItemsPage = () => {
                       <Typography variant="body2" sx={{ fontFamily: 'monospace', fontSize: '0.78rem', fontWeight: 600 }}>{it.barcode}</Typography>
                     </Box>
                   )}
-                  {(it.color || it.size) && (
+                  {it.stockMode === 'variant' && it.variants?.length === 1 && it.variants[0]?.label && it.variants[0].label !== 'Default' && (
                     <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap', mt: 0.5 }}>
-                      {it.color && <Chip icon={<Palette size={10} />} label={it.color} size="small" sx={{ height: 20, fontSize: '0.68rem' }} />}
-                      {it.size && <Chip icon={<Ruler size={10} />} label={it.size} size="small" sx={{ height: 20, fontSize: '0.68rem' }} />}
+                      <Chip icon={<Palette size={10} />} label={it.variants[0].label} size="small" sx={{ height: 20, fontSize: '0.68rem' }} />
                     </Box>
                   )}
                   {it.description && (
@@ -1773,6 +1988,18 @@ const ItemsPage = () => {
                     sx={{ fontSize: '0.75rem', bgcolor: alpha(primary, 0.1), color: 'primary.main', border: `1px solid ${alpha(primary, 0.25)}` }} />
                 ))}
               </Box>
+            )}
+            {itemCats.inUse.length > 0 && (
+              <>
+                <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 0.5 }}>Used on items</Typography>
+                <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mb: 1 }}>Already on some items but not in your list — click to add.</Typography>
+                <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2 }}>
+                  {itemCats.inUse.map(cat => (
+                    <Chip key={cat} label={`+ ${cat}`} size="small" onClick={() => itemCats.add(cat)}
+                      sx={{ fontSize: '0.75rem', bgcolor: 'transparent', color: 'text.secondary', border: '1px dashed', borderColor: 'divider', cursor: 'pointer' }} />
+                  ))}
+                </Box>
+              </>
             )}
             <Box sx={{ display: 'flex', gap: 1 }}>
               <TextField size="small" fullWidth placeholder="New category name" value={catManagerInput}

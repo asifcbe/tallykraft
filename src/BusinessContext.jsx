@@ -74,7 +74,7 @@ export const BusinessProvider = ({ children }) => {
     if (currentBusiness && !loading) {
       const key = currentBusiness._key;
       setCurrentBusinessId(key);
-      localStorage.setItem('tallykraft_currentBusinessId', key);
+      localStorage.setItem('tallykraft_currentBusinessId', key); window.dispatchEvent(new Event('app-business-changed'));
       if (updateCurrentBusinessId) {
         updateCurrentBusinessId(key);
       }
@@ -83,7 +83,7 @@ export const BusinessProvider = ({ children }) => {
 
   const switchBusiness = (id) => {
     setCurrentBusinessId(id);
-    localStorage.setItem('tallykraft_currentBusinessId', id);
+    localStorage.setItem('tallykraft_currentBusinessId', id); window.dispatchEvent(new Event('app-business-changed'));
     if (updateCurrentBusinessId) {
       updateCurrentBusinessId(id);
     }

@@ -28,12 +28,17 @@ import InvoiceTemplate from './InvoiceTemplate';
 import { BRAND } from './theme';
 import SplitPaymentInput from './SplitPaymentInput';
 import PartyFormDialog from './PartyFormDialog';
+import LoyaltyRedeemNow from './LoyaltyRedeemNow';
+import { pointsEarnedOn, loyaltyBalanceAfter } from './loyaltyUtils';
 import PartySelect from './PartySelect';
 import CustomerPreviewPanel from './CustomerPreviewPanel';
 import ItemSelect from './ItemSelect';
 import { buildUpiUri } from './upiUtils';
 import UpiQrImage from './UpiQrImage';
 import { waitForQrReady } from './qrReady';
+import { useResizableWidth, ResizeHandle } from './PanelResizer';
+import { useTabs } from './TabsContext';
+import { reservedSerials } from './draftInvoiceNumbers';
 
 // Round-off sequences — identical to Sales.jsx new-invoice behaviour.
 const getRoundUpSeq = (val) => {
@@ -72,9 +77,12 @@ const getTokens = (theme) => {
 const money = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 // Build the next sequential invoice number using config-based prefix.
+// Also skips numbers an open Sales tab is currently showing as its draft, so
+// a POS sale can never take a number an unsaved invoice tab is displaying.
 const nextInvoiceNumber = (sales, businessId, prefix, startNum) => {
   const p = (prefix || 'INV') + '-';
   let maxSerial = (startNum || 1) - 1;
+  reservedSerials(`${businessId}|sales`, prefix || 'INV', null).forEach((s) => { if (s > maxSerial) maxSerial = s; });
   (sales || []).forEach((tx) => {
     if (tx.businessId === businessId && tx.invoiceNumber?.startsWith(p)) {
       const parts = tx.invoiceNumber.split('-');
@@ -111,6 +119,52 @@ const CAT_COLORS = [
 const getCatColor = (cat, categories) => {
   const idx = categories.indexOf(cat);
   return CAT_COLORS[(idx - 1 + CAT_COLORS.length) % CAT_COLORS.length];
+};
+
+// Variant/batch-tracked items (see ItemFormDialog.jsx's stockMode) need more
+// than one simultaneous cart line per item — e.g. Red-M and Red-L of the
+// same shirt in one sale — so cart lines are keyed by itemId+stockRefId
+// instead of itemId alone; a plain (untracked) item's line key is still just
+// its itemId, so every existing cart with no variants/batches is unaffected.
+const lineKey = (c) => (c.stockRefId ? `${c.itemId}::${c.stockRefId}` : c.itemId);
+// An item with exactly one variant (today's common case — see
+// ItemFormDialog.jsx, where the old Simple mode is now "Variants with 1
+// row") behaves exactly like a plain item instead: no explicit pick UI,
+// since there's nothing to actually choose between.
+const stockRows = (item) => {
+  if (item?.stockMode === 'variant') {
+    const rows = item.variants || [];
+    return rows.length > 1 ? rows : null;
+  }
+  if (item?.stockMode === 'batch') return item.batches || [];
+  return null;
+};
+const resolveStockRef = (refId, item) => {
+  const rows = stockRows(item);
+  if (!rows || !refId) return null;
+  return rows.find((r) => r.id === refId) || null;
+};
+const daysUntilExpiry = (expiryDate) => {
+  if (!expiryDate) return null;
+  return Math.ceil((new Date(expiryDate) - new Date()) / 86400000);
+};
+
+// Resolves a scanned/typed code against every item's own barcode AND every
+// variant/batch's own barcode (see ItemFormDialog.jsx) — returns the exact
+// {item, stockRefId} to add directly, skipping the picker dialog entirely,
+// since a variant/batch's own barcode already says unambiguously which one
+// was meant. Falls back to itemCode/id for a plain (untracked) item, same
+// as before variants/batches existed.
+const resolveScanTarget = (allItems, code) => {
+  for (const item of allItems) {
+    const rows = stockRows(item);
+    if (rows) {
+      const row = rows.find((r) => r.barcode && r.barcode === code);
+      if (row) return { item, stockRefId: row.id };
+    }
+  }
+  const item = allItems.find((i) => i.barcode === code || String(i.id) === code || i.itemCode === code);
+  return item ? { item, stockRefId: undefined } : null;
 };
 
 const PAY_MODES = [
@@ -243,8 +297,15 @@ const ProductTile = memo(function ProductTile({
   );
 });
 
-const POS = () => {
+const POS = ({ tabId } = {}) => {
   const theme = useTheme();
+  // Multi-tab: several POS instances can be open (kept alive, display:none).
+  // Window-level keyboard/scanner listeners must only act for the visible one.
+  const { activeTabId, updateTab } = useTabs();
+  const isActiveTab = !tabId || activeTabId === tabId;
+  const isActiveTabRef = useRef(isActiveTab);
+  useEffect(() => { isActiveTabRef.current = isActiveTab; }, [isActiveTab]);
+  const productGridRef = useRef(null);
   const tokens = useMemo(() => getTokens(theme), [theme]);
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   // The root layout stacks the cart below the product grid starting at `md`
@@ -255,6 +316,8 @@ const POS = () => {
   // no floating affordance to reach it without scrolling. Checkout
   // visibility now matches the same `md` cutoff the stacking itself uses.
   const isStackedLayout = useMediaQuery(theme.breakpoints.down('md'));
+  const cartPanel = useResizableWidth('pos-cart', 440, { min: 340, max: 680 });
+  const posCustomerPanel = useResizableWidth('pos-customer', 260, { min: 220, max: 420 });
 
   const { getItems, data, addItem, updateItem, updateItems } = useData();
   const { currentBusiness } = useBusiness();
@@ -262,7 +325,7 @@ const POS = () => {
   const { staffSession } = useAuth();
   const { showAlert, confirm } = useDialog();
   const { t } = useI18n();
-  // TallyKraft billing: block completing a sale when the subscription is
+  // BillDheko billing: block completing a sale when the subscription is
   // inactive (the data layer would reject the write regardless).
   const { isBusinessActive } = useSubscription();
   const canWrite = isBusinessActive(currentBusiness?.id);
@@ -294,7 +357,16 @@ const POS = () => {
   const POS_PAGE_SIZE = 60;
   const [productPage, setProductPage] = useState(0);
   const [cart, setCart] = useState([]);
+  // Variant/batch picker — opened by addToCart in place of directly adding
+  // to the cart, whenever the tapped item is stockMode 'variant'/'batch' and
+  // no stockRefId was already supplied (e.g. a fresh tile tap or barcode
+  // scan). null when closed.
+  const [stockPicker, setStockPicker] = useState(null); // { item } | null
   const [customer, setCustomer] = useState(null);
+  // Tab label follows the customer, so several open POS tabs are told apart.
+  useEffect(() => {
+    if (tabId) updateTab(tabId, { label: customer?.name ? `POS · ${customer.name}` : 'POS' });
+  }, [tabId, customer?.name]); // eslint-disable-line react-hooks/exhaustive-deps
   // ── One by One mode ────────────────────────────────────────────────────
   // A guided, keyboard-first checkout flow for cashiers who want to move
   // through a sale in fixed stages (Products → Customer → Checkout) instead
@@ -512,7 +584,10 @@ const POS = () => {
   // tile re-scanning the whole cart array on every render.
   const cartQtyMap = useMemo(() => {
     const m = new Map();
-    for (const c of cart) m.set(c.itemId, c.qty);
+    // Sum across every line for the same itemId — a variant/batch-tracked
+    // item can have several simultaneous cart lines (different stockRefId),
+    // and the tile badge should reflect the total, not just one line's qty.
+    for (const c of cart) m.set(c.itemId, (m.get(c.itemId) || 0) + (Number(c.qty) || 0));
     return m;
   }, [cart]);
 
@@ -542,19 +617,30 @@ const POS = () => {
     setToast({ msg: 'Product order reset', severity: 'info' });
   };
 
-  const addToCart = useCallback((item) => {
+  const addToCart = useCallback((item, stockRefId) => {
+    // Variant/batch-tracked item, no row picked yet — pause here and ask
+    // which one instead of guessing (the tile itself has no way to convey
+    // which variant/batch was meant). The dialog's own confirm re-calls
+    // addToCart with the chosen stockRefId, continuing below.
+    if (stockRefId === undefined && stockRows(item)) {
+      setStockPicker({ item });
+      return;
+    }
     playAddSound();
     lastTouchedIdRef.current = item.id;
+    const trackedRow = stockRefId ? resolveStockRef(stockRefId, item) : null;
+    const key = stockRefId ? `${item.id}::${stockRefId}` : item.id;
     setCart((prev) => {
-      const idx = prev.findIndex((c) => c.itemId === item.id);
-      const avail = Number(item.stock) || 0;
+      const idx = prev.findIndex((c) => lineKey(c) === key);
+      const avail = trackedRow ? (Number(trackedRow.stock) || 0) : (Number(item.stock) || 0);
+      const lineName = trackedRow ? `${item.name} (${trackedRow.label})` : item.name;
       if (idx >= 0) {
         const newQty = prev[idx].qty + 1;
         if (config.features?.stockAlert && newQty > avail) {
           setTimeout(() => setToast({
             msg: avail <= 0
-              ? `${item.name} is out of stock.`
-              : `Only ${avail} ${item.unit || 'unit(s)'} of ${item.name} available.`,
+              ? `${lineName} is out of stock.`
+              : `Only ${avail} ${item.unit || 'unit(s)'} of ${lineName} available.`,
             severity: 'warning',
           }), 0);
           return prev;
@@ -565,15 +651,22 @@ const POS = () => {
         return [line, ...rest];
       }
       if (config.features?.stockAlert && avail <= 0) {
-        setTimeout(() => setToast({ msg: `${item.name} is out of stock.`, severity: 'warning' }), 0);
+        setTimeout(() => setToast({ msg: `${lineName} is out of stock.`, severity: 'warning' }), 0);
       }
-      const price = Number(item.salePrice ?? item.price) || 0;
+      const days = trackedRow ? daysUntilExpiry(trackedRow.expiryDate) : null;
+      if (days != null && days < 0 && config.features?.alertExpired !== false) {
+        setTimeout(() => setToast({ msg: `⚠ ${lineName} — this batch expired ${Math.abs(days)}d ago.`, severity: 'warning' }), 0);
+      }
+      const price = (trackedRow && item.stockMode === 'variant' && trackedRow.priceOverride != null)
+        ? Number(trackedRow.priceOverride)
+        : Number(item.salePrice ?? item.price) || 0;
       return [
         {
           itemId: item.id,
           name: item.name,
           price,
           taxRate: Number(item.taxRate) || 0,
+          taxInclusive: !!item.taxInclusive,
           discount: Number(item.discount) || 0,
           qty: 1,
           stock: avail,
@@ -582,11 +675,13 @@ const POS = () => {
           recipe: Array.isArray(item.recipe) ? item.recipe : [],
           recipeOverrides: {},
           notBilled: false,
+          stockRefId: stockRefId || undefined,
+          stockRefLabel: trackedRow?.label || undefined,
         },
         ...prev,
       ];
     });
-  }, [config.features?.stockAlert]);
+  }, [config.features?.stockAlert, config.features?.alertExpired]);
 
   // Adds a consumable/inventory item to the cart WITHOUT charging the
   // customer for it — e.g. a cover, bag, or packing material used up during
@@ -624,10 +719,13 @@ const POS = () => {
     });
   }, []);
 
-  const changeQty = (itemId, delta) => {
-    lastTouchedIdRef.current = itemId;
+  // All three take a cart LINE key (see lineKey() above) rather than a bare
+  // itemId, since a variant/batch-tracked item can have more than one
+  // simultaneous cart line for the same itemId (different stockRefId).
+  const changeQty = (key, delta) => {
+    lastTouchedIdRef.current = key;
     setCart((prev) => {
-      const idx = prev.findIndex(c => c.itemId === itemId);
+      const idx = prev.findIndex(c => lineKey(c) === key);
       const line = prev[idx];
       if (line && delta > 0 && config.features?.stockAlert) {
         const newQty = line.qty + delta;
@@ -644,7 +742,7 @@ const POS = () => {
       if (!line) return prev;
       const updated = { ...line, qty: Math.max(0, line.qty + delta) };
       if (updated.qty <= 0) {
-        return prev.filter((c) => c.itemId !== itemId);
+        return prev.filter((c) => lineKey(c) !== key);
       }
       // Move the touched line to the top, same as a fresh scan/add
       const rest = prev.filter((_, i) => i !== idx);
@@ -652,21 +750,21 @@ const POS = () => {
     });
   };
 
-  const setQty = (itemId, value) => {
+  const setQty = (key, value) => {
     // Empty field — keep item in cart while user is mid-edit
     if (value === '' || value === null || value === undefined) {
-      setCart((prev) => prev.map((c) => (c.itemId === itemId ? { ...c, qty: '' } : c)));
+      setCart((prev) => prev.map((c) => (lineKey(c) === key ? { ...c, qty: '' } : c)));
       return;
     }
     // Trailing dot (e.g. "1.") — store as string so user can finish typing decimal
     if (typeof value === 'string' && value.endsWith('.')) {
-      setCart((prev) => prev.map((c) => (c.itemId === itemId ? { ...c, qty: value } : c)));
+      setCart((prev) => prev.map((c) => (lineKey(c) === key ? { ...c, qty: value } : c)));
       return;
     }
     const raw = parseFloat(value);
     const q = Math.max(0, isNaN(raw) ? 0 : Math.round(raw * 1000) / 1000);
     setCart((prev) => {
-      const line = prev.find(c => c.itemId === itemId);
+      const line = prev.find(c => lineKey(c) === key);
       if (line && q > 0 && config.features?.stockAlert && q > line.stock) {
         setToast({
           msg: line.stock <= 0
@@ -675,11 +773,11 @@ const POS = () => {
           severity: 'warning',
         });
       }
-      return prev.map((c) => (c.itemId === itemId ? { ...c, qty: q } : c)).filter((c) => c.qty === '' || String(c.qty).endsWith('.') || Number(c.qty) > 0);
+      return prev.map((c) => (lineKey(c) === key ? { ...c, qty: q } : c)).filter((c) => c.qty === '' || String(c.qty).endsWith('.') || Number(c.qty) > 0);
     });
   };
 
-  const removeLine = (itemId) => setCart((prev) => prev.filter((c) => c.itemId !== itemId));
+  const removeLine = (key) => setCart((prev) => prev.filter((c) => lineKey(c) !== key));
 
   // A component (e.g. "Cover") can come from more than one cart line's
   // recipe at once — the consolidated strip below the cart shows one summed
@@ -723,6 +821,20 @@ const POS = () => {
     });
   };
 
+  // Single path for choosing a customer — used by the picker and by the
+  // quick-add dialog, so a newly created customer is selected exactly like an
+  // existing one.
+  const selectCustomer = (v, focusDelay = 0) => {
+    setCustomer(v);
+    if (v && config.features?.customerPreview !== false) setShowCustomerPanel(true);
+    setLoyaltyRedeemPoints(0);
+    setLoyaltyRedeemValue(0);
+    // One by One mode: move focus to Continue so the next Enter advances.
+    if (oneByOneModeRef.current && obStepRef.current === 'customer') {
+      setTimeout(() => obContinueBtnRef.current?.focus(), focusDelay);
+    }
+  };
+
   const resetSale = () => {
     setCart([]);
     setCustomer(null);
@@ -761,10 +873,11 @@ const POS = () => {
   };
 
   const handleScan = useCallback((code) => {
-    const found = allItems.find((i) => i.barcode === code || String(i.id) === code || i.itemCode === code);
-    if (found) {
-      addToCart(found);
-      setToast({ msg: `Added ${found.name}`, severity: 'success' });
+    const target = resolveScanTarget(allItems, code);
+    if (target) {
+      const rowLabel = target.stockRefId ? resolveStockRef(target.stockRefId, target.item)?.label : null;
+      addToCart(target.item, target.stockRefId);
+      setToast({ msg: `Added ${target.item.name}${rowLabel ? ` (${rowLabel})` : ''}`, severity: 'success' });
     } else {
       setToast({ msg: `No item for code "${code}"`, severity: 'warning' });
     }
@@ -820,6 +933,7 @@ const POS = () => {
 
     // ── Shortcut handler (keydown capture) ────────────────────────────────
     const onKeyDown = (e) => {
+      if (!isActiveTabRef.current) return;
       // Barcode scan buffering/detection runs first so a scanner's Enter is
       // consumed here before any shortcut logic below can react to it.
       onKeyDownScan(e);
@@ -1010,7 +1124,7 @@ const POS = () => {
         // ArrowUp/ArrowDown jump to the wrong tile. gridTemplateColumns
         // resolves to a space-separated track list (e.g. "180px 180px..."),
         // so splitting it directly gives the true column count for free.
-        const gridEl = document.querySelector('[data-pos-grid]');
+        const gridEl = productGridRef.current;
         const cols = gridEl
           ? Math.max(1, getComputedStyle(gridEl).gridTemplateColumns.split(' ').filter(Boolean).length)
           : 2;
@@ -1044,6 +1158,7 @@ const POS = () => {
   // Listen for scans routed from other tabs (via Layout global scanner)
   useEffect(() => {
     const onGlobalScan = (e) => {
+      if (!isActiveTabRef.current) return;
       if (searchRef.current) searchRef.current.value = '';
       handleScanRef.current?.(e.detail);
     };
@@ -1055,11 +1170,12 @@ const POS = () => {
     if (e.key !== 'Enter') return;
     const q = search.trim();
     if (!q) return;
-    const exact = allItems.find((i) => i.barcode === q || i.itemCode === q);
-    if (exact) {
-      addToCart(exact);
+    const target = resolveScanTarget(allItems, q);
+    if (target) {
+      const rowLabel = target.stockRefId ? resolveStockRef(target.stockRefId, target.item)?.label : null;
+      addToCart(target.item, target.stockRefId);
       setSearch('');
-      setToast({ msg: `Added ${exact.name}`, severity: 'success' });
+      setToast({ msg: `Added ${target.item.name}${rowLabel ? ` (${rowLabel})` : ''}`, severity: 'success' });
     } else if (filtered.length > 0) {
       // Previously only fired when the search matched EXACTLY one item —
       // any broader match (e.g. "sh" matching Shirt/Shoes/Shampoo) required
@@ -1078,7 +1194,8 @@ const POS = () => {
     cart.forEach((c) => {
       if (c.notBilled) return;
       const lineDisc = Math.min(100, Math.max(0, Number(c.discount) || 0));
-      const lineBase = c.price * (Number(c.qty) || 0) * (1 - lineDisc / 100);
+      const basePrice = c.taxInclusive ? c.price / (1 + c.taxRate / 100) : c.price;
+      const lineBase = basePrice * (Number(c.qty) || 0) * (1 - lineDisc / 100);
       subtotal += lineBase;
       taxAmount += lineBase * (c.taxRate / 100);
     });
@@ -1122,7 +1239,7 @@ const POS = () => {
   obStepRef.current = obStep;
   obGoToCustomerRef.current = obGoToCustomer;
   obGoToCheckoutRef.current = obGoToCheckout;
-  localDialogOpenRef.current = !!printPrompt || quickAddCustomer.open || newItemDialog.open || scannerOpen || addInventoryDialog || editCustomerOpen || paymentQrOpen;
+  localDialogOpenRef.current = !!printPrompt || quickAddCustomer.open || newItemDialog.open || scannerOpen || addInventoryDialog || editCustomerOpen || paymentQrOpen || !!stockPicker;
 
   const itemCount = cart.reduce((s, c) => s + (parseFloat(c.qty) || 0), 0);
 
@@ -1167,16 +1284,20 @@ const POS = () => {
           qty,
           price: c.price,
           taxRate: c.taxRate,
+          taxInclusive: !!c.taxInclusive,
           cgstRate: c.taxRate / 2,
           sgstRate: c.taxRate / 2,
           igstRate: c.taxRate,
           discountPercent: lineDisc,
           hsnCode: c.hsnCode || '',
           unit: c.unit || '',
-          total: c.notBilled ? 0 : c.price * qty * (1 - lineDisc / 100) * (1 + c.taxRate / 100),
+          total: c.notBilled ? 0 : (c.taxInclusive
+            ? c.price * qty * (1 - lineDisc / 100)
+            : c.price * qty * (1 - lineDisc / 100) * (1 + c.taxRate / 100)),
           recipe: Array.isArray(c.recipe) ? c.recipe : [],
           recipeOverrides: c.recipeOverrides || {},
           notBilled: !!c.notBilled,
+          stockRefId: c.stockRefId || undefined,
         };
       });
 
@@ -1223,13 +1344,12 @@ const POS = () => {
       // Compute loyalty snapshot before saving so it's persisted on the transaction
       if (customer?.id && config.features?.loyalty) {
         const loyalty = config.loyalty || {};
-        const pointsPerRupee = Number(loyalty.pointsPerRupee) || 0;
-        const earnEveryRupees = Number(loyalty.earnEveryRupees) || 1;
-        const earned = Math.floor((totals.grandTotal / earnEveryRupees) * pointsPerRupee);
+        // Earned on the bill amount before redemption, so points redeemed
+        // on this same bill (incl. the ones it earns) don't reduce earning.
+        const earned = pointsEarnedOn(totals.grandTotal + loyaltyRedeemValue, loyalty);
         const currentPartyData = getItems('parties').find(p => p.id === customer.id);
         const prevPoints = Number(currentPartyData?.loyaltyPoints) || 0;
-        const afterRedeem = prevPoints - loyaltyRedeemPoints;
-        const newPoints = Math.max(0, afterRedeem) + earned;
+        const newPoints = loyaltyBalanceAfter(prevPoints, earned, loyaltyRedeemPoints);
         transactionData._loyaltySnapshot = {
           earned,
           balance: newPoints,
@@ -1261,8 +1381,14 @@ const POS = () => {
             });
           } else if (c.itemId) {
             const si = stockSnapshot.find(i => i.id === c.itemId);
-            const avail = si ? (Number(si.stock) || 0) : 0;
-            requiredByItemId[c.itemId] = { name: c.name, qty: q, avail };
+            // A variant/batch-tracked line checks against its OWN row's
+            // stock, not the item's flat total — and needs its own key
+            // (itemId+stockRefId) since two cart lines can share an itemId
+            // now (different variants of the same item).
+            const trackedRow = c.stockRefId ? resolveStockRef(c.stockRefId, si) : null;
+            const avail = trackedRow ? (Number(trackedRow.stock) || 0) : (si ? (Number(si.stock) || 0) : 0);
+            const label = trackedRow ? `${c.name} (${trackedRow.label})` : c.name;
+            requiredByItemId[lineKey(c)] = { name: label, qty: q, avail };
           }
         });
         const overStockLines = Object.values(requiredByItemId).filter(l => l.qty > l.avail);
@@ -1274,6 +1400,35 @@ const POS = () => {
           );
           const proceed = await confirm({
             title: 'Insufficient stock',
+            message: `${lines.join('\n')} — proceed anyway?`,
+            confirmLabel: 'Proceed',
+            cancelLabel: 'Cancel',
+          });
+          if (!proceed) {
+            setSaving(false);
+            return;
+          }
+        }
+      }
+
+      // Expired-batch check — same "warn, let them proceed" shape as the
+      // stock-alert check above and Sales.jsx's equivalent.
+      if (config.features?.alertExpired !== false) {
+        const stockSnapshot = getItems('items');
+        const expiredLines = cart
+          .map((c) => {
+            if (!c.stockRefId) return null;
+            const si = stockSnapshot.find(i => i.id === c.itemId);
+            const batch = resolveStockRef(c.stockRefId, si);
+            if (!batch) return null;
+            const days = daysUntilExpiry(batch.expiryDate);
+            return days != null && days < 0 ? { name: c.name, batchLabel: batch.label, days } : null;
+          })
+          .filter(Boolean);
+        if (expiredLines.length > 0) {
+          const lines = expiredLines.map(l => `${l.name} — batch "${l.batchLabel}" (expired ${Math.abs(l.days)}d ago)`);
+          const proceed = await confirm({
+            title: 'Selling expired stock',
             message: `${lines.join('\n')} — proceed anyway?`,
             confirmLabel: 'Proceed',
             cancelLabel: 'Cancel',
@@ -1304,6 +1459,7 @@ const POS = () => {
         // one updateItems call instead of N sequential updateItem calls.
         const stockSnapshot = getItems('items');
         const deltas = {};
+        const refDeltas = {};
         cart.forEach((c) => {
           const q = Number(c.qty) || 0;
           if (c.recipe?.length > 0) {
@@ -1313,15 +1469,65 @@ const POS = () => {
               if (compQty > 0) deltas[r.itemId] = (deltas[r.itemId] || 0) - compQty;
             });
           } else if (c.itemId) {
-            deltas[c.itemId] = (deltas[c.itemId] || 0) - q;
+            const stockItem = stockSnapshot.find((i) => String(i.id) === String(c.itemId));
+            if (stockRows(stockItem) && c.stockRefId) {
+              const key = `${c.itemId}::${c.stockRefId}`;
+              refDeltas[key] = (refDeltas[key] || 0) - q;
+            } else {
+              deltas[c.itemId] = (deltas[c.itemId] || 0) - q;
+            }
           }
         });
-        const stockUpdates = [];
+        const itemUpdatesById = {};
         for (const [itemId, delta] of Object.entries(deltas)) {
           if (delta === 0) continue;
           const stockItem = stockSnapshot.find((i) => String(i.id) === itemId);
-          if (stockItem) stockUpdates.push({ id: stockItem.id, stock: (Number(stockItem.stock) || 0) + delta });
+          if (stockItem) itemUpdatesById[stockItem.id] = { id: stockItem.id, stock: (Number(stockItem.stock) || 0) + delta };
         }
+        // Variant/batch deltas move one specific row's stock, then resum the
+        // item's own total `stock` (kept in sync for every plain low-stock/
+        // report check that reads item.stock directly) — same shape as
+        // Sales.jsx's handleSave.
+        const refDeltasByItem = {};
+        for (const [key, delta] of Object.entries(refDeltas)) {
+          if (delta === 0) continue;
+          const [itemId, refId] = key.split('::');
+          (refDeltasByItem[itemId] ||= {})[refId] = delta;
+        }
+        for (const [itemId, byRef] of Object.entries(refDeltasByItem)) {
+          const stockItem = stockSnapshot.find((i) => String(i.id) === itemId);
+          if (!stockItem) continue;
+          const field = stockItem.stockMode === 'variant' ? 'variants' : 'batches';
+          const rows = (stockItem[field] || []).map((r) =>
+            byRef[r.id] ? { ...r, stock: (Number(r.stock) || 0) + byRef[r.id] } : r,
+          );
+          const total = rows.reduce((s, r) => s + (Number(r.stock) || 0), 0);
+          itemUpdatesById[stockItem.id] = { ...(itemUpdatesById[stockItem.id] || { id: stockItem.id }), [field]: rows, stock: total };
+        }
+
+        // Auto-update sale rate — Settings → Item GST Defaults. Only when ON,
+        // and only for a cart line whose price actually differs from the
+        // item master's current salePrice (unchanged price = no write).
+        // Skips a variant with its own priceOverride — that's deliberately
+        // priced differently from the item's default.
+        if (config.itemDefaults?.autoUpdateSalePrice) {
+          cart.forEach((c) => {
+            if (!c.itemId || c.notBilled) return;
+            const rowPrice = Number(c.price);
+            if (!(rowPrice >= 0)) return;
+            const stockItem = stockSnapshot.find((i) => String(i.id) === String(c.itemId));
+            if (!stockItem) return;
+            if (c.stockRefId) {
+              const ref = resolveStockRef(c.stockRefId, stockItem);
+              if (stockItem.stockMode === 'variant' && ref?.priceOverride != null) return;
+            }
+            const masterPrice = Number(stockItem.salePrice ?? stockItem.price) || 0;
+            if (rowPrice === masterPrice) return;
+            itemUpdatesById[stockItem.id] = { ...(itemUpdatesById[stockItem.id] || { id: stockItem.id }), salePrice: rowPrice };
+          });
+        }
+
+        const stockUpdates = Object.values(itemUpdatesById);
         if (stockUpdates.length) updateItems('items', stockUpdates);
       }
 
@@ -1400,7 +1606,7 @@ const POS = () => {
       sx={{
         display: 'flex',
         flexDirection: { xs: 'column', md: 'row' },
-        height: { xs: 'auto', md: 'calc(100vh - 64px)' },
+        height: { xs: 'auto', md: 'calc(100vh - 64px - var(--app-top-extra, 0px))' },
         minHeight: { xs: 'calc(100vh - 120px)', md: 0 },
         gap: { xs: 1.5, md: 2 },
         // Break out of Layout's padding to use full width
@@ -1635,6 +1841,7 @@ const POS = () => {
         {/* Product tiles */}
         <Box
           data-pos-grid
+          ref={productGridRef}
           sx={{
             flex: 1,
             minHeight: { xs: 240, md: 0 },
@@ -1709,7 +1916,7 @@ const POS = () => {
               onChange={(_, p) => {
                 setProductPage(p - 1);
                 setKbFocusedIdx(-1);
-                document.querySelector('[data-pos-grid]')?.scrollIntoView({ block: 'start', behavior: 'smooth' });
+                productGridRef.current?.scrollIntoView({ block: 'start', behavior: 'smooth' });
               }}
               color="standard"
               size={isMobile ? 'small' : 'medium'}
@@ -1784,7 +1991,8 @@ const POS = () => {
               viewport widens rather than the cart growing while this stays
               flat. Narrower than the cart at every step since it's read-only
               summary content, not an input-heavy panel. */}
-          <Box sx={{ display: { xs: 'none', md: 'block' }, width: { md: 240, lg: 260, xl: 280 }, flexShrink: 0, border: '1px solid', borderColor: tealBorder, borderRadius: '16px', overflow: 'hidden', boxShadow: `0 4px 24px ${alpha(teal, 0.08)}` }}>
+          {!isStackedLayout && <ResizeHandle panel={posCustomerPanel} side="left" label="Resize customer panel" />}
+          <Box ref={posCustomerPanel.panelRef} sx={{ display: { xs: 'none', md: 'block' }, width: posCustomerPanel.customized ? posCustomerPanel.width : { md: 240, lg: 260, xl: 280 }, flexShrink: 0, border: '1px solid', borderColor: tealBorder, borderRadius: '16px', overflow: 'hidden', boxShadow: `0 4px 24px ${alpha(teal, 0.08)}` }}>
             <CustomerPreviewPanel
               party={customer}
               onClose={() => setShowCustomerPanel(false)}
@@ -1821,10 +2029,12 @@ const POS = () => {
       )}
 
       {/* ── RIGHT: cart panel ────────────────────────────────────────────────── */}
+      {!isStackedLayout && <ResizeHandle panel={cartPanel} side="left" label="Resize cart" />}
       <Paper
+        ref={cartPanel.panelRef}
         elevation={0}
         sx={{
-          width: { xs: '100%', md: 380, lg: 440, xl: 480 },
+          width: cartPanel.customized ? { xs: '100%', md: cartPanel.width } : { xs: '100%', md: 380, lg: 440, xl: 480 },
           flexShrink: 0,
           border: '1px solid',
           borderColor: tealBorder,
@@ -1942,20 +2152,7 @@ const POS = () => {
           <PartySelect
             options={customers}
             value={customer}
-            onChange={(v) => {
-              setCustomer(v);
-              if (v && config.features?.customerPreview !== false) setShowCustomerPanel(true);
-              setLoyaltyRedeemPoints(0);
-              setLoyaltyRedeemValue(0);
-              // One by One mode: move focus straight to the Continue button
-              // once a customer is picked, so the next Enter (a native
-              // button activation, not this listener) advances to Checkout
-              // with zero mouse/touch — deferred a tick so it runs after
-              // Autocomplete's own focus handling for this selection settles.
-              if (oneByOneModeRef.current && obStepRef.current === 'customer') {
-                setTimeout(() => obContinueBtnRef.current?.focus(), 0);
-              }
-            }}
+            onChange={(v) => selectCustomer(v)}
             onAddNew={(name, isPhone) => setQuickAddCustomer({ open: true, name: isPhone ? '' : name, phone: isPhone ? name : '' })}
             label="Customer"
             placeholder="Walk-in / Search customer…"
@@ -2033,9 +2230,10 @@ const POS = () => {
           ) : (
             cart.map((c, idx) => {
               const stockExceeded = config.features?.stockAlert && c.qty > c.stock;
+              const cKey = lineKey(c);
               return (
               <Box
-                key={c.itemId}
+                key={cKey}
                 sx={{
                   py: 1.25,
                   borderBottom: idx < cart.length - 1 ? '1px solid' : 'none',
@@ -2046,7 +2244,7 @@ const POS = () => {
                 <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <Typography variant="body2" sx={{ fontWeight: 700, lineHeight: 1.25, fontSize: '0.9rem', flexGrow: 1, minWidth: 0 }} noWrap>
-                    {c.name}
+                    {c.name}{c.stockRefLabel ? <Box component="span" sx={{ fontWeight: 500, color: 'text.secondary' }}> — {c.stockRefLabel}</Box> : null}
                   </Typography>
                   {c.notBilled && (
                     <Tooltip title="Not charged to customer — stock still deducts">
@@ -2067,10 +2265,22 @@ const POS = () => {
                   <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.75rem' }}>
                     {c.notBilled ? '₹0.00 (not billed)' : (
                       <>
-                        {money(c.price)}{c.taxRate ? ` · ${c.taxRate}% GST` : ''}{Number(c.discount) ? ` · ${c.discount}% off` : ''}
+                        {money(c.price)}
+                        {config.itemDefaults?.autoUpdateSalePrice && (
+                          <Tooltip title="This item's price auto-updates from the last bill's rate (Settings → Features → Others)">
+                            <Box component="span" sx={{ color: teal, fontWeight: 600 }}> · From Last Price</Box>
+                          </Tooltip>
+                        )}
+                        {c.taxRate ? ` · ${c.taxRate}% GST${c.taxInclusive ? ' (Incl.)' : ''}` : ''}{Number(c.discount) ? ` · ${c.discount}% off` : ''}
                         {' · '}
                         <Box component="span" sx={{ fontWeight: 700, color: teal }}>
-                          {money(c.price * c.qty * (1 - (Math.min(100, Math.max(0, Number(c.discount) || 0))) / 100) * (1 + c.taxRate / 100))}
+                          {money((() => {
+                            const lineDisc = Math.min(100, Math.max(0, Number(c.discount) || 0));
+                            const basePrice = c.taxInclusive ? c.price / (1 + c.taxRate / 100) : c.price;
+                            return c.taxInclusive
+                              ? c.price * c.qty * (1 - lineDisc / 100)
+                              : basePrice * c.qty * (1 - lineDisc / 100) * (1 + c.taxRate / 100);
+                          })())}
                         </Box>
                       </>
                     )}
@@ -2084,13 +2294,13 @@ const POS = () => {
                   border: `1px solid ${alpha(teal, 0.16)}`,
                   px: 0.5, py: 0.5,
                 }}>
-                  <IconButton size="small" onClick={() => changeQty(c.itemId, -1)}
+                  <IconButton size="small" onClick={() => changeQty(cKey, -1)}
                     sx={{ p: 0.75, color: 'text.secondary', '&:hover': { color: teal, bgcolor: alpha(teal, 0.1) }, borderRadius: '7px' }}>
                     <Minus size={15} />
                   </IconButton>
                   <TextField
                     value={c.qty}
-                    onChange={(e) => setQty(c.itemId, e.target.value)}
+                    onChange={(e) => setQty(cKey, e.target.value)}
                     size="small"
                     variant="standard"
                     slotProps={{
@@ -2098,12 +2308,12 @@ const POS = () => {
                       htmlInput: { style: { textAlign: 'center', width: 32, padding: 0, fontWeight: 800, fontSize: '0.95rem', color: teal }, inputMode: 'decimal' },
                     }}
                   />
-                  <IconButton size="small" onClick={() => changeQty(c.itemId, 1)}
+                  <IconButton size="small" onClick={() => changeQty(cKey, 1)}
                     sx={{ p: 0.75, color: 'text.secondary', '&:hover': { color: teal, bgcolor: alpha(teal, 0.1) }, borderRadius: '7px' }}>
                     <Plus size={15} />
                   </IconButton>
                 </Box>
-                <IconButton size="small" onClick={() => removeLine(c.itemId)}
+                <IconButton size="small" onClick={() => removeLine(cKey)}
                   sx={{ p: 0.75, color: 'text.disabled', '&:hover': { color: errorColor, bgcolor: alpha(errorColor, 0.08) }, borderRadius: '7px' }}>
                   <Trash2 size={15} />
                 </IconButton>
@@ -2220,6 +2430,19 @@ const POS = () => {
                   -{money(loyaltyRedeemValue)}
                 </Typography>
               </Box>
+            )}
+
+            {/* Points this bill earns — redeem them on this same bill, or
+                leave them to be saved to the customer's balance. */}
+            {config.features?.loyalty && customer?.id && (
+              <LoyaltyRedeemNow
+                loyalty={config.loyalty}
+                billAmount={totals.grandTotal + loyaltyRedeemValue}
+                prevPoints={(customers.find(p => p.id === customer.id) || customer).loyaltyPoints}
+                redeemedPoints={loyaltyRedeemPoints}
+                onRedeem={(pts, val) => { setLoyaltyRedeemPoints(pts); setLoyaltyRedeemValue(val); }}
+                accent={teal}
+              />
             )}
 
             {/* Round off row */}
@@ -2611,14 +2834,13 @@ const POS = () => {
         initialPhone={quickAddCustomer.phone || ''}
         compact
         onSaved={(newParty) => {
-          setCustomer(newParty);
           setQuickAddCustomer({ open: false, name: '', phone: '' });
-          // Same One by One mode auto-focus as picking an existing customer
-          // via PartySelect's onChange — the dialog is still closing/
-          // unmounting this same tick, so defer until that settles.
-          if (oneByOneModeRef.current && obStepRef.current === 'customer') {
-            setTimeout(() => obContinueBtnRef.current?.focus(), 50);
-          }
+          // Same selection path as picking an existing customer (preview
+          // panel, loyalty reset, One by One focus). Re-applied once the
+          // dialog has finished closing so nothing that runs during the
+          // close/focus-restore can leave the field empty.
+          selectCustomer(newParty, 50);
+          setTimeout(() => setCustomer(cur => (cur?.id === newParty.id ? cur : newParty)), 300);
         }}
       />
 
@@ -2683,6 +2905,56 @@ const POS = () => {
           }
         }}
       />
+
+      {/* Variant / batch picker — opened by addToCart in place of directly
+          adding a variant/batch-tracked item, so the row is never ambiguous
+          about which one was meant. Tapping a row both picks it AND adds it
+          in one action — no separate confirm step, matching the
+          tap-to-add convention every other tile in POS already uses. */}
+      <Dialog open={!!stockPicker} onClose={() => setStockPicker(null)} maxWidth="xs" fullWidth
+        PaperProps={{ sx: { borderRadius: 3 } }}>
+        <DialogTitle sx={{ fontWeight: 800, fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          {stockPicker?.item?.name}
+          <IconButton size="small" onClick={() => setStockPicker(null)}><X size={18} /></IconButton>
+        </DialogTitle>
+        <DialogContent sx={{ pt: 0 }}>
+          <Typography variant="body2" sx={{ color: 'text.secondary', mb: 1.5 }}>
+            Choose which {stockPicker?.item?.stockMode === 'variant' ? 'variant' : 'batch'} to sell.
+          </Typography>
+          <Stack spacing={1}>
+            {stockRows(stockPicker?.item || {})?.map((r) => {
+              const isVariant = stockPicker.item.stockMode === 'variant';
+              const low = Number(r.stock) <= 0;
+              const days = isVariant ? null : daysUntilExpiry(r.expiryDate);
+              const expired = days != null && days < 0;
+              return (
+                <Paper
+                  key={r.id}
+                  variant="outlined"
+                  onClick={() => { if (!low || !config.features?.stockAlert) { addToCart(stockPicker.item, r.id); setStockPicker(null); } }}
+                  sx={{
+                    p: 1.25, borderRadius: 2, cursor: (low && config.features?.stockAlert) ? 'not-allowed' : 'pointer',
+                    opacity: (low && config.features?.stockAlert) ? 0.5 : 1,
+                    borderColor: expired ? 'error.main' : 'divider',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1,
+                    '&:hover': (low && config.features?.stockAlert) ? {} : { borderColor: teal, bgcolor: alpha(teal, 0.04) },
+                  }}
+                >
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.88rem' }} noWrap>{r.label}</Typography>
+                    <Typography variant="caption" sx={{ color: expired ? 'error.main' : 'text.secondary', fontWeight: expired ? 700 : 400 }}>
+                      {isVariant
+                        ? `${r.stock} in stock${r.priceOverride != null ? ` · ${money(r.priceOverride)}` : ''}`
+                        : `${r.expiryDate ? `Exp. ${r.expiryDate}` : 'No expiry set'} · ${r.stock} in stock${expired ? ' — EXPIRED' : ''}`}
+                    </Typography>
+                  </Box>
+                  {expired && <AlertTriangle size={16} color="#dc2626" style={{ flexShrink: 0 }} />}
+                </Paper>
+              );
+            })}
+          </Stack>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={addInventoryDialog} onClose={() => setAddInventoryDialog(false)} maxWidth="xs" fullWidth>
         <DialogTitle sx={{ fontWeight: 800, fontSize: '1rem' }}>Add Inventory Item</DialogTitle>

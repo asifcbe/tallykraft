@@ -595,7 +595,7 @@ export default function MigrateData() {
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(purchSample), 'Purchases');
 
-    XLSX.writeFile(wb, 'tallykraft_migration_template.xlsx');
+    XLSX.writeFile(wb, 'billdheko_migration_template.xlsx');
   };
 
   const totalPreviewRows = Object.values(previewCounts).reduce((a, v) => a + v, 0);
@@ -888,7 +888,7 @@ export default function MigrateData() {
           </Box>
           <Typography variant="h5" sx={{ fontWeight: 800, mb: 0.5 }}>Migration Complete!</Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
-            Your data has been successfully imported into TallyKraft.
+            Your data has been successfully imported into BillDheko.
           </Typography>
 
           <Grid container spacing={2} justifyContent="center" sx={{ mb: 3, maxWidth: 600, mx: 'auto' }}>

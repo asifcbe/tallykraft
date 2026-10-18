@@ -83,7 +83,7 @@ const OrderSlipTemplate = forwardRef(({ order, business, paperSize = 'A4' }, ref
             <div>{order.notes}</div>
           </div>
         )}
-        <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '10px', color: '#888' }}>Powered by TallyKraft</div>
+        <div style={{ textAlign: 'center', marginTop: '10px', fontSize: '10px', color: '#888' }}>Powered by BillDheko</div>
       </div>
     );
   }
@@ -185,7 +185,7 @@ const OrderSlipTemplate = forwardRef(({ order, business, paperSize = 'A4' }, ref
 
       {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', paddingTop: '20px', marginTop: 'auto' }}>
-        <div style={{ fontSize: '10px', color: '#5f4f47' }}>Powered by TallyKraft · www.tallykraft.com</div>
+        <div style={{ fontSize: '10px', color: '#5f4f47' }}>Powered by BillDheko · www.billdheko.com</div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ width: '140px', borderBottom: '1px solid #000', marginBottom: '4px' }} />
           <div style={{ fontSize: '11px', fontWeight: 'bold' }}>Received By</div>

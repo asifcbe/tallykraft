@@ -1,11 +1,11 @@
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import {
   Dialog, DialogTitle, DialogContent, DialogActions,
-  Box, Button, Typography, IconButton, Table, TableBody,
-  TableCell, TableContainer, TableHead, TableRow, TextField,
-  MenuItem, Select, Chip, Tooltip,
+  Box, Button, Typography, IconButton, TextField,
+  MenuItem, Select, Chip, Tooltip, Backdrop, CircularProgress,
   alpha, useTheme,
 } from '@mui/material';
+import { FixedSizeList } from 'react-window';
 import { X, ClipboardPaste, Save } from 'lucide-react';
 import { useData } from './DataContext';
 import { useBusiness } from './BusinessContext';
@@ -23,25 +23,119 @@ const EDIT_COLS = [
   { key: 'accountNumber',     label: 'Account No.', width: 150, numeric: true },
   { key: 'accountHolderName', label: 'Account Holder', width: 180 },
 ];
+const IDX_COL_W = 48;
+const ID_COL_W = 90;
+const ROW_H = 44;
+const GRID_TEMPLATE = `${IDX_COL_W}px ${ID_COL_W}px ` + EDIT_COLS.map(c => `${c.width}px`).join(' ');
+const TOTAL_W = IDX_COL_W + ID_COL_W + EDIT_COLS.reduce((s, c) => s + c.width, 0);
 
 const parsePaste = (text) =>
   text.trim().split('\n').map(line =>
     line.split(/\t|,/).map(c => c.trim().replace(/^"|"$/g, ''))
   );
 
+const Row = React.memo(function Row({ index, style, data }) {
+  const { rows, partyIds, primary, allCategories, updateCell, handleCellPaste } = data;
+  const row = rows[index];
+  if (!row) return null;
+  const hasError = !row.name?.trim();
+  const cellBorder = alpha(primary, 0.15);
+
+  return (
+    <Box
+      style={style}
+      sx={{
+        display: 'grid',
+        gridTemplateColumns: GRID_TEMPLATE,
+        alignItems: 'center',
+        borderBottom: `1px solid ${alpha(primary, 0.07)}`,
+        bgcolor: hasError ? alpha('#ef4444', 0.03) : 'transparent',
+        '&:hover': { bgcolor: alpha(primary, 0.04) },
+      }}
+    >
+      <Box sx={{ pl: 1.5, color: 'text.disabled', fontSize: '0.72rem', fontWeight: 600 }}>{index + 1}</Box>
+      <Box sx={{ px: 0.4 }}>
+        <Typography variant="caption" sx={{ fontFamily: 'monospace', bgcolor: alpha(primary, 0.07), color: 'primary.main', px: 0.75, py: 0.25, borderRadius: 0.75, fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
+          {partyIds[index] || '—'}
+        </Typography>
+      </Box>
+      {EDIT_COLS.map((col, colIdx) => (
+        <Box key={col.key} sx={{ px: 0.4 }}>
+          {col.type === 'countryCode' ? (
+            <Select
+              size="small"
+              value={row[col.key] || '+91'}
+              onChange={e => updateCell(index, col.key, e.target.value)}
+              fullWidth
+              sx={{ fontSize: '0.8rem', '& .MuiOutlinedInput-notchedOutline': { borderColor: cellBorder } }}
+              MenuProps={{ PaperProps: { sx: { maxHeight: 260 } } }}
+            >
+              {COUNTRY_CODES.map(c => (
+                <MenuItem key={c.code + c.country} value={c.code} sx={{ fontSize: '0.78rem' }}>
+                  <Box sx={{ display: 'flex', gap: 0.75 }}>
+                    <span style={{ fontWeight: 700, minWidth: 36 }}>{c.code}</span>
+                    <span style={{ color: '#666' }}>{c.name}</span>
+                  </Box>
+                </MenuItem>
+              ))}
+            </Select>
+          ) : col.type === 'category' ? (
+            <Select
+              size="small"
+              value={row[col.key] || ''}
+              onChange={e => updateCell(index, col.key, e.target.value)}
+              displayEmpty
+              fullWidth
+              sx={{ fontSize: '0.8rem', '& .MuiOutlinedInput-notchedOutline': { borderColor: cellBorder } }}
+              MenuProps={{ PaperProps: { sx: { maxHeight: 260 } } }}
+            >
+              <MenuItem value="" sx={{ fontSize: '0.78rem', color: 'text.disabled' }}>None</MenuItem>
+              {allCategories.map(cat => (
+                <MenuItem key={cat} value={cat} sx={{ fontSize: '0.78rem' }}>{cat}</MenuItem>
+              ))}
+            </Select>
+          ) : (
+            <TextField
+              size="small"
+              fullWidth
+              value={row[col.key] ?? ''}
+              onChange={e => {
+                let val = e.target.value;
+                if (col.phoneOnly || col.numeric) val = val.replace(/\D/g, '');
+                updateCell(index, col.key, val);
+              }}
+              onPaste={e => handleCellPaste(e, index, colIdx + 2)}
+              type="text"
+              inputProps={{
+                ...(col.phoneOnly ? { inputMode: 'numeric', maxLength: 15 } : {}),
+                ...(col.numeric ? { inputMode: 'numeric', maxLength: 20 } : {}),
+              }}
+              sx={{
+                '& .MuiOutlinedInput-root': {
+                  fontSize: '0.8rem',
+                  '& fieldset': { borderColor: hasError && col.required ? 'error.main' : cellBorder },
+                },
+              }}
+            />
+          )}
+        </Box>
+      ))}
+    </Box>
+  );
+});
+
 const BulkEditDialog = ({ open, onClose, parties = [], partyType = 'Customer', onSuccess }) => {
   const theme = useTheme();
   const primary = theme.palette.primary.main;
-  const { updateItem } = useData();
+  const { updateItems } = useData();
   const { currentBusiness } = useBusiness();
-
-  const builtinCats = partyType === 'Customer' ? CUSTOMER_CATEGORIES : VENDOR_CATEGORIES;
-  const customCats = currentBusiness?.id ? loadCustomCategories(currentBusiness.id, partyType) : [];
-  const allCategories = [...builtinCats, ...customCats.filter(c => !builtinCats.includes(c))];
+  const bizId = currentBusiness?.id;
 
   const [rows, setRows] = useState([]);
   const [saving, setSaving] = useState(false);
-  const tableRef = useRef(null);
+  const [hasBlankName, setHasBlankName] = useState(false);
+  const listOuterRef = useRef(null);
+  const headerRef = useRef(null);
 
   useEffect(() => {
     if (open) {
@@ -58,13 +152,17 @@ const BulkEditDialog = ({ open, onClose, parties = [], partyType = 'Customer', o
         accountNumber: p.accountNumber || '',
         accountHolderName: p.accountHolderName || '',
       })));
+      setHasBlankName(parties.some(p => !p.name?.trim()));
     }
   }, [open, parties]);
 
+  const partyIds = useMemo(() => parties.map(p => p.partyId || ''), [parties]);
+
   const updateCell = useCallback((rowIdx, key, value) => {
     setRows(prev => {
-      const next = [...prev];
+      const next = prev.slice();
       next[rowIdx] = { ...next[rowIdx], [key]: value };
+      if (key === 'name') setHasBlankName(next.some(r => !r.name?.trim()));
       return next;
     });
   }, []);
@@ -79,51 +177,58 @@ const BulkEditDialog = ({ open, onClose, parties = [], partyType = 'Customer', o
       );
       const dataRows = firstIsHeader ? grid.slice(1) : grid;
       setRows(prev => {
-        const next = [...prev];
+        const next = prev.slice();
         dataRows.forEach((cells, ri) => {
           if (ri >= next.length) return;
+          const patched = { ...next[ri] };
           EDIT_COLS.forEach((col, ci) => {
             const val = cells[ci] ?? '';
-            if (val !== '') next[ri] = { ...next[ri], [col.key]: val };
+            if (val !== '') patched[col.key] = val;
           });
+          next[ri] = patched;
         });
+        setHasBlankName(next.some(r => !r.name?.trim()));
         return next;
       });
     } catch { /* clipboard denied — ignore */ }
   };
 
-  const handleCellPaste = (e, rowIdx, colIdx) => {
+  const handleCellPaste = useCallback((e, rowIdx, colIdx) => {
     const text = e.clipboardData?.getData('text');
     if (!text || !text.includes('\t')) return;
     e.preventDefault();
     const grid = parsePaste(text);
     setRows(prev => {
-      const next = [...prev];
+      const next = prev.slice();
       grid.forEach((cells, ri) => {
         const targetRow = rowIdx + ri;
         if (targetRow >= next.length) return;
+        const patched = { ...next[targetRow] };
         cells.forEach((val, ci) => {
           const targetCol = colIdx + ci;
-          if (targetCol < EDIT_COLS.length) {
-            next[targetRow] = { ...next[targetRow], [EDIT_COLS[targetCol].key]: val };
+          if (targetCol >= 2 && targetCol - 2 < EDIT_COLS.length) {
+            patched[EDIT_COLS[targetCol - 2].key] = val;
           }
         });
+        next[targetRow] = patched;
       });
+      setHasBlankName(next.some(r => !r.name?.trim()));
       return next;
     });
-  };
+  }, []);
 
-  const handleSave = async () => {
-    const invalid = rows.filter(r => !r.name?.trim());
-    if (invalid.length) return;
+  const handleSave = () => {
+    if (hasBlankName) return;
     setSaving(true);
-    try {
+    setTimeout(() => requestAnimationFrame(() => {
       const origById = Object.fromEntries(parties.map(p => [p.id, p]));
-      await Promise.all(rows.map(row => {
+      const updates = [];
+      for (const row of rows) {
         const orig = origById[row._id];
-        if (!orig) return null;
-        return updateItem('parties', row._id, {
+        if (!orig) continue;
+        updates.push({
           ...orig,
+          id: row._id,
           name: row.name.trim(),
           countryCode: row.countryCode || '+91',
           phone: row.phone?.trim() || '',
@@ -135,24 +240,41 @@ const BulkEditDialog = ({ open, onClose, parties = [], partyType = 'Customer', o
           accountNumber: row.accountNumber?.toString().replace(/\D/g, '') || '',
           accountHolderName: row.accountHolderName?.trim() || '',
         });
-      }));
+      }
+      updateItems('parties', updates);
+      setSaving(false);
       if (onSuccess) onSuccess(rows.length);
       onClose();
-    } catch {
-      /* parent snackbar handles error */
-    } finally {
-      setSaving(false);
+    }), 0);
+  };
+
+  const onListScroll = () => {
+    if (headerRef.current && listOuterRef.current) {
+      headerRef.current.scrollLeft = listOuterRef.current.scrollLeft;
     }
   };
+
+  const itemData = useMemo(() => {
+    const builtinCats = partyType === 'Customer' ? CUSTOMER_CATEGORIES : VENDOR_CATEGORIES;
+    const custom = bizId ? loadCustomCategories(bizId, partyType) : [];
+    const allCategories = [...builtinCats, ...custom.filter(c => !builtinCats.includes(c))];
+    return { rows, partyIds, primary, allCategories, updateCell, handleCellPaste };
+  }, [rows, partyIds, primary, partyType, bizId, updateCell, handleCellPaste]);
+
+  const listHeight = Math.min(rows.length * ROW_H, 460) || ROW_H;
 
   return (
     <Dialog
       open={open}
-      onClose={onClose}
+      onClose={saving ? undefined : onClose}
       maxWidth="xl"
       fullWidth
-      PaperProps={{ sx: { borderRadius: 3, maxHeight: '92vh' } }}
+      PaperProps={{ sx: { borderRadius: 3, maxHeight: '92vh', position: 'relative' } }}
     >
+      <Backdrop open={saving} sx={{ position: 'absolute', zIndex: 10, borderRadius: 3, bgcolor: 'rgba(255,255,255,0.8)', flexDirection: 'column', gap: 1.5 }}>
+        <CircularProgress size={40} sx={{ color: primary }} />
+        <Typography variant="body2" sx={{ fontWeight: 700, color: primary }}>Saving {rows.length} {partyType.toLowerCase()}s…</Typography>
+      </Backdrop>
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', pb: 1, pt: 2.5, px: 3 }}>
         <Box>
           <Typography sx={{ fontWeight: 800, fontSize: '1.05rem' }}>
@@ -187,107 +309,40 @@ const BulkEditDialog = ({ open, onClose, parties = [], partyType = 'Customer', o
           ))}
         </Box>
 
-        <TableContainer ref={tableRef} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, maxHeight: 460, overflow: 'auto' }}>
-          <Table size="small" stickyHeader>
-            <TableHead>
-              <TableRow sx={{ '& th': { fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', bgcolor: alpha(primary, 0.06), color: 'text.secondary', py: 1.25, borderBottom: `2px solid ${alpha(primary, 0.15)}` } }}>
-                <TableCell sx={{ width: 44, pl: 1.5 }}>#</TableCell>
-                <TableCell sx={{ width: 90 }}>ID</TableCell>
-                {EDIT_COLS.map(col => (
-                  <TableCell key={col.key} sx={{ minWidth: col.width }}>
-                    {col.label}
-                    {col.required && <Box component="span" sx={{ color: 'error.main', ml: 0.25 }}>*</Box>}
-                  </TableCell>
-                ))}
-              </TableRow>
-            </TableHead>
-            <TableBody>
-              {rows.map((row, rowIdx) => {
-                const orig = parties[rowIdx];
-                const hasError = !row.name?.trim();
-                return (
-                  <TableRow
-                    key={row._id}
-                    sx={{
-                      bgcolor: hasError ? alpha('#ef4444', 0.03) : alpha(primary, 0.01),
-                      '& td': { py: 0.4, borderColor: alpha(primary, 0.07) },
-                      '&:hover': { bgcolor: alpha(primary, 0.04) },
-                    }}
-                  >
-                    <TableCell sx={{ pl: 1.5, color: 'text.disabled', fontSize: '0.72rem', fontWeight: 600 }}>
-                      {rowIdx + 1}
-                    </TableCell>
-                    <TableCell>
-                      <Typography variant="caption" sx={{ fontFamily: 'monospace', bgcolor: alpha(primary, 0.07), color: 'primary.main', px: 0.75, py: 0.25, borderRadius: 0.75, fontWeight: 700, fontSize: '0.7rem', whiteSpace: 'nowrap' }}>
-                        {orig?.partyId || '—'}
-                      </Typography>
-                    </TableCell>
-                    {EDIT_COLS.map((col, colIdx) => (
-                      <TableCell key={col.key} sx={{ p: 0.4 }}>
-                        {col.type === 'countryCode' ? (
-                          <Select
-                            size="small"
-                            value={row[col.key] || '+91'}
-                            onChange={e => updateCell(rowIdx, col.key, e.target.value)}
-                            sx={{ fontSize: '0.8rem', minWidth: 90, '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(primary, 0.15) } }}
-                            MenuProps={{ PaperProps: { sx: { maxHeight: 260 } } }}
-                          >
-                            {COUNTRY_CODES.map(c => (
-                              <MenuItem key={c.code + c.country} value={c.code} sx={{ fontSize: '0.78rem' }}>
-                                <Box sx={{ display: 'flex', gap: 0.75 }}>
-                                  <span style={{ fontWeight: 700, minWidth: 36 }}>{c.code}</span>
-                                  <span style={{ color: '#666' }}>{c.name}</span>
-                                </Box>
-                              </MenuItem>
-                            ))}
-                          </Select>
-                        ) : col.type === 'category' ? (
-                          <Select
-                            size="small"
-                            value={row[col.key] || ''}
-                            onChange={e => updateCell(rowIdx, col.key, e.target.value)}
-                            displayEmpty
-                            sx={{ fontSize: '0.8rem', minWidth: 130, '& .MuiOutlinedInput-notchedOutline': { borderColor: alpha(primary, 0.15) } }}
-                            MenuProps={{ PaperProps: { sx: { maxHeight: 260 } } }}
-                          >
-                            <MenuItem value="" sx={{ fontSize: '0.78rem', color: 'text.disabled' }}>None</MenuItem>
-                            {allCategories.map(cat => (
-                              <MenuItem key={cat} value={cat} sx={{ fontSize: '0.78rem' }}>{cat}</MenuItem>
-                            ))}
-                          </Select>
-                        ) : (
-                          <TextField
-                            size="small"
-                            fullWidth
-                            value={row[col.key] ?? ''}
-                            onChange={e => {
-                              let val = e.target.value;
-                              if (col.phoneOnly) val = val.replace(/\D/g, '');
-                              if (col.numeric) val = val.replace(/\D/g, '');
-                              updateCell(rowIdx, col.key, val);
-                            }}
-                            onPaste={e => handleCellPaste(e, rowIdx, colIdx + 2)}
-                            type="text"
-                            inputProps={{
-                              ...(col.phoneOnly ? { inputMode: 'numeric', maxLength: 15 } : {}),
-                              ...(col.numeric ? { inputMode: 'numeric', maxLength: 20 } : {}),
-                            }}
-                            sx={{
-                              '& .MuiOutlinedInput-root': {
-                                fontSize: '0.8rem',
-                                '& fieldset': { borderColor: hasError && col.required ? 'error.main' : alpha(primary, 0.15) },
-                              },
-                            }}
-                          />
-                        )}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                );
-              })}
-            </TableBody>
-          </Table>
-        </TableContainer>
+        <Box sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflow: 'hidden' }}>
+          <Box ref={headerRef} sx={{ overflow: 'hidden', bgcolor: alpha(primary, 0.06), borderBottom: `2px solid ${alpha(primary, 0.15)}` }}>
+            <Box sx={{ display: 'grid', gridTemplateColumns: GRID_TEMPLATE, minWidth: TOTAL_W }}>
+              <Box sx={{ pl: 1.5, py: 1.25, fontWeight: 700, fontSize: '0.7rem', color: 'text.secondary' }}>#</Box>
+              <Box sx={{ px: 0.4, py: 1.25, fontWeight: 700, fontSize: '0.7rem', color: 'text.secondary' }}>ID</Box>
+              {EDIT_COLS.map(col => (
+                <Box key={col.key} sx={{ px: 0.4, py: 1.25, fontWeight: 700, fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'text.secondary' }}>
+                  {col.label}
+                </Box>
+              ))}
+            </Box>
+          </Box>
+
+          {rows.length === 0 ? (
+            <Box sx={{ py: 4, textAlign: 'center', color: 'text.disabled', fontSize: '0.85rem' }}>No {partyType.toLowerCase()}s to edit.</Box>
+          ) : (
+            <FixedSizeList
+              height={listHeight}
+              itemCount={rows.length}
+              itemSize={ROW_H}
+              width="100%"
+              outerRef={listOuterRef}
+              onScroll={onListScroll}
+              itemData={itemData}
+              overscanCount={6}
+              style={{ overflowX: 'auto' }}
+              innerElementType={React.forwardRef(({ style, ...rest }, ref) => (
+                <div ref={ref} style={{ ...style, minWidth: TOTAL_W }} {...rest} />
+              ))}
+            >
+              {Row}
+            </FixedSizeList>
+          )}
+        </Box>
 
         <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1 }}>
           <Typography variant="caption" color="text.secondary">
@@ -304,7 +359,7 @@ const BulkEditDialog = ({ open, onClose, parties = [], partyType = 'Customer', o
           variant="contained"
           startIcon={<Save size={15} />}
           onClick={handleSave}
-          disabled={saving || rows.some(r => !r.name?.trim())}
+          disabled={saving || hasBlankName}
           sx={{
             fontWeight: 700, textTransform: 'none', borderRadius: 2,
             background: `linear-gradient(135deg, ${primary} 0%, ${theme.palette.primary.dark || primary} 100%)`,

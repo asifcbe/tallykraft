@@ -49,7 +49,7 @@ const buildMessage = (tx, businessName, isSale) => {
   if (Number(tx.shippingCharge) > 0) lines.push(`Shipping Charges: ₹${Number(tx.shippingCharge).toFixed(2)}`);
   lines.push(`*Total: ₹${(Number(tx.totalAmount) || Number(tx.total) || 0).toFixed(2)}*`);
   if (tx.dueDate) lines.push(`\n⏰ Due: ${tx.dueDate}`);
-  lines.push('\n_Sent via TallyKraft_');
+  lines.push('\n_Sent via BillDheko_');
   return lines.filter(l => l !== null).join('\n');
 };
 

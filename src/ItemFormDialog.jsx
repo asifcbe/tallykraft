@@ -4,7 +4,7 @@ import {
   DialogContent, DialogActions, Grid, MenuItem,
   InputAdornment, IconButton, Snackbar, Alert, Stack, Divider,
   alpha, useTheme, useMediaQuery, FormControlLabel, Switch,
-  Collapse, Chip,
+  Collapse, Chip, ToggleButtonGroup, ToggleButton,
 } from '@mui/material';
 import { X as CloseIcon } from 'lucide-react';
 import {
@@ -19,6 +19,7 @@ import { useAuth } from './AuthContext';
 import BarcodeScanner from './BarcodeScanner';
 import { GST_RATES } from './gstUtils';
 import ItemSelect from './ItemSelect';
+import { useItemCategories } from './useItemCategories';
 
 const DEFAULT_UNITS = ['NOS', 'BAGS', 'BOX', 'KGS', 'Ltr', 'Mtr', 'Pcs'];
 
@@ -59,11 +60,24 @@ const BUILTIN_MEMBERSHIP_CATEGORIES = [
   'Lifetime', 'Trial', 'Premium', 'Basic', 'Other',
 ];
 
-const CAT_KEY = (bId, type) => `dz_item_cats_${bId}_${type}`;
-const loadCats = (bId, type) => { try { return JSON.parse(localStorage.getItem(CAT_KEY(bId, type)) || '[]'); } catch { return []; } };
-const saveCats = (bId, type, cats) => { try { localStorage.setItem(CAT_KEY(bId, type), JSON.stringify(cats)); } catch {} };
 
 export const generateBarcode = () => String(Math.floor(Math.random() * 9e8 + 1e8));
+
+// Every barcode currently in use across a business's items AND their
+// variants/batches (each variant/batch can carry its own scannable code —
+// see VariantEditor/BatchEditor below) — the single source of truth for
+// uniqueness checks, so "no two items/variants/batches share a barcode"
+// actually holds across the whole business, not just at the item level.
+const collectAllBarcodes = (allItems, businessId) => {
+  const set = new Set();
+  for (const it of allItems) {
+    if (it.businessId !== businessId) continue;
+    if (it.barcode) set.add(it.barcode);
+    for (const v of it.variants || []) if (v.barcode) set.add(v.barcode);
+    for (const b of it.batches || []) if (b.barcode) set.add(b.barcode);
+  }
+  return set;
+};
 
 // jsbarcode/qrcode are only needed by these two render-on-demand components —
 // dynamically imported on first use instead of bundled into every page that
@@ -119,10 +133,10 @@ const TYPE_CTX = {
     codePlaceholder: 'ITM-001',
     hsnLabel: 'HSN Code',
     hsnPlaceholder: 'e.g. 6109',
-    hsnHelper: 'Harmonised System of Nomenclature code for goods',
+    hsnHelper: 'Tax code for goods',
     salePriceLabel: 'Sale Price',
     salePriceHelper: 'Price charged to customer',
-    discountHelper: 'Default discount auto-applied in sales',
+    discountHelper: 'Auto-applied in sales',
     gstHelper: 'GST applicable on product sale',
   },
   service: {
@@ -131,10 +145,10 @@ const TYPE_CTX = {
     codePlaceholder: 'SVC-001',
     hsnLabel: 'SAC Code',
     hsnPlaceholder: 'e.g. 9983',
-    hsnHelper: 'Services Accounting Code for GST classification',
+    hsnHelper: 'Tax code for services',
     salePriceLabel: 'Service Charge',
     salePriceHelper: 'Amount charged for this service',
-    discountHelper: 'Default discount on service invoice',
+    discountHelper: 'Auto-applied on invoice',
     gstHelper: 'GST applicable on service (usually 18%)',
   },
   membership: {
@@ -143,10 +157,10 @@ const TYPE_CTX = {
     codePlaceholder: 'MEM-001',
     hsnLabel: 'SAC Code',
     hsnPlaceholder: 'e.g. 9992',
-    hsnHelper: 'SAC code for membership / subscription service',
+    hsnHelper: 'Tax code for this plan',
     salePriceLabel: 'Membership Fee',
     salePriceHelper: 'Fee charged per membership period',
-    discountHelper: 'Default discount on membership',
+    discountHelper: 'Auto-applied discount',
     gstHelper: 'GST applicable on membership fee',
   },
 };
@@ -163,6 +177,148 @@ const SectionHead = ({ icon: Icon, label, action, primary }) => (
   </Box>
 );
 
+// Variant stock editor — one row per Size/Color/etc combination, each with
+// its own stock and an optional price override (blank = use the item's own
+// Sale Price). Shown when stockMode === 'variant'.
+const VariantEditor = ({ form, set, fsx, primary, nextUniqueBarcode, barcodeEnabled, barcodeError }) => {
+  const rows = form.variants || [];
+  const update = (idx, patch) => {
+    const next = [...rows];
+    next[idx] = { ...next[idx], ...patch };
+    set({ variants: next });
+  };
+  const total = rows.reduce((s, r) => s + (Number(r.stock) || 0), 0);
+  return (
+    <Box>
+      {rows.map((r, idx) => (
+        <Box key={r.id || idx} sx={{ mb: 1.25, p: 1, borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
+          <Stack direction="row" spacing={1} alignItems="flex-start">
+            <TextField size="small" label="Variant" placeholder="Red — M"
+              value={r.label || ''}
+              onChange={e => update(idx, { label: e.target.value })}
+              sx={{ flex: 1.3, ...fsx }} />
+            <TextField size="small" label="SKU" placeholder="optional"
+              value={r.sku || ''}
+              onChange={e => update(idx, { sku: e.target.value })}
+              sx={{ flex: 1, ...fsx }} />
+            <TextField size="small" type="number" label="Stock"
+              value={r.stock ?? ''}
+              placeholder="0"
+              onChange={e => update(idx, { stock: e.target.value })}
+              sx={{ width: 90, flexShrink: 0, ...fsx }} />
+            <TextField size="small" type="number" label="Price"
+              value={r.priceOverride ?? ''}
+              placeholder={form.salePrice || '0'}
+              helperText="blank = default"
+              onChange={e => update(idx, { priceOverride: e.target.value })}
+              InputProps={{ startAdornment: <InputAdornment position="start">₹</InputAdornment> }}
+              sx={{ width: 110, flexShrink: 0, ...fsx, '& .MuiFormHelperText-root': { fontSize: '0.6rem', mx: 0 } }} />
+            <IconButton size="small" color="error" sx={{ mt: 0.5 }}
+              onClick={() => set({ variants: rows.filter((_, i) => i !== idx) })}>
+              <Trash2 size={15} />
+            </IconButton>
+          </Stack>
+          {barcodeEnabled && (
+            <TextField size="small" fullWidth label="Barcode (this variant)" placeholder="Leave blank to auto-generate on save"
+              value={r.barcode || ''}
+              onChange={e => update(idx, { barcode: e.target.value })}
+              error={!!barcodeError(r.barcode, r.id)}
+              helperText={barcodeError(r.barcode, r.id) || 'Scanning this code in Sales/POS picks this variant directly'}
+              InputProps={{
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton size="small" title="Generate unique barcode" onClick={() => update(idx, { barcode: nextUniqueBarcode(rows, idx) })}><RefreshCw size={14} /></IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mt: 1, ...fsx, '& .MuiFormHelperText-root': { fontSize: '0.62rem', mx: 0 } }} />
+          )}
+        </Box>
+      ))}
+      <Button size="small" startIcon={<Plus size={13} />} sx={{ mt: 0.5, fontSize: '0.78rem' }}
+        onClick={() => set({ variants: [...rows, { id: `vr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: '', sku: '', stock: '', priceOverride: '', barcode: '' }] })}>
+        Add variant
+      </Button>
+      {rows.length > 0 && (
+        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: primary, fontWeight: 700 }}>
+          Total stock across all variants: {total}
+        </Typography>
+      )}
+    </Box>
+  );
+};
+
+// Batch/expiry-lot stock editor — one row per purchase lot, each with its
+// own stock and expiry date. Selling a batch-tracked item lets the seller
+// pick which lot to sell from (Sales.jsx/POS.jsx), rather than an automatic
+// oldest-first rollover, so batch identity here just needs to be clear —
+// name, expiry, and how much is left.
+const BatchEditor = ({ form, set, fsx, primary, nextUniqueBarcode, barcodeEnabled, barcodeError }) => {
+  const rows = form.batches || [];
+  const update = (idx, patch) => {
+    const next = [...rows];
+    next[idx] = { ...next[idx], ...patch };
+    set({ batches: next });
+  };
+  const total = rows.reduce((s, r) => s + (Number(r.stock) || 0), 0);
+  return (
+    <Box>
+      {rows.map((r, idx) => {
+        const days = r.expiryDate ? Math.ceil((new Date(r.expiryDate) - new Date()) / 86400000) : null;
+        return (
+          <Box key={r.id || idx} sx={{ mb: 1.25, p: 1, borderRadius: 1.5, border: '1px solid', borderColor: 'divider' }}>
+            <Stack direction="row" spacing={1} alignItems="flex-start">
+              <TextField size="small" label="Batch / Lot" placeholder="BT-001"
+                value={r.label || ''}
+                onChange={e => update(idx, { label: e.target.value })}
+                sx={{ flex: 1.2, ...fsx }} />
+              <TextField size="small" type="date" label="Expiry Date"
+                value={r.expiryDate || ''}
+                onChange={e => update(idx, { expiryDate: e.target.value })}
+                InputLabelProps={{ shrink: true }}
+                helperText={days != null ? (days < 0 ? `Expired ${Math.abs(days)}d ago` : `${days}d left`) : ''}
+                sx={{ flex: 1.1, ...fsx, '& .MuiFormHelperText-root': { fontSize: '0.6rem', mx: 0, color: days < 0 ? 'error.main' : days <= 30 ? 'warning.dark' : 'text.secondary', fontWeight: days != null && days <= 30 ? 700 : 400 } }} />
+              <TextField size="small" type="number" label="Stock"
+                value={r.stock ?? ''}
+                placeholder="0"
+                onChange={e => update(idx, { stock: e.target.value })}
+                sx={{ width: 90, flexShrink: 0, ...fsx }} />
+              <IconButton size="small" color="error" sx={{ mt: 0.5 }}
+                onClick={() => set({ batches: rows.filter((_, i) => i !== idx) })}>
+                <Trash2 size={15} />
+              </IconButton>
+            </Stack>
+            {barcodeEnabled && (
+              <TextField size="small" fullWidth label="Barcode (this batch)" placeholder="Leave blank to auto-generate on save"
+                value={r.barcode || ''}
+                onChange={e => update(idx, { barcode: e.target.value })}
+                error={!!barcodeError(r.barcode, r.id)}
+                helperText={barcodeError(r.barcode, r.id) || 'Scanning this code in Sales/POS picks this batch directly'}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton size="small" title="Generate unique barcode" onClick={() => update(idx, { barcode: nextUniqueBarcode(rows, idx) })}><RefreshCw size={14} /></IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+                sx={{ mt: 1, ...fsx, '& .MuiFormHelperText-root': { fontSize: '0.62rem', mx: 0 } }} />
+            )}
+          </Box>
+        );
+      })}
+      <Button size="small" startIcon={<Plus size={13} />} sx={{ mt: 0.5, fontSize: '0.78rem' }}
+        onClick={() => set({ batches: [...rows, { id: `bt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: '', expiryDate: '', stock: '', barcode: '' }] })}>
+        Add batch
+      </Button>
+      {rows.length > 0 && (
+        <Typography variant="caption" sx={{ display: 'block', mt: 1, color: primary, fontWeight: 700 }}>
+          Total stock across all batches: {total}
+        </Typography>
+      )}
+    </Box>
+  );
+};
+
 const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', onSaved }) => {
   const { currentBusiness } = useBusiness();
   const { addItem, updateItem, getItems, data } = useData();
@@ -173,17 +329,48 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
   const UNITS = [...new Set(config.itemUnits?.length ? config.itemUnits : DEFAULT_UNITS)];
   const defaultUnit = (config.defaultItemUnit && UNITS.includes(config.defaultItemUnit)) ? config.defaultItemUnit : (UNITS[0] || 'NOS');
 
-  const generateUniqueBarcode = () => {
-    const existing = new Set(
-      getItems('items')
-        .filter(it => it.businessId === currentBusiness?.id && it.barcode)
-        .map(it => it.barcode)
-    );
-    // Exclude the current item's own barcode so editing doesn't conflict with itself
-    if (editingItem?.barcode) existing.delete(editingItem.barcode);
+  // Every barcode in use across the business EXCEPT the item currently being
+  // edited (its own item/variant/batch codes are excluded so editing it
+  // doesn't conflict with itself), then also excluding whatever's already
+  // typed into the in-progress form's own other rows — so generating one
+  // row's barcode can never collide with another row just typed in this
+  // same session before saving.
+  const barcodesInUseExcludingSelf = () => {
+    const set = collectAllBarcodes(getItems('items'), currentBusiness?.id);
+    if (editingItem) {
+      if (editingItem.barcode) set.delete(editingItem.barcode);
+      for (const v of editingItem.variants || []) if (v.barcode) set.delete(v.barcode);
+      for (const b of editingItem.batches || []) if (b.barcode) set.delete(b.barcode);
+    }
+    return set;
+  };
+  const nextUniqueBarcode = (alsoExclude = new Set()) => {
+    const existing = barcodesInUseExcludingSelf();
     let bc;
-    do { bc = generateBarcode(); } while (existing.has(bc));
+    do { bc = generateBarcode(); } while (existing.has(bc) || alsoExclude.has(bc));
     return bc;
+  };
+  // Kept for the item's own barcode field (unchanged call sites below).
+  const generateUniqueBarcode = () => nextUniqueBarcode();
+
+  // Per-row generator/validator for VariantEditor/BatchEditor — also
+  // excludes every OTHER row's own typed barcode in the same list (two
+  // variants of the same item must never share a code either), on top of
+  // every other item/variant/batch in the business.
+  const nextRowBarcode = (rows, excludeIdx) => {
+    const siblings = new Set(
+      rows.filter((_, i) => i !== excludeIdx).map(r => r.barcode).filter(Boolean),
+    );
+    return nextUniqueBarcode(siblings);
+  };
+  const rowBarcodeError = (rows) => (barcode, rowId) => {
+    if (!barcode?.trim()) return '';
+    const trimmed = barcode.trim();
+    const businessWide = barcodesInUseExcludingSelf();
+    if (businessWide.has(trimmed)) return 'Already used by another item/variant/batch';
+    const dupeSibling = rows.some(r => r.id !== rowId && r.barcode?.trim() === trimmed);
+    if (dupeSibling) return 'Already used by another row here';
+    return '';
   };
 
   const theme = useTheme();
@@ -202,8 +389,23 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
   const [itemType, setItemType] = useState('product');
   const [gstOn, setGstOn] = useState(false);
   const [composite, setComposite] = useState(false);
+  // Buy-in-bulk / sell-in-pieces toggle — e.g. purchase by the Box/Carton,
+  // sell by the Pc. Kept as its own switch (rather than deriving it purely
+  // from "packSizes is non-empty") so unchecking it doesn't need to also
+  // clear the list to have an effect — handleSubmit already omits packSizes
+  // from the saved record whenever this is off.
+  const [buyInBulk, setBuyInBulk] = useState(false);
+  // Stock tracking mode — mutually exclusive, same reasoning as a recipe
+  // item having no stock of its own: 'simple' = one Opening Stock number
+  // (today's behaviour); 'variant' = separate stock per Size/Color/etc
+  // combination (e.g. Red-M, Red-L); 'batch' = separate stock per purchase
+  // lot, each with its own expiry date. A migration prompt (see
+  // migratePromptOpen below) offers to carry the item's current single
+  // stock number into a first variant/batch when switching a simple item
+  // into one of these modes, instead of silently zeroing it.
+  const [stockMode, setStockMode] = useState('simple');
+  const [migratePrompt, setMigratePrompt] = useState(null); // { toMode } | null
   const [gstType, setGstType] = useState('cgst_sgst'); // cgst_sgst | igst | utgst
-  const [customCats, setCustomCats] = useState([]);
   const [newCatVal, setNewCatVal] = useState('');
   const [showNewCat, setShowNewCat] = useState(false);
   const [mgrOpen, setMgrOpen] = useState(false);
@@ -220,6 +422,21 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
     barcodeExtraFields: [], batchNo: '', expiryDate: '',
     category: '', color: '', size: '', variant: '', description: '', minStock: '',
     recipe: [],
+    // Variant / batch stock tracking — mutually exclusive with each other
+    // and with recipe. `stockMode` also lives on the saved item record so
+    // Sales.jsx/POS.jsx/Items.jsx know which picker (if any) to show without
+    // re-deriving it from array contents. Each variant/batch id is stable
+    // (kept across edits) since Sales.jsx line items reference it directly.
+    stockMode: 'simple',
+    variants: [], // [{ id, label, sku, stock, priceOverride }]
+    batches: [], // [{ id, label, expiryDate, stock }]
+    // Buy-in-bulk, sell-in-pieces: each entry is a named pack the item is
+    // purchased in (e.g. "Box" = 10 Pcs at ₹450/Box) — stock always stays
+    // tracked in the sale `unit` everywhere else in the app. A Purchase row
+    // picks one of these packs directly; its price and stock-added both come
+    // straight from the pack, no conversion math anywhere else in the app.
+    // See Sales.jsx's Purchases item row.
+    packSizes: [],
   });
 
   const [form, setForm] = useState(blank());
@@ -237,10 +454,52 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
     const type = deriveType(editingItem);
     setItemType(type);
     if (editingItem) {
-      setForm({ ...blank(), ...editingItem, mrp: editingItem.mrp ? editingItem.mrp : '', utgstRate: editingItem.utgstRate ?? (editingItem.cgstRate ?? 0), recipe: Array.isArray(editingItem.recipe) ? editingItem.recipe : [] });
+      // Color/Shade, Size, and Variant used to be plain text fields on the
+      // item itself; the Variants list below is now the only place that
+      // information lives (row 1 = the default variant — see
+      // stockRows()/resolveStockRef() in Sales.jsx/POS.jsx, which treat a
+      // single-row variant list exactly like a plain item with no picker).
+      // An item saved before this change has no variants[] yet but may have
+      // real color/size/variant text — migrate it into variant row 1 here,
+      // on open, so the data isn't silently dropped the next time this item
+      // is saved. Runs every time the form opens for this item (not just
+      // once) since it's cheap and idempotent — a real variants[] already
+      // present is left untouched.
+      const existingVariants = Array.isArray(editingItem.variants) ? editingItem.variants : [];
+      const migratedVariants = existingVariants.length > 0
+        ? existingVariants
+        : [{
+            id: `vr_${Date.now()}`,
+            label: [editingItem.color, editingItem.size, editingItem.variant].filter(Boolean).join(' / ') || 'Default',
+            sku: '',
+            stock: Number(editingItem.stock) || 0,
+            priceOverride: null,
+            barcode: '',
+          }];
+      setForm({
+        ...blank(), ...editingItem,
+        mrp: editingItem.mrp ? editingItem.mrp : '',
+        utgstRate: editingItem.utgstRate ?? (editingItem.cgstRate ?? 0),
+        recipe: Array.isArray(editingItem.recipe) ? editingItem.recipe : [],
+        packSizes: (Array.isArray(editingItem.packSizes) && editingItem.packSizes.length)
+          ? editingItem.packSizes
+          // Item saved before packs existed: carry its single purchase unit
+          // over as a pack (same fixed id Sales.jsx uses for its old bills).
+          : (editingItem.purchaseUnit && editingItem.purchaseUnit !== editingItem.unit && Number(editingItem.purchaseUnitConversion) > 0)
+            ? [{ id: 'legacy_pu', label: editingItem.purchaseUnit, qty: Number(editingItem.purchaseUnitConversion), price: Number(editingItem.purchasePrice) || '' }]
+            : [],
+        variants: migratedVariants,
+        batches: Array.isArray(editingItem.batches) ? editingItem.batches : [],
+      });
       setGstOn((editingItem.taxRate || 0) > 0);
       setComposite(!!editingItem.isComposite);
       setGstType(editingItem.gstType || 'cgst_sgst');
+      setBuyInBulk((Array.isArray(editingItem.packSizes) && editingItem.packSizes.length > 0)
+        || (!!editingItem.purchaseUnit && editingItem.purchaseUnit !== editingItem.unit && Number(editingItem.purchaseUnitConversion) > 0));
+      // A batch-tracked item stays on Batches; everything else (including a
+      // legacy 'simple' item, now migrated above) lands on Variants — the
+      // Simple mode itself no longer exists as a separate choice.
+      setStockMode(editingItem.stockMode === 'batch' ? 'batch' : 'variant');
     } else {
       const d = config.itemDefaults || {};
       const defGstOn = !!d.gstOn;
@@ -251,6 +510,8 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
       setGstOn(defGstOn);
       setComposite(defComposite);
       setGstType(defGstType);
+      setBuyInBulk(false);
+      setStockMode('variant');
       setForm({
         ...blank(),
         name: initialName || '',
@@ -260,32 +521,32 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
         igstRate: defRate,
         utgstRate: halfRate,
         taxInclusive: !!d.taxInclusive,
+        // A brand-new product starts with one default variant row — this is
+        // what makes it behave exactly like a plain item (no picker forced
+        // in Sales/POS) until a second variant is actually added.
+        variants: [{ id: `vr_${Date.now()}`, label: 'Default', sku: '', stock: '', priceOverride: null, barcode: '' }],
       });
     }
   }, [open, editingItem, initialName]); // eslint-disable-line
 
-  useEffect(() => {
-    if (currentBusiness?.id) setCustomCats(loadCats(currentBusiness.id, itemType));
-  }, [currentBusiness?.id, itemType]);
+  // Shared, synced category list (see useItemCategories.js) — a category
+  // added anywhere (Items → Categories, another device, a staff login) shows
+  // here immediately, and categories already used on items are always offered.
+  const itemCats = useItemCategories(itemType);
+  const customCats = itemCats.custom;
 
-  const addCat = (name) => {
+  const addCat = async (name) => {
     name = name.trim();
     if (!name || !currentBusiness?.id) return;
-    const all = [...builtins, ...customCats];
-    if (!all.some(c => c.toLowerCase() === name.toLowerCase())) {
-      const next = [...customCats, name];
-      setCustomCats(next);
-      saveCats(currentBusiness.id, itemType, next);
-    }
     set({ category: name });
     setShowNewCat(false); setNewCatVal('');
+    const stored = await itemCats.add(name).catch(() => name);
+    if (stored && stored !== name) set({ category: stored });
   };
 
   const delCat = (cat) => {
     if (!currentBusiness?.id) return;
-    const next = customCats.filter(c => c !== cat);
-    setCustomCats(next);
-    saveCats(currentBusiness.id, itemType, next);
+    itemCats.remove(cat);
     if (form.category === cat) set({ category: '' });
   };
 
@@ -305,6 +566,51 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
         return;
       }
     }
+    if (isProduct && buyInBulk) {
+      const packs = form.packSizes || [];
+      if (packs.length === 0) {
+        snap('Add at least one pack size, or turn off "Buy in bulk, sell in pieces".', 'warning');
+        return;
+      }
+      const badIdx = packs.findIndex(p => !p.label?.trim() || !(Number(p.qty) > 0));
+      if (badIdx !== -1) {
+        snap(`Pack size ${badIdx + 1} needs a name and a quantity greater than 0 (how many ${form.unit || 'units'} it contains).`, 'warning');
+        return;
+      }
+    }
+    if (isProduct && stockMode === 'variant') {
+      const rows = form.variants?.length ? form.variants : [{ id: `vr_${Date.now()}`, label: 'Default', sku: '', stock: 0, priceOverride: null, barcode: '' }];
+      const badIdx = rows.findIndex(r => !r.label?.trim());
+      if (badIdx !== -1) { snap(`Variant ${badIdx + 1} needs a name (e.g. "Red — M").`, 'warning'); return; }
+      const labels = rows.map(r => r.label.trim().toLowerCase());
+      const dupe = labels.find((l, i) => labels.indexOf(l) !== i);
+      if (dupe) { snap(`Two variants are both named "${rows.find(r => r.label.trim().toLowerCase() === dupe).label}" — variant names must be unique.`, 'warning'); return; }
+    }
+    if (isProduct && stockMode === 'batch') {
+      const rows = form.batches || [];
+      if (rows.length === 0) { snap('Add at least one batch, or switch to Variants.', 'warning'); return; }
+      const badIdx = rows.findIndex(r => !r.label?.trim());
+      if (badIdx !== -1) { snap(`Batch ${badIdx + 1} needs a name (e.g. "BT-001").`, 'warning'); return; }
+    }
+    // Barcode uniqueness — hard block. No two items/variants/batches in the
+    // business may share a manually-typed barcode; blank fields are
+    // auto-generated below and are always unique by construction.
+    if (barcodeEnabled) {
+      const rows = isProduct && stockMode === 'variant' ? (form.variants || [])
+        : isProduct && stockMode === 'batch' ? (form.batches || [])
+        : [];
+      const err = rowBarcodeError(rows);
+      const rowLabel = stockMode === 'variant' ? 'Variant' : 'Batch';
+      const rowIdx = rows.findIndex(r => err(r.barcode, r.id));
+      if (rowIdx !== -1) {
+        snap(`${rowLabel} "${rows[rowIdx].label}" has a barcode already in use elsewhere — change it or leave it blank to auto-generate.`, 'warning');
+        return;
+      }
+      if (form.barcode?.trim() && barcodesInUseExcludingSelf().has(form.barcode.trim())) {
+        snap('This item\'s barcode is already in use elsewhere — change it or leave it blank to auto-generate.', 'warning');
+        return;
+      }
+    }
     try {
       const taxRate = gstOn ? (Number(form.taxRate) || 0) : 0;
       const cleanRecipe = isProduct
@@ -312,6 +618,56 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
             .filter(r => r.itemId && Number(r.qtyPerUnit) > 0)
             .map(r => ({ itemId: r.itemId, qtyPerUnit: Number(r.qtyPerUnit) }))
         : [];
+      const activeStockMode = isProduct ? stockMode : 'simple';
+      // Barcodes are assigned here (not just validated above) so a row left
+      // blank gets a real, business-wide-unique code on save — mirrors the
+      // item's own barcode field's "blank = auto-generate" behavior.
+      // usedBarcodes accumulates as each row is assigned so two blank rows
+      // in the same save can never generate the same code.
+      const usedBarcodes = barcodeEnabled ? barcodesInUseExcludingSelf() : new Set();
+      const assignBarcode = (typed) => {
+        if (!barcodeEnabled) return '';
+        const trimmed = typed?.trim();
+        if (trimmed) { usedBarcodes.add(trimmed); return trimmed; }
+        const bc = nextUniqueBarcode(usedBarcodes);
+        usedBarcodes.add(bc);
+        return bc;
+      };
+      // A single variant row has no picker of its own — the item's own
+      // Opening Stock field (form.stock) is what's actually edited for it
+      // (see that field's comment), and what every Sales/POS/Purchase
+      // transaction updates directly for an item with nothing to pick
+      // between. The row's own `stock` is kept as a mirror of form.stock
+      // purely so it stays a consistent number if the item is later
+      // promoted to 2+ variants. A real multi-variant list (2+ rows) is the
+      // opposite direction — VariantEditor edits each row's stock directly,
+      // and the item's own total is the SUM of all rows, same as before.
+      const rawVariants = form.variants?.length ? form.variants : [{ label: 'Default', sku: '', stock: 0, priceOverride: null, barcode: '' }];
+      const cleanVariants = activeStockMode === 'variant'
+        ? rawVariants.map((v, idx) => ({
+            id: v.id || `vr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            label: v.label.trim(), sku: v.sku?.trim() || '',
+            stock: rawVariants.length <= 1 && idx === 0 ? (Number(form.stock) || 0) : (Number(v.stock) || 0),
+            priceOverride: v.priceOverride === '' || v.priceOverride == null ? null : Number(v.priceOverride),
+            barcode: assignBarcode(v.barcode),
+          }))
+        : [];
+      const cleanBatches = activeStockMode === 'batch'
+        ? (form.batches || []).map(b => ({
+            id: b.id || `bt_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+            label: b.label.trim(), expiryDate: b.expiryDate || '',
+            stock: Number(b.stock) || 0,
+            barcode: assignBarcode(b.barcode),
+          }))
+        : [];
+      // The item's own `stock` always stays the true total — every existing
+      // stock-alert/low-stock/report check that reads item.stock directly
+      // (without knowing about variants/batches) keeps working unchanged.
+      const derivedStock = activeStockMode === 'variant'
+        ? (cleanVariants.length <= 1 ? (Number(form.stock) || 0) : cleanVariants.reduce((s, v) => s + v.stock, 0))
+        : activeStockMode === 'batch'
+        ? cleanBatches.reduce((s, b) => s + b.stock, 0)
+        : (Number(form.stock) || 0);
       const data = {
         id: editingItem?.id || Date.now(),
         ...form,
@@ -333,11 +689,29 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
         utgstRate: gstOn ? (Number(form.utgstRate) || taxRate / 2) : 0,
         taxInclusive: gstOn ? !!form.taxInclusive : false,
         // A recipe item has no stock of its own — selling it deducts its
-        // components' stock instead (see Sales.jsx/POS.jsx checkout).
-        stock: (itemType === 'service' || cleanRecipe.length > 0) ? 0 : (Number(form.stock) || 0),
+        // components' stock instead (see Sales.jsx/POS.jsx checkout). A
+        // variant/batch item's stock is the sum of its rows (derivedStock).
+        stock: (itemType === 'service' || cleanRecipe.length > 0) ? 0 : derivedStock,
         itemCode: form.itemCode?.trim() || '',
         barcodeExtraFields: form.barcodeExtraFields || [],
         recipe: cleanRecipe,
+        // Variant / batch stock tracking — mutually exclusive with each
+        // other, recipe, and only meaningful on a product. Sales.jsx/POS.jsx
+        // key off stockMode to decide whether to show the variant/batch
+        // picker; variants[]/batches[] are only ever non-empty when they're
+        // the active mode, so a stale list from a previous mode never lingers.
+        stockMode: activeStockMode,
+        variants: cleanVariants,
+        batches: cleanBatches,
+        // Buy-in-bulk / sell-in-pieces: only meaningful for products, only
+        // when the toggle is on. Each pack carries its own name, how many
+        // sale-units it contains, and its own purchase cost — a Purchase row
+        // picks one directly, no separate conversion math anywhere.
+        packSizes: (isProduct && buyInBulk)
+          ? (form.packSizes || [])
+              .filter(p => p.label?.trim() && Number(p.qty) > 0)
+              .map(p => ({ id: p.id || `pk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: p.label.trim(), qty: Number(p.qty), price: Number(p.price) || 0 }))
+          : [],
         barcode: barcodeEnabled
           ? (form.barcode?.trim() || generateUniqueBarcode())
           : (form.barcode?.trim() || ''),
@@ -355,6 +729,29 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
   const isProduct = itemType === 'product';
 
   const hasRecipe = isProduct && (form.recipe || []).length > 0;
+
+  // Switches between the two stock-tracking modes (Variants is always at
+  // least 1 row; Batches is a separate expiry-lot list). Coming FROM
+  // Variants with a real single-variant stock number already entered,
+  // offer to carry it into a first batch instead of silently discarding it
+  // — the actual carry-over happens once the user confirms via the
+  // migratePrompt dialog. A multi-variant item (2+ rows) has no single
+  // number to carry, so it just clears straight to an empty batch list.
+  const switchStockMode = (newMode) => {
+    if (newMode === stockMode) return;
+    const singleVariantStock = Number(form.stock) || 0;
+    if (newMode === 'batch' && stockMode === 'variant' && (form.variants || []).length <= 1 && singleVariantStock > 0) {
+      setMigratePrompt({ toMode: newMode });
+      return;
+    }
+    if (newMode === 'variant') {
+      setStockMode('variant');
+      set({ batches: [], variants: [{ id: `vr_${Date.now()}`, label: 'Default', sku: '', stock: 0, priceOverride: null, barcode: '' }] });
+      return;
+    }
+    setStockMode(newMode);
+    set({ variants: [], batches: [] });
+  };
   // Candidate components: other products in this business, excluding the item
   // being edited itself (no self-reference) and excluding any item that
   // already has its own recipe (keeps this to one level, no circular BOMs).
@@ -384,6 +781,12 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
         </IconButton>
       </MenuItem>
     )),
+    ...(itemCats.inUse.length > 0 ? [
+      <Divider key="__div_inuse__" sx={{ my: 0.5 }} />,
+      ...itemCats.inUse.map(c => <MenuItem key={`inuse_${c}`} value={c}>{c}</MenuItem>),
+    ] : []),
+    ...(form.category && !itemCats.all.some(c => c.toLowerCase() === String(form.category).toLowerCase())
+      ? [<MenuItem key="__current__" value={form.category}>{form.category}</MenuItem>] : []),
     <Divider key="__div2__" sx={{ my: 0.5 }} />,
     showNewCat ? (
       <Box key="__new_input__" sx={{ px: 1.5, py: 0.75, display: 'flex', gap: 0.75 }}
@@ -490,6 +893,10 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                   <TextField size="small" fullWidth label={ctx.codeLabel}
                     value={form.itemCode || ''} placeholder={ctx.codePlaceholder}
                     onChange={e => set({ itemCode: e.target.value })}
+                    // Reserves the same helper-text line height as HSN Code's
+                    // real one below, so the two fields' input boxes line up
+                    // and this row doesn't leave a ragged gap before the next.
+                    helperText={<Box component="span" sx={{ visibility: 'hidden' }}>·</Box>}
                     sx={fsx} />
                 </Grid>
                 <Grid size={{ xs: 6 }}>
@@ -519,6 +926,12 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                       const v = e.target.value;
                       if (v !== '__add__') set({ category: v });
                     }}
+                    // Same reserved-height spacer as Item/Article Code above —
+                    // Unit of Measure (this field's row sibling when isProduct)
+                    // always shows a real "Selected: …" helper line, so this
+                    // field needs a matching invisible one to avoid a ragged
+                    // row and a dead-space gap before Description.
+                    helperText={isProduct ? <Box component="span" sx={{ visibility: 'hidden' }}>·</Box> : ''}
                     InputLabelProps={{ shrink: true }}
                     SelectProps={{
                       displayEmpty: true,
@@ -530,33 +943,6 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                     {catMenuItems}
                   </TextField>
                 </Grid>
-                {isProduct && (
-                  <>
-                    <Grid size={{ xs: 4 }}>
-                      <TextField size="small" fullWidth label="Color / Shade"
-                        value={form.color || ''}
-                        onChange={e => set({ color: e.target.value })}
-                        placeholder="Red, Blue…"
-                        InputProps={{ startAdornment: <InputAdornment position="start"><Palette size={13} color="#9ca3af" /></InputAdornment> }}
-                        sx={fsx} />
-                    </Grid>
-                    <Grid size={{ xs: 4 }}>
-                      <TextField size="small" fullWidth label="Size"
-                        value={form.size || ''}
-                        onChange={e => set({ size: e.target.value })}
-                        placeholder="S, M, L, XL…"
-                        InputProps={{ startAdornment: <InputAdornment position="start"><Ruler size={13} color="#9ca3af" /></InputAdornment> }}
-                        sx={fsx} />
-                    </Grid>
-                    <Grid size={{ xs: 4 }}>
-                      <TextField size="small" fullWidth label="Variant"
-                        value={form.variant || ''}
-                        onChange={e => set({ variant: e.target.value })}
-                        placeholder="Slim Fit, Regular…"
-                        sx={fsx} />
-                    </Grid>
-                  </>
-                )}
                 {isMembership && (
                   <Grid size={{ xs: 6 }}>
                     <TextField size="small" fullWidth label="Duration"
@@ -587,7 +973,9 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                   <TextField size="small" fullWidth type="number" label={ctx.salePriceLabel}
                     value={form.salePrice}
                     onChange={e => set({ salePrice: e.target.value })}
-                    helperText={ctx.salePriceHelper}
+                    helperText={config.itemDefaults?.autoUpdateSalePrice
+                      ? <Box component="span" sx={{ color: primary, fontWeight: 700 }}>{ctx.salePriceHelper} · From Last Price</Box>
+                      : ctx.salePriceHelper}
                     InputProps={{ startAdornment: <InputAdornment position="start"><Typography sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>₹</Typography></InputAdornment> }}
                     sx={fsx} />
                 </Grid>
@@ -603,7 +991,7 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                           <Typography component="span" sx={{ fontSize: '0.68rem', textDecoration: 'line-through', color: 'text.disabled' }}>₹{Number(form.mrp).toLocaleString('en-IN')}</Typography>
                           <Typography component="span" sx={{ fontSize: '0.68rem', color: 'success.main', fontWeight: 700 }}>₹{Number(form.salePrice).toLocaleString('en-IN')}</Typography>
                         </Box>
-                      : 'Shown crossed out on barcode label'}
+                      : 'For barcode label'}
                     sx={fsx} />
                 </Grid>
                 {isProduct && (
@@ -611,7 +999,9 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                     <TextField size="small" fullWidth type="number" label="Purchase / Cost Price"
                       value={form.purchasePrice}
                       onChange={e => canViewPurchase && set({ purchasePrice: e.target.value })}
-                      helperText="Your cost from supplier"
+                      helperText={config.itemDefaults?.autoUpdatePurchasePrice
+                        ? <Box component="span" sx={{ color: primary, fontWeight: 700 }}>Your cost from supplier · From Last Price</Box>
+                        : "Your cost from supplier"}
                       InputProps={{
                         startAdornment: <InputAdornment position="start"><Typography sx={{ fontSize: '0.85rem', color: 'text.secondary' }}>₹</Typography></InputAdornment>,
                         readOnly: !canViewPurchase,
@@ -630,13 +1020,202 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                     sx={fsx} />
                 </Grid>
                 {isProduct && (
-                  <Grid size={{ xs: 6 }}>
+                  // xs:12 — this is the last field in the row and has no
+                  // natural pair, so a half-width xs:6 here would leave the
+                  // other half of the row empty (a real gap, not spacing).
+                  <Grid size={{ xs: 12 }}>
                     <TextField size="small" fullWidth type="number" label="Min Stock Alert"
                       value={form.minStock || ''}
                       placeholder="5"
                       helperText="Alert when stock falls below this"
                       onChange={e => set({ minStock: e.target.value === '' ? '' : Number(e.target.value) })}
-                      sx={fsx} />
+                      sx={{ ...fsx, maxWidth: { sm: 'calc(50% - 8px)' } }} />
+                  </Grid>
+                )}
+
+                {/* Buy in bulk (Box/Carton/Sack), sell in pieces (Pcs/Kg/Nos) —
+                    the item's own Unit of Measure above is always the SALE
+                    unit and what stock is tracked in everywhere else in the
+                    app. Each pack size below is a named way this item is
+                    actually purchased (e.g. "Box" = 10 Pcs at ₹450), with its
+                    own cost — a Purchase row picks one directly, no
+                    conversion math for the user to do or get wrong. An item
+                    can have several packs at once (Carton, Box, Loose). */}
+                {isProduct && (
+                  <Grid size={{ xs: 12 }}>
+                    <Box
+                      onClick={() => {
+                        const next = !buyInBulk;
+                        setBuyInBulk(next);
+                        if (next && !(form.packSizes || []).length) {
+                          set({ packSizes: [{ id: `pk_${Date.now()}`, label: '', qty: '', price: '' }] });
+                        }
+                      }}
+                      sx={{
+                        display: 'flex', alignItems: 'center', gap: 1.25, px: 1.25, py: 1,
+                        borderRadius: `${radius}px`, cursor: 'pointer',
+                        border: '1px solid', borderColor: buyInBulk ? alpha(primary, 0.3) : 'divider',
+                        bgcolor: buyInBulk ? alpha(primary, 0.06) : 'background.paper',
+                      }}
+                    >
+                      <Package size={16} color={buyInBulk ? primary : '#5f4f47'} />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: buyInBulk ? primary : 'text.primary' }}>
+                          Buy in bulk, sell in pieces
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          e.g. purchase by the Box or Carton — stock stays tracked in {UNIT_FULL[form.unit] || form.unit || 'the sale unit'}
+                        </Typography>
+                      </Box>
+                      <Switch size="small" checked={buyInBulk} onClick={e => e.stopPropagation()}
+                        onChange={e => {
+                          const next = e.target.checked;
+                          setBuyInBulk(next);
+                          if (next && !(form.packSizes || []).length) {
+                            set({ packSizes: [{ id: `pk_${Date.now()}`, label: '', qty: '', price: '' }] });
+                          }
+                        }} />
+                    </Box>
+
+                    <Collapse in={buyInBulk} timeout={180}>
+                      <Box sx={{ mt: 1.25, p: 1.25, borderRadius: `${radius}px`, border: '1px solid', borderColor: alpha(primary, 0.15), bgcolor: alpha(primary, 0.02) }}>
+                        <Stack spacing={1}>
+                          {(form.packSizes || []).map((pack, idx) => {
+                            const qtyNum = Number(pack.qty) || 0;
+                            const priceNum = Number(pack.price) || 0;
+                            const perUnit = qtyNum > 0 && priceNum > 0 ? priceNum / qtyNum : null;
+                            const update = (patch) => {
+                              const next = [...form.packSizes];
+                              next[idx] = { ...next[idx], ...patch };
+                              set({ packSizes: next });
+                            };
+                            return (
+                              <Box key={pack.id || idx} sx={{ display: 'flex', gap: 0.75, alignItems: 'flex-start' }}>
+                                <TextField size="small" label="Pack name" placeholder="Box, Carton…"
+                                  value={pack.label || ''}
+                                  onChange={e => update({ label: e.target.value })}
+                                  sx={{ ...fsx, flex: '1 1 90px', minWidth: 0 }} />
+                                <TextField size="small" type="number" label={`= how many ${form.unit || 'units'}`}
+                                  placeholder="e.g. 10"
+                                  value={pack.qty ?? ''}
+                                  onChange={e => update({ qty: e.target.value })}
+                                  sx={{ ...fsx, flex: '1 1 90px', minWidth: 0 }} />
+                                <TextField size="small" type="number" label="Cost / pack"
+                                  placeholder="e.g. 450"
+                                  value={pack.price ?? ''}
+                                  onChange={e => update({ price: e.target.value })}
+                                  InputProps={{ startAdornment: <InputAdornment position="start"><Typography sx={{ fontSize: '0.8rem', color: 'text.secondary' }}>₹</Typography></InputAdornment> }}
+                                  sx={{ ...fsx, flex: '1 1 100px', minWidth: 0 }} />
+                                <Box sx={{ display: 'flex', alignItems: 'center', height: 40, minWidth: 74, justifyContent: 'flex-end' }}>
+                                  {perUnit != null ? (
+                                    <Typography variant="caption" sx={{ color: primary, fontWeight: 700, whiteSpace: 'nowrap' }}>
+                                      ₹{perUnit.toFixed(2)}/{form.unit}
+                                    </Typography>
+                                  ) : null}
+                                  <IconButton size="small" onClick={() => set({ packSizes: form.packSizes.filter((_, i) => i !== idx) })} sx={{ color: 'text.disabled', ml: 0.25 }}>
+                                    <Trash2 size={15} />
+                                  </IconButton>
+                                </Box>
+                              </Box>
+                            );
+                          })}
+                        </Stack>
+                        <Button
+                          size="small"
+                          startIcon={<Plus size={14} />}
+                          onClick={() => set({ packSizes: [...(form.packSizes || []), { id: `pk_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: '', qty: '', price: '' }] })}
+                          sx={{ mt: 1, textTransform: 'none', fontSize: '0.78rem' }}
+                        >
+                          Add another pack size
+                        </Button>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+                          On a Purchase Bill, pick one of these packs as the row's unit — price and stock added both come from it automatically.
+                        </Typography>
+                      </Box>
+                    </Collapse>
+                  </Grid>
+                )}
+
+                {/* Buy in bulk (Sack/Carton/Box), sell in pieces (Kg/Pcs/Nos) —
+                    the item's own Unit of Measure above is always the SALE
+                    unit and what stock is tracked in everywhere else in the
+                    app; this just lets a purchase bill be entered in a
+                    bigger unit and have it convert automatically. */}
+                {isProduct && (
+                  <Grid size={{ xs: 12 }}>
+                    <Box
+                      onClick={() => {
+                        const next = !buyInBulk;
+                        setBuyInBulk(next);
+                        if (next && !form.purchaseUnit) set({ purchaseUnit: UNITS.find(u => u !== form.unit) || UNITS[0] });
+                      }}
+                      sx={{
+                        display: 'flex', alignItems: 'center', gap: 1.25, px: 1.25, py: 1,
+                        borderRadius: `${radius}px`, cursor: 'pointer',
+                        border: '1px solid', borderColor: buyInBulk ? alpha(primary, 0.3) : 'divider',
+                        bgcolor: buyInBulk ? alpha(primary, 0.06) : 'background.paper',
+                      }}
+                    >
+                      <Package size={16} color={buyInBulk ? primary : '#5f4f47'} />
+                      <Box sx={{ flex: 1 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: buyInBulk ? primary : 'text.primary' }}>
+                          Buy in bulk, sell in pieces
+                        </Typography>
+                        <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                          e.g. purchase by the Sack, sell by the Kg — stock stays tracked in {UNIT_FULL[form.unit] || form.unit || 'the sale unit'}
+                        </Typography>
+                      </Box>
+                      <Switch size="small" checked={buyInBulk} onClick={e => e.stopPropagation()}
+                        onChange={e => {
+                          const next = e.target.checked;
+                          setBuyInBulk(next);
+                          if (next && !form.purchaseUnit) set({ purchaseUnit: UNITS.find(u => u !== form.unit) || UNITS[0] });
+                        }} />
+                    </Box>
+
+                    <Collapse in={buyInBulk} timeout={180}>
+                      <Box sx={{ mt: 1.25, p: 1.25, borderRadius: `${radius}px`, border: '1px solid', borderColor: alpha(primary, 0.15), bgcolor: alpha(primary, 0.02) }}>
+                        <Grid container spacing={1.25} alignItems="center">
+                          <Grid size={{ xs: 6, sm: 4 }}>
+                            <TextField size="small" fullWidth select label="Purchase Unit"
+                              value={form.purchaseUnit || ''}
+                              onChange={e => set({ purchaseUnit: e.target.value })}
+                              sx={fsx}>
+                              {UNITS.map(u => <MenuItem key={u} value={u}>{UNIT_FULL[u] || u}</MenuItem>)}
+                            </TextField>
+                          </Grid>
+                          <Grid size={{ xs: 6, sm: 4 }}>
+                            <TextField size="small" fullWidth type="number" label={`= how many ${form.unit || 'units'}?`}
+                              value={form.purchaseUnitConversion ?? ''}
+                              placeholder="e.g. 50"
+                              onChange={e => set({ purchaseUnitConversion: e.target.value })}
+                              InputProps={{ endAdornment: <InputAdornment position="end"><Typography sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>{form.unit}</Typography></InputAdornment> }}
+                              sx={fsx} />
+                          </Grid>
+                          <Grid size={{ xs: 12, sm: 4 }}>
+                            {form.purchaseUnit === form.unit ? (
+                              <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600, display: 'block', lineHeight: 1.4 }}>
+                                Pick a different Purchase Unit than the sale Unit of Measure above.
+                              </Typography>
+                            ) : Number(form.purchaseUnitConversion) > 0 && Number(form.purchasePrice) > 0 ? (
+                              <Box>
+                                <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block' }}>Effective cost</Typography>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.85rem', color: primary }}>
+                                  ₹{(Number(form.purchasePrice) / Number(form.purchaseUnitConversion)).toFixed(2)} / {form.unit}
+                                </Typography>
+                              </Box>
+                            ) : (
+                              <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', lineHeight: 1.4 }}>
+                                1 {form.purchaseUnit || 'unit'} = {form.purchaseUnitConversion || '?'} {form.unit}
+                              </Typography>
+                            )}
+                          </Grid>
+                        </Grid>
+                        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mt: 1 }}>
+                          On a Purchase Bill, pick "{form.purchaseUnit || 'this'}" as the row's unit and stock adds up automatically in {form.unit || 'the sale unit'} — no manual maths.
+                        </Typography>
+                      </Box>
+                    </Collapse>
                   </Grid>
                 )}
               </Grid>
@@ -824,7 +1403,11 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
               <Box sx={{ px: 2.5, py: 2, borderBottom: '1px solid', borderColor: 'divider', bgcolor: alpha(primary, 0.015) }}>
                 <SectionHead icon={BoxIcon} label="Inventory" primary={primary} />
                 <Box
-                  onClick={() => set({ recipe: (form.recipe || []).length ? [] : [{ itemId: '', qtyPerUnit: 1 }] })}
+                  onClick={() => {
+                    const turningOn = !hasRecipe;
+                    if (turningOn) setStockMode('simple');
+                    set({ recipe: turningOn ? [{ itemId: '', qtyPerUnit: 1 }] : [] });
+                  }}
                   sx={{
                     display: 'flex', alignItems: 'center', gap: 1.25, px: 1.25, py: 1, mb: 1.5,
                     borderRadius: `${radius}px`, cursor: 'pointer',
@@ -841,7 +1424,12 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                       e.g. "Tomato Rice" made of Tomato + Rice — selling this deducts the components instead
                     </Typography>
                   </Box>
-                  <Switch size="small" checked={hasRecipe} onChange={() => set({ recipe: hasRecipe ? [] : [{ itemId: '', qtyPerUnit: 1 }] })} onClick={e => e.stopPropagation()} />
+                  <Switch size="small" checked={hasRecipe} onClick={e => e.stopPropagation()}
+                    onChange={() => {
+                      const turningOn = !hasRecipe;
+                      if (turningOn) setStockMode('simple');
+                      set({ recipe: turningOn ? [{ itemId: '', qtyPerUnit: 1 }] : [] });
+                    }} />
                 </Box>
 
                 {hasRecipe ? (
@@ -892,33 +1480,130 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                     </Button>
                   </Box>
                 ) : (
-                  <Grid container spacing={1.25}>
-                    <Grid size={{ xs: 6 }}>
-                      <TextField size="small" fullWidth type="number" label="Opening Stock"
-                        value={form.stock}
-                        helperText="Current stock on hand"
-                        onChange={e => set({ stock: e.target.value })}
-                        sx={fsx} />
-                    </Grid>
-                    <Grid size={{ xs: 6 }}>
-                      <TextField size="small" fullWidth label="Batch / Lot No."
-                        value={form.batchNo || ''} placeholder="BT-001"
-                        helperText="Manufacturer batch number"
-                        onChange={e => set({ batchNo: e.target.value })}
-                        sx={fsx} />
-                    </Grid>
-                    <Grid size={{ xs: 12 }}>
-                      <TextField size="small" fullWidth type="date" label="Expiry Date"
-                        value={form.expiryDate || ''}
-                        helperText="Leave blank if not applicable"
-                        onChange={e => set({ expiryDate: e.target.value })}
-                        InputLabelProps={{ shrink: true }}
-                        sx={fsx} />
-                    </Grid>
-                  </Grid>
+                  <Box>
+                    {/* Stock tracking mode — mutually exclusive. Variants is
+                        always on: a single row behaves exactly like the old
+                        "Simple" one-number mode (no variant picker forced in
+                        Sales/POS — see stockRows() there), a Color/Size/
+                        Variant description lives in that row's own label,
+                        and adding a 2nd row promotes it to full per-variant
+                        stock tracking. Batches is a separate, unrelated mode
+                        for expiry-lot tracking. */}
+                    <ToggleButtonGroup
+                      exclusive size="small" value={stockMode}
+                      onChange={(_, v) => v && switchStockMode(v)}
+                      sx={{ mb: 1.5, width: '100%', '& .MuiToggleButtonGroup-grouped': { flex: 1, textTransform: 'none', fontSize: '0.76rem', fontWeight: 700, py: 0.6 } }}
+                    >
+                      <ToggleButton value="variant"><Palette size={13} style={{ marginRight: 5 }} />Variants</ToggleButton>
+                      <ToggleButton value="batch"><Package size={13} style={{ marginRight: 5 }} />Batches / Expiry</ToggleButton>
+                    </ToggleButtonGroup>
+
+                    {stockMode === 'variant' && (form.variants || []).length <= 1 ? (
+                      <Box>
+                        <Grid container spacing={1.25}>
+                          <Grid size={{ xs: 6 }}>
+                            {/* Reads/writes form.stock directly (not the variant
+                                row's own stock) — this is what keeps a
+                                single-variant item's number in sync with every
+                                Sales/POS/Purchase transaction, which always
+                                writes straight to item.stock for an item with
+                                no real picker to choose between (see
+                                stockRows() in Sales.jsx/POS.jsx). The single
+                                variant row mirrors this value at save time,
+                                purely so Sales/POS/Reports' variant-aware
+                                code paths still see a consistent number if the
+                                item is later promoted to 2+ variants. */}
+                            <TextField size="small" fullWidth type="number" label="Opening Stock"
+                              value={form.stock ?? ''}
+                              helperText="Current stock on hand"
+                              onChange={e => set({ stock: e.target.value })}
+                              sx={fsx} />
+                          </Grid>
+                          <Grid size={{ xs: 6 }}>
+                            <TextField size="small" fullWidth label="Batch / Lot No."
+                              value={form.batchNo || ''} placeholder="BT-001"
+                              helperText="Manufacturer batch number"
+                              onChange={e => set({ batchNo: e.target.value })}
+                              sx={fsx} />
+                          </Grid>
+                          <Grid size={{ xs: 12 }}>
+                            <TextField size="small" fullWidth type="date" label="Expiry Date"
+                              value={form.expiryDate || ''}
+                              helperText="Leave blank if not applicable"
+                              onChange={e => set({ expiryDate: e.target.value })}
+                              InputLabelProps={{ shrink: true }}
+                              sx={fsx} />
+                          </Grid>
+                        </Grid>
+                        <Button size="small" startIcon={<Plus size={13} />} sx={{ mt: 1.25, fontSize: '0.78rem' }}
+                          onClick={() => {
+                            // The existing single row's own stock may be stale
+                            // (see the Opening Stock field's comment above) —
+                            // carry form.stock over as the true current number
+                            // for this first row instead.
+                            const existing = form.variants?.[0] || { id: `vr_${Date.now()}`, label: 'Default', sku: '', priceOverride: null, barcode: '' };
+                            const row = { ...existing, stock: form.stock };
+                            set({ variants: [row, { id: `vr_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`, label: '', sku: '', stock: '', priceOverride: '', barcode: '' }] });
+                          }}>
+                          Sell as multiple variants (Color, Size…)
+                        </Button>
+                      </Box>
+                    ) : stockMode === 'variant' ? (
+                      <VariantEditor form={form} set={set} fsx={fsx} primary={primary}
+                        barcodeEnabled={barcodeEnabled}
+                        nextUniqueBarcode={nextRowBarcode}
+                        barcodeError={rowBarcodeError(form.variants || [])} />
+                    ) : null}
+
+                    {stockMode === 'batch' && (
+                      <BatchEditor form={form} set={set} fsx={fsx} primary={primary}
+                        barcodeEnabled={barcodeEnabled}
+                        nextUniqueBarcode={nextRowBarcode}
+                        barcodeError={rowBarcodeError(form.batches || [])} />
+                    )}
+                  </Box>
                 )}
               </Box>
             )}
+
+            {/* Prompt shown when switching a Simple item (with real stock
+                already entered) into Variant/Batch mode — offers to carry
+                that number into a first row instead of silently zeroing it. */}
+            <Dialog open={!!migratePrompt} onClose={() => setMigratePrompt(null)} maxWidth="xs" fullWidth
+              PaperProps={{ sx: { borderRadius: 2.5 } }}>
+              <Box sx={{ p: 2.5 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.95rem', mb: 1 }}>
+                  Carry over current stock?
+                </Typography>
+                <Typography variant="body2" sx={{ color: 'text.secondary', mb: 2 }}>
+                  This item currently has <strong>{form.stock || 0} {form.unit}</strong> in stock.
+                  Switching to Batches tracks stock separately per batch — carry the current number into a first
+                  batch ("Existing stock") so nothing is lost?
+                </Typography>
+                <Stack direction="row" spacing={1} justifyContent="flex-end">
+                  <Button
+                    onClick={() => {
+                      setStockMode('batch');
+                      set({ variants: [], batches: [] });
+                      setMigratePrompt(null);
+                    }}
+                  >
+                    Start empty
+                  </Button>
+                  <Button
+                    variant="contained"
+                    onClick={() => {
+                      const carried = Number(form.stock) || 0;
+                      setStockMode('batch');
+                      set({ variants: [], batches: [{ id: `bt_${Date.now()}`, label: 'Existing stock', expiryDate: form.expiryDate || '', stock: carried }] });
+                      setMigratePrompt(null);
+                    }}
+                  >
+                    Carry over {form.stock || 0} {form.unit}
+                  </Button>
+                </Stack>
+              </Box>
+            </Dialog>
 
             {/* ═══ BARCODE (product + enabled) ═══ */}
             {barcodeEnabled && isProduct && (
@@ -1017,11 +1702,7 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
                   e.preventDefault();
                   const name = mgrInput.trim();
                   if (!name || !currentBusiness?.id) return;
-                  if (![...builtins, ...customCats].some(c => c.toLowerCase() === name.toLowerCase())) {
-                    const next = [...customCats, name];
-                    setCustomCats(next);
-                    saveCats(currentBusiness.id, itemType, next);
-                  }
+                  itemCats.add(name);
                   setMgrInput('');
                 }
               }}
@@ -1030,11 +1711,7 @@ const ItemFormDialog = ({ open, onClose, editingItem = null, initialName = '', o
               onClick={() => {
                 const name = mgrInput.trim();
                 if (!name || !currentBusiness?.id) return;
-                if (![...builtins, ...customCats].some(c => c.toLowerCase() === name.toLowerCase())) {
-                  const next = [...customCats, name];
-                  setCustomCats(next);
-                  saveCats(currentBusiness.id, itemType, next);
-                }
+                itemCats.add(name);
                 setMgrInput('');
               }}
               disabled={!mgrInput.trim()}

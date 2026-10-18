@@ -17,6 +17,7 @@ import { useReactToPrint } from 'react-to-print';
 import { exportToExcel } from './exportUtils';
 import SendDialog from './SendDialog';
 import { byTxTimeAsc, formatCreatedTime } from './txTimeUtils';
+import { captureElement, canvasToPdf } from './pdfCapture';
 
 // Mirrors the deliverFile pattern used elsewhere (Sales.jsx etc.) — kept
 // local since none of those helpers are exported/shared across files.
@@ -243,7 +244,7 @@ const LedgerPage = () => {
     lines.push(`Total Credit: ${fmtAmt(totalCredit)}`);
     lines.push(`*Closing Balance: ${fmtAmt(Math.abs(closingBalance))} ${closingBalance >= 0 ? `DR (owed to ${currentBusiness?.name || 'us'})` : `CR (${currentBusiness?.name || 'we'} owe)`}*`);
     lines.push('');
-    lines.push('_Sent via TallyKraft_');
+    lines.push('_Sent via BillDheko_');
     return lines.join('\n');
   };
 
@@ -301,13 +302,12 @@ const LedgerPage = () => {
     lines.push(`Total Credit: ${fmtAmt(totalCredit)}`);
     lines.push(`*Closing Balance: ${fmtAmt(Math.abs(closingBalance))} ${closingBalance >= 0 ? `DR (owed to ${currentBusiness?.name || 'us'})` : `CR (${currentBusiness?.name || 'we'} owe)`}*`);
     lines.push('');
-    lines.push('_Sent via TallyKraft_');
+    lines.push('_Sent via BillDheko_');
     return lines.join('\n');
   };
 
   const captureLedgerCanvas = async () => {
-    const { default: html2canvas } = await import('html2canvas');
-    return html2canvas(printRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+    return captureElement(printRef.current, { scale: 1.5 });
   };
 
   const shareLedgerAsPDF = async (opts = {}) => {
@@ -318,11 +318,7 @@ const LedgerPage = () => {
         captureLedgerCanvas(),
         import('jspdf').then(m => ({ jsPDF: m.jsPDF })),
       ]);
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfWidthMm = 210; // A4
-      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
-      const pdf = new jsPDF({ unit: 'mm', format: [pdfWidthMm, pdfHeightMm] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const pdf = canvasToPdf(canvas, jsPDF, 'A4');
       const fileName = `ledger_${selectedParty?.name || 'party'}.pdf`;
       const file = new File([pdf.output('blob')], fileName, { type: 'application/pdf' });
       await deliverLedgerFile(file, opts);
@@ -645,7 +641,7 @@ const LedgerPage = () => {
         onClose={() => setSendOpen(false)}
         tx={{ invoiceNumber: `Ledger — ${selectedParty?.name || ''}`, partyName: selectedParty?.name, totalAmount: Math.abs(closingBalance) }}
         party={selectedParty}
-        businessName={currentBusiness?.name || 'TallyKraft'}
+        businessName={currentBusiness?.name || 'BillDheko'}
         isSale
         dialogTitle={sendMode === 'full' ? 'Share Complete Statement' : 'Share Ledger'}
         initialMessage={sendMode === 'full' ? buildFullLedgerMessage() : buildLedgerMessage()}

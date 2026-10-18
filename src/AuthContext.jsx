@@ -2,7 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import { auth, googleProvider, firestore } from './db';
 import { signInWithPopup, signOut, onAuthStateChanged } from 'firebase/auth';
 import {
-  collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, updateDoc
+  collection, doc, setDoc, getDoc, getDocs, deleteDoc, query, where, updateDoc, onSnapshot
 } from 'firebase/firestore';
 import { isAlwaysAdmin } from './alwaysAdmin';
 
@@ -71,7 +71,6 @@ export const AuthProvider = ({ children }) => {
                 allowed: true,
                 isAdmin: true,
                 config: {
-                  businessType: 'general',
                   features: {
                     dashboard: true, parties: true, items: true, sales: true,
                     purchases: true, expenses: true, opticals: false, payments: true,
@@ -125,7 +124,6 @@ export const AuthProvider = ({ children }) => {
                 const newBizData = {
                   id: newBizId,
                   name: user.displayName || (user.email?.split('@')[0] || 'My Business'),
-                  businessType: 'general',
                   ownerId: user.uid,
                   ownerEmail: user.email,
                   businessCode: code,
@@ -365,6 +363,43 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: 'Login failed. Please try again.' };
     }
   };
+
+  // Keep a signed-in staff member's permissions LIVE. The session used to copy
+  // `features` once at sign-in (and keep it in sessionStorage), so sections
+  // granted or removed afterwards never applied until the staff member logged
+  // out and back in. Now the staff record is watched: permission/name changes
+  // apply within a second, and a deactivated or deleted staff account is
+  // signed out. Admin (business-code) logins have full access and aren't
+  // affected.
+  const liveStaffId = staffSession?.role === 'staff' ? staffSession.id : null;
+  const liveStaffBizId = staffSession?.role === 'staff' ? staffSession.businessId : null;
+  useEffect(() => {
+    if (!liveStaffId || !liveStaffBizId) return undefined;
+    const unsub = onSnapshot(
+      doc(firestore, 'businesses', liveStaffBizId, 'staffAccounts', liveStaffId),
+      (snap) => {
+        // Only act on a confirmed server answer, never a cache guess.
+        if (snap.metadata.fromCache) return;
+        if (!snap.exists() || snap.data()?.active === false) {
+          sessionStorage.removeItem('staffSession');
+          resetGuestState();
+          return;
+        }
+        const d = snap.data();
+        setStaffSession(prev => {
+          if (!prev || prev.id !== liveStaffId) return prev;
+          const nextFeatures = d.features || {};
+          const nextName = d.name || prev.name;
+          if (JSON.stringify(prev.features || {}) === JSON.stringify(nextFeatures) && nextName === prev.name) return prev;
+          const next = { ...prev, features: nextFeatures, name: nextName };
+          try { sessionStorage.setItem('staffSession', JSON.stringify(next)); } catch { /* storage unavailable */ }
+          return next;
+        });
+      },
+      (err) => console.warn('[AuthContext] staff permission listener failed:', err?.code || err),
+    );
+    return () => unsub();
+  }, [liveStaffId, liveStaffBizId]);
 
   const logout = async () => {
     try {

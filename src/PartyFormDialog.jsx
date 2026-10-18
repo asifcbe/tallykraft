@@ -11,12 +11,13 @@ import {
   alpha, useTheme, FormControl, InputLabel, Select, Collapse,
   useMediaQuery,
 } from '@mui/material';
-import { Plus, X, FolderOpen, ChevronsUpDown, Landmark, ChevronDown } from 'lucide-react';
+import { Plus, X, FolderOpen, ChevronsUpDown, Landmark, ChevronDown, Users } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
 import { useData } from './DataContext';
 import {
   COUNTRY_CODES, CUSTOMER_CATEGORIES, VENDOR_CATEGORIES,
   loadCustomCategories, saveCustomCategories, generatePartyId,
+  loadCustomGroups,
 } from './partyUtils';
 import { STATE_NAMES } from './gstUtils';
 
@@ -44,6 +45,7 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
   const [customCats, setCustomCats] = useState([]);
   const [showNewCatInput, setShowNewCatInput] = useState(false);
   const [newCatInput, setNewCatInput] = useState('');
+  const [customGroups, setCustomGroups] = useState([]);
   const [showBankDetails, setShowBankDetails] = useState(false);
   const [showAltPhone, setShowAltPhone] = useState(false);
   const [balanceDir, setBalanceDir] = useState(isVendor ? 'pay' : 'collect');
@@ -56,7 +58,7 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
   const phoneInputRef = useRef(null);
 
   const blank = () => ({
-    name: '', phone: '', altPhone: '', countryCode: '+91', gstNumber: '', address: '', additionalAddress: '', category: '',
+    name: '', phone: '', altPhone: '', countryCode: '+91', gstNumber: '', address: '', additionalAddress: '', category: '', group: '',
     state: '',
     description: '',
     bankName: '', accountNumber: '', ifscCode: '', accountHolderName: '',
@@ -65,10 +67,11 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
   const [form, setForm] = useState(blank());
   const set = (patch) => setForm(f => ({ ...f, ...patch }));
 
-  // Load custom categories when business changes or dialog opens
+  // Load custom categories/groups when business changes or dialog opens
   useEffect(() => {
     if (currentBusiness?.id) {
       setCustomCats(loadCustomCategories(currentBusiness.id, partyType));
+      setCustomGroups(loadCustomGroups(currentBusiness.id, partyType));
     }
   }, [currentBusiness?.id, partyType]);
 
@@ -358,6 +361,35 @@ const PartyFormDialog = ({ open, onClose, partyType = 'Customer', editingParty =
                         onChange={e => { if (e.target.value !== '__add__') set({ category: e.target.value }); }}
                         MenuProps={{ PaperProps: { sx: { maxHeight: 300 } } }}>
                         {catMenuItems}
+                      </Select>
+                    </FormControl>
+                  </Grid>
+
+                  {/* Group — strict pick-from-list, independent of Category
+                      (e.g. a sales territory or account family); reports can
+                      filter and drill down by this. A plain MUI Select, not
+                      an Autocomplete — a Select's value can ONLY ever be one
+                      of its own <MenuItem> options (no free typing, no
+                      browser-native autofill to fight, no separately
+                      controlled input-text state to keep in sync), which is
+                      exactly the "strict, nothing else can appear" behavior
+                      this field needs. New groups are added via "Manage
+                      Groups" (Parties page → More menu), not from here —
+                      matches Category's own dropdown just above. */}
+                  <Grid size={{ xs: 12 }}>
+                    <FormControl fullWidth size="small" sx={fieldSx}>
+                      <InputLabel shrink>Group</InputLabel>
+                      <Select
+                        value={customGroups.includes(form.group) ? form.group : ''}
+                        label="Group"
+                        displayEmpty
+                        notched
+                        renderValue={v => v || <span style={{ color: '#aaa' }}>{customGroups.length ? 'None' : 'No groups yet — add one via Manage Groups'}</span>}
+                        onChange={e => set({ group: e.target.value })}
+                        startAdornment={<InputAdornment position="start"><Users size={14} color="#9ca3af" /></InputAdornment>}
+                        MenuProps={{ PaperProps: { sx: { maxHeight: 300 } } }}>
+                        <MenuItem value="">None</MenuItem>
+                        {customGroups.map(g => <MenuItem key={g} value={g}>{g}</MenuItem>)}
                       </Select>
                     </FormControl>
                   </Grid>

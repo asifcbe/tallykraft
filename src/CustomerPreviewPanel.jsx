@@ -126,17 +126,17 @@ const CustomerPreviewPanel = ({ party, onClose, onRedeem, redeemedPoints = 0, la
   // ── Empty state ──────────────────────────────────────────────────────────
   if (!party) return (
     <Box sx={{
-      width: '100%', minHeight: 200,
+      width: '100%', minHeight: 150,
       display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-      bgcolor: alpha(teal, 0.02), py: 4, px: 2.5, gap: 1.5,
+      bgcolor: alpha(teal, 0.02), py: 2.5, px: 2.5, gap: 1.25,
     }}>
       <Box sx={{
-        width: 56, height: 56, borderRadius: '50%',
+        width: 48, height: 48, borderRadius: '50%',
         background: `radial-gradient(circle, ${alpha(teal, 0.1)} 0%, ${alpha(teal, 0.04)} 100%)`,
         border: `2px dashed ${alpha(teal, 0.22)}`,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <UserRound size={24} color={alpha(teal, 0.4)} />
+        <UserRound size={20} color={alpha(teal, 0.4)} />
       </Box>
       <Box sx={{ textAlign: 'center' }}>
         <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: 'text.secondary', mb: 0.4 }}>
@@ -236,6 +236,11 @@ const CustomerPreviewPanel = ({ party, onClose, onRedeem, redeemedPoints = 0, la
               {party.category && (
                 <Box sx={{ px: 0.75, py: 0.2, borderRadius: '6px', bgcolor: 'rgba(92,31,34,0.08)', border: '1px solid #ece2db' }}>
                   <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: '#7a2e30' }}>{party.category}</Typography>
+                </Box>
+              )}
+              {party.group && (
+                <Box sx={{ px: 0.75, py: 0.2, borderRadius: '6px', bgcolor: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)' }}>
+                  <Typography sx={{ fontSize: '0.62rem', fontWeight: 700, color: 'rgba(255,255,255,0.85)' }}>{party.group}</Typography>
                 </Box>
               )}
             </Box>

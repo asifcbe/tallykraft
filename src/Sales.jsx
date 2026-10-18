@@ -1,3 +1,4 @@
+import { captureElement, canvasToPdf } from './pdfCapture';
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import {
   Box,
@@ -86,26 +87,31 @@ import {
   QrCode,
   ListOrdered,
   ChevronRight,
+  ArrowRightLeft,
+  CalendarDays,
+  Zap,
 } from "lucide-react";
 import { exportSalesToExcel, exportPurchasesToExcel, exportToTallyXML } from './exportUtils';
 import { useBusiness } from "./BusinessContext";
 import { useTabs } from './TabsContext';
+import { reservedSerials, getDraft, reserve as reserveDraft, release as releaseDraft, subscribe as subscribeDrafts, formatInvoiceNumber, parseSerial } from './draftInvoiceNumbers';
 import { acknowledgeQuickNew, dispatchQuickNew } from './quickNewBridge';
 
 import { useData } from "./DataContext";
 import { usePersistedState } from "./usePersistedState";
 import { useConfig } from "./ConfigContext";
-import { useSubscription } from "./SubscriptionContext";
 import { useAuth } from "./AuthContext";
 import { useReactToPrint } from "react-to-print";
 import { useLocation } from "react-router-dom";
-import InvoiceTemplate, { PAPER_SIZES, getPaperWidthMm, getJsPdfFormat } from "./InvoiceTemplate";
+import InvoiceTemplate, { PAPER_SIZES } from "./InvoiceTemplate";
 import { FitPreview, ViewModeToggle, loadViewMode, saveViewMode, useFillHeight } from "./TxListView";
 import TxDataTable from "./TxDataTable";
 import { useI18n } from "./i18n/I18nContext";
 import BarcodeScanner from "./BarcodeScanner";
 import ItemFormDialog from "./ItemFormDialog";
 import PartyFormDialog from "./PartyFormDialog";
+import LoyaltyRedeemNow from './LoyaltyRedeemNow';
+import { pointsEarnedOn, loyaltyBalanceAfter } from './loyaltyUtils';
 import { useDialog } from "./DialogContext";
 import PartySelect from "./PartySelect";
 import { buildUpiUri } from "./upiUtils";
@@ -115,8 +121,12 @@ import SendDialog from "./SendDialog";
 import BulkSendDialog from "./BulkSendDialog";
 import ItemSelect from "./ItemSelect";
 import SplitPaymentInput from "./SplitPaymentInput";
+import { useSubscription } from "./SubscriptionContext";
+import ReceivePaymentDialog from "./ReceivePaymentDialog";
+import { txOutstanding, rcvSettledFor, txPaidSoFar, txWrittenOff, isPartPaid } from "./paymentUtils";
 import SalesBulkAddDialog from './SalesBulkAddDialog';
 import SalesBulkEditDialog from './SalesBulkEditDialog';
+import { BulkBarcodeDialog } from './Items';
 import SalesImportDialog from './SalesImportDialog';
 import PurchaseBulkAddDialog from './PurchaseBulkAddDialog';
 import PurchaseImportDialog from './PurchaseImportDialog';
@@ -125,6 +135,8 @@ import ReferenceImagesPanel from './ReferenceImagesPanel';
 import ImageViewerDialog from './ImageViewerDialog';
 import { removeAllImagesForRecord } from './referenceImages';
 import { txSortKey, formatCreatedTime } from './txTimeUtils';
+import { filterOwnRecords, canSeeSummaries } from './staffScope';
+import { useResizableWidth, ResizeHandle } from './PanelResizer';
 
 
 /* ─── Design tokens (derived from global MUI theme) ─── */
@@ -264,10 +276,10 @@ const rowStatusTint = (statusKey) => (statusKey === 'paid' ? null : alpha(STATUS
 // (Settings → Features), on by default. Overdue (unpaid + dueDate passed)
 // gets its own mildly-distinct red, separate from the amber "Unpaid" —
 // so at a glance a user can tell "not yet due" apart from "past due".
-const PaidStatusChip = ({ status, overdue = false, size = 'small' }) => {
+const PaidStatusChip = ({ status, overdue = false, partial = false, size = 'small' }) => {
   const key = statusKeyOf(status, overdue);
-  const label = key === 'paid' ? 'Paid' : key === 'overdue' ? 'Overdue' : 'Unpaid';
-  const color = STATUS_COLOR[key];
+  const label = key === 'paid' ? 'Paid' : key === 'overdue' ? (partial ? 'Overdue · Part Paid' : 'Overdue') : (partial ? 'Part Paid' : 'Unpaid');
+  const color = partial && key === 'unpaid' ? PART_PAID_COLOR : STATUS_COLOR[key];
   return (
     <Chip
       size={size}
@@ -284,6 +296,45 @@ const PaidStatusChip = ({ status, overdue = false, size = 'small' }) => {
     />
   );
 };
+
+// Paid-vs-balance strip for a part-paid bill (grid tile + mobile card):
+// how much has come in (advance + part payments) and what is still owed,
+// with a progress bar so the split reads at a glance.
+const PART_PAID_COLOR = '#2563eb';
+const PartPaymentBar = ({ tx, isSale, sx }) => {
+  const paid = txPaidSoFar(tx);
+  const writtenOff = txWrittenOff(tx);
+  const balance = txOutstanding(tx);
+  const total = paid + writtenOff + balance;
+  const pct = total > 0 ? Math.min(100, Math.max(0, ((paid + writtenOff) / total) * 100)) : 0;
+  const fmt = (n) => `₹${n.toLocaleString('en-IN', { minimumFractionDigits: n % 1 ? 2 : 0, maximumFractionDigits: 2 })}`;
+  return (
+    <Tooltip title={`${isSale ? 'Received' : 'Paid'} ${fmt(paid)} of ${fmt(total)}${writtenOff > 0 ? ` · ${fmt(writtenOff)} written off` : ''} · ${fmt(balance)} still ${isSale ? 'to collect' : 'to pay'}`}>
+      <Box sx={{ minWidth: 0, ...sx }}>
+        <Box sx={{ display: 'flex', alignItems: 'baseline', gap: 0.5, fontSize: '0.68rem', lineHeight: 1.3, mb: 0.35 }}>
+          <Box component="span" sx={{ fontWeight: 800, color: STATUS_COLOR.paid }}>{fmt(paid)}</Box>
+          <Box component="span" sx={{ color: 'text.disabled', fontWeight: 600 }}>{isSale ? 'received' : 'paid'}</Box>
+          <Box sx={{ flex: 1 }} />
+          <Box component="span" sx={{ fontWeight: 800, color: '#b45309' }}>{fmt(balance)}</Box>
+          <Box component="span" sx={{ color: 'text.disabled', fontWeight: 600 }}>due</Box>
+        </Box>
+        <Box sx={{ height: 3, borderRadius: 2, bgcolor: alpha('#d97706', 0.2), overflow: 'hidden' }}>
+          <Box sx={{ width: `${pct}%`, height: '100%', bgcolor: STATUS_COLOR.paid, borderRadius: 2 }} />
+        </Box>
+        {writtenOff > 0 && <WriteOffNote amount={writtenOff} sx={{ mt: 0.35 }} />}
+      </Box>
+    </Tooltip>
+  );
+};
+
+// Small grey "₹X written off" line — the "Less" portion settled on a bill
+// without money changing hands. Shown under the part-paid bar, and on its own
+// for fully paid bills that were closed with a write-off.
+const WriteOffNote = ({ amount, sx }) => (
+  <Typography sx={{ fontSize: '0.62rem', color: 'text.disabled', fontWeight: 600, lineHeight: 1.3, ...sx }}>
+    ₹{amount.toLocaleString('en-IN', { minimumFractionDigits: amount % 1 ? 2 : 0, maximumFractionDigits: 2 })} written off
+  </Typography>
+);
 
 // "From Estimate"/"From Order" chip — shown on a sale that carries
 // sourceEstimateId/sourceOrderId (stamped when converting one of those into
@@ -466,7 +517,7 @@ const StatPill = ({ label, value, color = "primary", tokens }) => (
       bgcolor: color === "primary" ? tokens.primarySoft : tokens.successSoft,
       border: "1px solid",
       borderColor:
-        color === "primary" ? tokens.primaryBorder : "rgba(100,116,139,0.18)",
+        color === "primary" ? tokens.primaryBorder : "rgba(16,185,129,0.18)",
     }}
   >
     <Typography
@@ -541,6 +592,11 @@ const GradientButton = React.forwardRef(({
       textTransform: "none",
       letterSpacing: "0.01em",
       transition: "all 0.2s ease",
+      // MUI's own disabled-contained fallback (bg rgba(0,0,0,0.12), text
+      // rgba(0,0,0,0.26) — ~1.8:1 contrast) reads as barely-there on this
+      // button's already-light card backgrounds. Keep it visibly "off" but
+      // legible enough to still read the label.
+      "&.Mui-disabled": { bgcolor: "rgba(0,0,0,0.08)", color: "rgba(0,0,0,0.4)" },
       "&:hover": {
         background: `linear-gradient(135deg, ${tokens.primary} 0%, ${tokens.primaryDark} 100%)`,
         boxShadow: tokens.shadow.btnHover,
@@ -676,6 +732,164 @@ const deliverFile = async (file, { toWhatsApp = false, phone = '' } = {}) => {
   return { method: 'download', fileName: file.name };
 };
 
+// Buy-in-bulk / sell-in-pieces — e.g. purchase by the Box (10 Pcs), sell by
+// the Pc. Stock is always tracked in the item's sale `unit` (see
+// ItemFormDialog.jsx); each entry in `item.packSizes` is a named pack this
+// item comes in, with its own qty-per-pack AND its own Purchase cost — a
+// Purchase OR Sales row can pick a pack directly (by its id) instead of
+// typing a unit and having to know/guess a conversion rate. Applies to both
+// transaction types: buying by the Box adds N pieces to stock, selling by
+// the Box removes N pieces from stock — same conversion, opposite direction.
+// Items saved before packs existed kept one `purchaseUnit` + `purchaseUnitConversion`
+// (e.g. Sack = 50 Kg). Surface that as a pack with a fixed id so those items —
+// and purchase bills saved with them (row.unit === purchaseUnit, no packId) —
+// keep converting. ItemFormDialog turns it into a real pack on the next save.
+const LEGACY_PACK_ID = 'legacy_pu';
+const legacyPack = (stockItem) =>
+  stockItem?.purchaseUnit && stockItem.purchaseUnit !== stockItem.unit && Number(stockItem.purchaseUnitConversion) > 0
+    ? { id: LEGACY_PACK_ID, label: stockItem.purchaseUnit, qty: Number(stockItem.purchaseUnitConversion), price: Number(stockItem.purchasePrice) || 0 }
+    : null;
+const packsOf = (stockItem) => {
+  if (Array.isArray(stockItem?.packSizes) && stockItem.packSizes.length > 0) return stockItem.packSizes;
+  const lp = legacyPack(stockItem);
+  return lp ? [lp] : [];
+};
+// The pack a saved row actually used: its own packId, or — for a legacy
+// purchase row entered in the old purchase unit — the legacy pack.
+const effectivePackId = (row, stockItem, isPurchaseRow) => {
+  if (row?.packId || !isPurchaseRow || !stockItem) return row?.packId || '';
+  const lp = packsOf(stockItem).find((p) => p.id === LEGACY_PACK_ID);
+  return lp && row.unit === lp.label ? LEGACY_PACK_ID : '';
+};
+const hasBulkConversion = (stockItem) => packsOf(stockItem).length > 0;
+
+// Resolves a row's chosen pack (by id, stored in item.packId) back to its
+// {qty, price} definition on the item master. Returns null for a plain
+// loose-unit row (no packId set) so callers can fall back to 1:1 / the
+// item's own manually-typed price.
+const rowPack = (packId, stockItem) => {
+  if (!packId || !hasBulkConversion(stockItem)) return null;
+  return packsOf(stockItem).find((p) => p.id === packId) || null;
+};
+
+// How many sale-units one row-quantity of this pack actually moves in
+// stock — e.g. 2 Boxes of "Box = 10 Pcs" is 20 Pcs, whether those 20 are
+// being added (Purchase) or removed (Sale). A plain loose-unit row (no
+// pack) is already in the sale unit, factor 1.
+const rowUnitFactor = (packId, stockItem) => {
+  const pack = rowPack(packId, stockItem);
+  return pack ? Number(pack.qty) || 1 : 1;
+};
+
+// A pack's per-row price: Purchases use the pack's own defined cost as-is
+// (set once on the item master, e.g. "Box = ₹450"); Sales have no separate
+// per-pack sale price field — auto-derived as the item's normal per-piece
+// Sale Price × how many pieces the pack holds, still editable per invoice
+// row afterwards like any other price.
+const rowPackPrice = (pack, stockItem, isSaleRow) => {
+  if (!pack) return null;
+  if (!isSaleRow) return Number(pack.price) || 0;
+  const perPiece = Number(stockItem?.salePrice ?? stockItem?.price) || 0;
+  return perPiece * (Number(pack.qty) || 1);
+};
+
+// Variant / batch stock tracking — an item with stockMode 'variant' or
+// 'batch' (see ItemFormDialog.jsx) holds several separately-stocked rows
+// instead of one plain `item.stock` number; a Sales/Purchase line for that
+// item must say WHICH row it's selling from/adding to via `item.stockRefId`.
+// Applies to both Sales (deducts) and Purchase (adds back) rows — buying
+// replenishes a specific variant/batch just like selling draws from one.
+// An item with exactly one variant (today's common case — see
+// ItemFormDialog.jsx, where the old Simple mode is now "Variants with 1
+// row") behaves exactly like a plain item instead: no explicit pick UI,
+// since there's nothing to actually choose between.
+const stockRows = (stockItem) => {
+  if (stockItem?.stockMode === 'variant') {
+    const rows = stockItem.variants || [];
+    return rows.length > 1 ? rows : null;
+  }
+  if (stockItem?.stockMode === 'batch') return stockItem.batches || [];
+  return null; // null = plain single-stock item, no picker needed
+};
+
+const resolveStockRef = (refId, stockItem) => {
+  const rows = stockRows(stockItem);
+  if (!rows || !refId) return null;
+  return rows.find((r) => r.id === refId) || null;
+};
+
+// Compact at-a-glance facts for the item picked on an invoice/bill row:
+// stock on hand, sale price, MRP and — only when this login may see
+// purchase price — cost and margin at the rate typed on the row.
+const fmtRs = (v) => `₹${Number(v || 0).toLocaleString("en-IN", { maximumFractionDigits: 2 })}`;
+const ItemRowSummary = ({ stockItem, row, isSale, canViewPurchasePrice, tokens }) => {
+  if (!stockItem) return null;
+  const isService = stockItem.itemType === "service" || stockItem.itemType === "membership" || stockItem.isMembership;
+  const isRecipe = stockItem.recipe?.length > 0;
+  const allRows = stockItem.stockMode === "variant" ? stockItem.variants
+    : stockItem.stockMode === "batch" ? stockItem.batches : null;
+  const chosen = resolveStockRef(row.stockRefId, stockItem);
+  const stock = chosen
+    ? Number(chosen.stock) || 0
+    : allRows?.length ? allRows.reduce((s, r) => s + (Number(r.stock) || 0), 0) : Number(stockItem.stock) || 0;
+  const minStock = Number(stockItem.minStock) || 0;
+  const unit = stockItem.unit || "";
+  const stockColor = stock <= 0 ? "#dc2626" : (minStock > 0 && stock <= minStock) ? "#b45309" : "#15803d";
+  const cost = Number(stockItem.purchasePrice) || 0;
+  const rate = Number(row.price) || 0;
+  // Margin only when the row is priced per base unit (a pack rate vs a
+  // per-piece cost would give a meaningless figure).
+  const showMargin = isSale && canViewPurchasePrice && cost > 0 && rate > 0 && !row.packId;
+  const marginPct = showMargin ? ((rate - cost) / rate) * 100 : 0;
+  const chip = (label, value, color) => (
+    <Box component="span" sx={{
+      display: "inline-flex", alignItems: "baseline", gap: 0.4, px: 0.75, py: 0.2,
+      borderRadius: "6px", bgcolor: alpha(color || "#000", 0.06), whiteSpace: "nowrap",
+    }}>
+      <Box component="span" sx={{ fontSize: "0.62rem", color: "text.secondary", fontWeight: 600 }}>{label}</Box>
+      <Box component="span" sx={{ fontSize: "0.7rem", fontWeight: 700, color: color || "text.primary" }}>{value}</Box>
+    </Box>
+  );
+  return (
+    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, px: 1, pb: 0.75, pt: 0 }}>
+      {!isService && (isRecipe
+        ? chip("Stock", "Made from components", tokens.primary)
+        : chip(chosen ? "Stock (this pick)" : "Stock", `${stock % 1 ? stock.toFixed(2) : stock}${unit ? ` ${unit}` : ""}`, stockColor))}
+      {Number(stockItem.salePrice) > 0 && chip("Sale", fmtRs(stockItem.salePrice))}
+      {Number(stockItem.mrp) > 0 && chip("MRP", fmtRs(stockItem.mrp))}
+      {canViewPurchasePrice && cost > 0 && chip("Cost", fmtRs(cost))}
+      {showMargin && (rate < cost
+        ? chip("Below cost", `${marginPct.toFixed(1)}%`, "#dc2626")
+        : chip("Margin", `${marginPct.toFixed(1)}%`, "#15803d"))}
+    </Box>
+  );
+};
+
+// Days until a batch's expiry (negative = already expired). null when the
+// batch has no expiry date set.
+const daysUntilExpiry = (expiryDate) => {
+  if (!expiryDate) return null;
+  return Math.ceil((new Date(expiryDate) - new Date()) / 86400000);
+};
+
+// Resolves a scanned/typed code against every item's own barcode AND every
+// variant/batch's own barcode — returns the exact {item, stockRefId} to add,
+// so scanning a variant/batch's own code auto-selects it directly instead of
+// leaving the invoice row's Variant/Batch picker unresolved. Falls back to
+// itemCode/id for a plain (untracked) item, same as before variants/batches
+// existed.
+const resolveScanTarget = (items, code) => {
+  for (const item of items) {
+    const rows = stockRows(item);
+    if (rows) {
+      const row = rows.find((r) => r.barcode && r.barcode === code);
+      if (row) return { item, stockRefId: row.id };
+    }
+  }
+  const item = items.find((i) => i.barcode === code || i.itemCode === code || String(i.id) === code);
+  return item ? { item, stockRefId: undefined } : null;
+};
+
 /* ─── Main Component ─── */
 const SalesPage = ({ mode = "sales", tabId }) => {
   const theme = useTheme();
@@ -684,6 +898,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   // always-visible right rail (customer preview / summary). Below it, that
   // same content is reached through a dialog instead.
   const isLgUp = useMediaQuery(theme.breakpoints.up('lg'));
+  const previewPanel = useResizableWidth('sales-preview', 280, { min: 240, max: 480 });
+  const summaryPanel = useResizableWidth('sales-summary', 288, { min: 260, max: 460 });
   const tokens = React.useMemo(() => getThemeTokens(theme), [theme]);
   const { t } = useI18n();
   const { confirm, showAlert } = useDialog();
@@ -691,10 +907,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   const { currentBusiness } = useBusiness();
 
   const { data, addItem, updateItem, updateItems, deleteItem, getItems, syncFromCloud } = useData();
-  const { config } = useConfig();
+  const { config, saveConfig } = useConfig();
   const { staffSession } = useAuth();
   const { activeTabId, updateTab, openTab } = useTabs();
-  // TallyKraft billing: writes are blocked at the data layer when the business
+  // Billing: writes are blocked at the data layer when the business
   // subscription is inactive; canWrite additionally greys the Save button so the
   // user gets an explicit signal rather than a silent no-op.
   const { isBusinessActive } = useSubscription();
@@ -704,7 +920,19 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   const isActiveTab = useMemo(() => activeTabId === tabId, [activeTabId, tabId]);
   const isActiveTabRef = useRef(isActiveTab);
   useEffect(() => { isActiveTabRef.current = isActiveTab; }, [isActiveTab]);
+  // Identity for this instance's draft invoice-number reservation.
+  const draftOwnerIdRef = useRef(null);
+  if (!draftOwnerIdRef.current) draftOwnerIdRef.current = `${tabId || 'sales'}_${Math.random().toString(36).slice(2, 9)}`;
+  const draftOwnerId = draftOwnerIdRef.current;
+  const draftScope = (isSaleMode) => `${currentBusiness?.id}|${isSaleMode ? 'sales' : 'purchases'}`;
+  // True while the shown invoice number was auto-assigned (not typed by the user).
+  const autoNumberRef = useRef(true);
   const canViewPurchasePrice = !staffSession || staffSession.role === 'admin' || !!staffSession.features?.viewPurchasePrice;
+  // Settings → Features → Others — when on, saving this bill overwrites the
+  // item's own sale/purchase price with whatever rate was typed here (if
+  // different). Surfaced as a "From Last Price" hint under the Rate field so
+  // the user knows this price can move bill-to-bill, not just once here.
+  const autoUpdatePriceOn = isSale ? !!config.itemDefaults?.autoUpdateSalePrice : !!config.itemDefaults?.autoUpdatePurchasePrice;
   // "Billed By" should read "Admin" for the business owner/admin regardless of
   // how they logged in — Google sign-in (!staffSession) or business code +
   // admin password (staffSession.role === 'admin', whose session.name is the
@@ -942,10 +1170,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   const [selectedTx, setSelectedTx] = useState(null);
   const closeTxPreview = () => setSelectedTx(null);
   const selectTx = (tx) => setSelectedTx(tx);
-  const [txViewMode, setTxViewMode] = useState(() => loadViewMode(mode));
+  const [txViewMode, setTxViewMode] = useState(() => loadViewMode(`${mode}:v2`, 'grid'));
   const changeTxViewMode = (m) => {
     setTxViewMode(m);
-    saveViewMode(mode, m);
+    saveViewMode(`${mode}:v2`, m);
     // Grid tiles are much smaller than list rows — default to a larger page
     // size in grid mode so the extra width/space it uses is actually filled.
     setRowsPerPage(m === 'grid' ? 30 : 10);
@@ -956,6 +1184,12 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   const [sendOpen, setSendOpen] = useState(false);
   const [sendTx, setSendTx] = useState(null);
   const [sendParty, setSendParty] = useState(null);
+  // Settings → Barcode Label → "Auto Print Barcodes" — holds the just-saved
+  // purchase's item masters (one entry per distinct item on the bill) plus
+  // each item's default copy count (from the qty actually added to stock),
+  // so BulkBarcodeDialog can open right after a Purchase saves with copies
+  // pre-filled to match what was purchased.
+  const [autoPrintBarcode, setAutoPrintBarcode] = useState(null); // { items, copies } | null
   // When set, the next SendDialog open uses this as a fixed message instead
   // of SendDialog's own default invoice-summary text — used for the overdue
   // payment reminder message.
@@ -968,14 +1202,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   // "Received Payment" / "Payment Made" dialog — lets the user pick Cash /
   // Bank / Split before settling an invoice's outstanding balance, instead
   // of always assuming Cash.
-  const [receivePayDialog, setReceivePayDialog] = useState({ open: false, tx: null, outstanding: 0 });
-  const [receivePayMode, setReceivePayMode] = useState('Cash');
-  const [receivePaySplitCash, setReceivePaySplitCash] = useState('');
-  const [receivePaySplitBank, setReceivePaySplitBank] = useState('');
-  const [receivePayDate, setReceivePayDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [receivePayLess, setReceivePayLess] = useState('');
-  const [receivePayNotes, setReceivePayNotes] = useState('');
-  const [receivePaySaving, setReceivePaySaving] = useState(false);
+  const [receivePayDialog, setReceivePayDialog] = useState({ open: false, tx: null });
 
   // Invoice previews auto-scale to fit their container via <FitPreview>.
   const [roundOff, setRoundOff] = useState(() => config.billPrintOptions?.autoRoundOff ? 1 : 0); // 0=off, +1/+2/+3=round-up to 1/10/100, -1/-2/-3=round-down
@@ -1002,7 +1229,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   // "all" | "paid" | "unpaid" | "overdue" — real values tx.status actually
   // holds are 'paid'/'unpaid'; "overdue" is derived from dueDate below.
   const [quickStatus, setQuickStatus] = useState("all");
-  const [datePreset, setDatePreset] = useState("all");
+  // Opens on Today by default; "All time" is one click away in the quick-filter row.
+  const [datePreset, setDatePreset] = useState("today");
   const [sortBy, setSortBy] = useState("date");
   const [sortDir, setSortDir] = useState("desc");
   const [showFilters, setShowFilters] = useState(false);
@@ -1027,6 +1255,28 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   // the Customer First render branch) so the keyboard-advance listener
   // below can keep a ref of it in sync.
   const obActive = obMode && view === "create" && entryMode === "customer";
+  // On-the-go bill: a quick one-off bill where the customer is just a typed
+  // name/phone and items are typed by name — nothing is created in Parties
+  // or Items, no stock moves, and no customer list is shown. The toggle is
+  // remembered on this device (localStorage, separately for Sales and
+  // Purchases) until changed; off by default. An existing on-the-go bill
+  // opens in the same mode when edited.
+  const [onTheGoPref, setOnTheGoPref] = usePersistedState(isSale ? 'sales_onTheGo' : 'purchases_onTheGo', false);
+  const [editOnTheGo, setEditOnTheGo] = useState(false);
+  const otgActive = entryMode === "customer" && (view === "edit" ? editOnTheGo : view === "create" && onTheGoPref);
+  // A saved customer/vendor picked on an On-the-go bill is used normally
+  // (credit, balance, loyalty, preview). Only a typed name/phone is a
+  // walk-in with no record — that's when credit isn't allowed.
+  const otgNoParty = otgActive && !selectedParty?.id;
+  useEffect(() => {
+    if (otgNoParty && saleType === "credit") setSaleType("paid");
+  }, [otgNoParty, saleType]);
+  const setOtgParty = (field, value) => {
+    setSelectedParty((prev) => {
+      const next = { ...(prev && !prev.id ? prev : {}), [field]: value };
+      return next.name?.trim() || next.phone?.trim() ? next : null;
+    });
+  };
   useEffect(() => { obActiveRef.current = obActive; }, [obActive]);
   useEffect(() => { obStepRef.current = obStep; }, [obStep]);
   // Landing on the Items step (via Continue, Back, or a step-chip click)
@@ -1211,22 +1461,19 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     if (!location.state?.scannedBarcode) return;
     const { scannedBarcode, scannedItem } = location.state;
     window.history.replaceState({}, document.title);
-    const found =
-      scannedItem ||
-      (() => {
-        const allItems = getItems("items").filter(
-          (i) => i.businessId === currentBusiness?.id,
-        );
-        return allItems.find(
-          (i) => i.barcode === scannedBarcode || i.itemCode === scannedBarcode || String(i.id) === scannedBarcode,
-        );
-      })();
-    if (found) {
+    const target =
+      (scannedItem ? { item: scannedItem, stockRefId: undefined } : null) ||
+      resolveScanTarget(
+        getItems("items").filter((i) => i.businessId === currentBusiness?.id),
+        scannedBarcode,
+      );
+    if (target) {
+      const rowLabel = target.stockRefId ? resolveStockRef(target.stockRefId, target.item)?.label : null;
       // Store the found item in the ref so the view-reset effect can pick it up
       // instead of being overwritten by that effect.
-      pendingScannedItemRef.current = { found, isSaleAtTime: isSale };
+      pendingScannedItemRef.current = { found: target.item, stockRefId: target.stockRefId, isSaleAtTime: isSale };
       setView("create");
-      setSnack({ open: true, message: `${found.name} added from scan`, severity: "success" });
+      setSnack({ open: true, message: `${target.item.name}${rowLabel ? ` (${rowLabel})` : ''} added from scan`, severity: "success" });
     } else {
       setSnack({ open: true, message: `No item found for barcode: ${scannedBarcode}`, severity: "warning" });
     }
@@ -1240,10 +1487,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     const stockItems = getItems("items").filter(
       (i) => i.businessId === currentBusiness?.id,
     );
-    const foundItem = stockItems.find(
-      (i) => i.barcode === barcode || i.itemCode === barcode || String(i.id) === barcode,
-    );
-    if (!foundItem) {
+    const target = resolveScanTarget(stockItems, barcode);
+    if (!target) {
       setSnack({
         open: true,
         message: `No item found for barcode: ${barcode}`,
@@ -1251,8 +1496,12 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       });
       return;
     }
-    const price =
-      Number(isSale ? (foundItem.salePrice ?? foundItem.price) : (foundItem.purchasePrice ?? foundItem.price)) || 0;
+    const { item: foundItem, stockRefId } = target;
+    const trackedRow = stockRefId ? resolveStockRef(stockRefId, foundItem) : null;
+    const rowLabel = trackedRow?.label;
+    const price = (trackedRow && foundItem.stockMode === 'variant' && trackedRow.priceOverride != null)
+      ? Number(trackedRow.priceOverride)
+      : Number(isSale ? (foundItem.salePrice ?? foundItem.price) : (foundItem.purchasePrice ?? foundItem.price)) || 0;
     const taxRate = Number(foundItem.taxRate) || 0;
     const discountPercent = isSale && Number(foundItem.discount) ? Number(foundItem.discount) : "";
     const newRow = {
@@ -1265,12 +1514,18 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       taxInclusive: !!foundItem.taxInclusive,
       hsnCode: foundItem.hsnCode || '',
       unit: foundItem.unit || '',
+      stockRefId: stockRefId || "",
       total: !!foundItem.taxInclusive
         ? price * (1 - (Number(discountPercent) || 0) / 100)
         : price * (1 - (Number(discountPercent) || 0) / 100) * (1 + taxRate / 100),
     };
-    // If this item is already in the invoice, just increment its quantity
-    const existingIdx = items.findIndex((i) => String(i.itemId) === String(foundItem.id));
+    // If this exact item+variant/batch is already in the invoice, just
+    // increment its quantity — matched by BOTH itemId and stockRefId, since
+    // two rows can now be the same item with different variants (e.g.
+    // Red-M and Red-L), which must stay as separate rows.
+    const existingIdx = items.findIndex(
+      (i) => String(i.itemId) === String(foundItem.id) && (i.stockRefId || "") === (stockRefId || ""),
+    );
     if (existingIdx >= 0) {
       setItems((prev) => {
         const updated = [...prev];
@@ -1285,7 +1540,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         updated[existingIdx] = { ...existing, qty: newQty, total: newTotal, amountDraft: undefined, qtyDisplay: undefined };
         return updated;
       });
-      setSnack({ open: true, message: `${foundItem.name} ×${items[existingIdx] ? (Number(items[existingIdx].qty) || 0) + 1 : 2}`, severity: 'success' });
+      setSnack({ open: true, message: `${foundItem.name}${rowLabel ? ` (${rowLabel})` : ''} ×${items[existingIdx] ? (Number(items[existingIdx].qty) || 0) + 1 : 2}`, severity: 'success' });
       return;
     }
     const emptyIdx = items.findIndex((i) => !i.itemId);
@@ -1300,7 +1555,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     }
     setSnack({
       open: true,
-      message: `Added: ${foundItem.name}`,
+      message: `Added: ${foundItem.name}${rowLabel ? ` (${rowLabel})` : ''}`,
       severity: "success",
     });
   };
@@ -1311,7 +1566,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     return `${day}/${month}/${year}`;
   };
 
-  const generateInvoiceNumber = (date, isSaleMode) => {
+  const generateInvoiceNumber = (date, isSaleMode, extraUsed = []) => {
     const prefix = isSaleMode
       ? (config.invoiceNumberConfig?.salesPrefix || 'INV')
       : (config.invoiceNumberConfig?.purchasePrefix || 'BILL');
@@ -1338,8 +1593,54 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       const serial = parseInt(parts[parts.length - 1], 10);
       if (!isNaN(serial) && serial > maxSerial) maxSerial = serial;
     });
-    return `${prefix}-${String(maxSerial + 1).padStart(4, '0')}`;
+    // Skip numbers another open tab is already showing as its draft (and
+    // any just-saved serial the data layer hasn't surfaced yet).
+    reservedSerials(draftScope(isSaleMode), prefix, draftOwnerId).forEach((s) => { if (s > maxSerial) maxSerial = s; });
+    extraUsed.forEach((s) => { if (s > maxSerial) maxSerial = s; });
+    return formatInvoiceNumber(prefix, maxSerial + 1);
   };
+
+  // ── Draft invoice-number reservation (multi-tab uniqueness) ──────────────
+  const numberPrefix = () => (isSale
+    ? (config.invoiceNumberConfig?.salesPrefix || 'INV')
+    : (config.invoiceNumberConfig?.purchasePrefix || 'BILL'));
+  const savedSerialSet = (prefix) => {
+    const set = new Set();
+    getItems(isSale ? 'sales' : 'purchases').forEach((tx) => {
+      if (tx.businessId !== currentBusiness?.id) return;
+      const s = parseSerial(tx.invoiceNumber, prefix);
+      if (s != null) set.add(s);
+    });
+    return set;
+  };
+  // Returns this tab's draft number — keeps its existing reservation while
+  // it's still free, otherwise reserves the next free serial.
+  const allocateDraftNumber = (date, extraUsed = []) => {
+    const prefix = numberPrefix();
+    const scope = draftScope(isSale);
+    const cur = getDraft(draftOwnerId);
+    const hasOverride = (isSale ? config.invoiceNumberConfig?.salesCounterOverride : config.invoiceNumberConfig?.purchaseCounterOverride) != null;
+    if (!hasOverride && cur && cur.scope === scope && cur.prefix === prefix
+        && !extraUsed.includes(cur.serial)
+        && !savedSerialSet(prefix).has(cur.serial)
+        && !reservedSerials(scope, prefix, draftOwnerId).has(cur.serial)) {
+      return formatInvoiceNumber(prefix, cur.serial);
+    }
+    const num = generateInvoiceNumber(date, isSale, extraUsed);
+    const serial = parseSerial(num, prefix);
+    if (serial != null) reserveDraft(draftOwnerId, scope, prefix, serial);
+    else releaseDraft(draftOwnerId);
+    autoNumberRef.current = true;
+    return num;
+  };
+  const releaseMyDraft = (repack) => {
+    if (!getDraft(draftOwnerId)) return;
+    const prefix = getDraft(draftOwnerId).prefix;
+    const saved = repack ? savedSerialSet(prefix) : null;
+    releaseDraft(draftOwnerId, { repack, isSavedSerial: (s) => !!saved?.has(s) });
+  };
+  const releaseMyDraftRef = useRef(releaseMyDraft);
+  releaseMyDraftRef.current = releaseMyDraft;
 
   const tableName = isSale ? "sales" : "purchases";
   // Keep the side-preview selection in sync with live data (after edits/saves)
@@ -1373,11 +1674,27 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     return map;
   }, [data.parties, currentBusiness?.id]); // eslint-disable-line
 
+  // partyId → the customer/vendor's CURRENT phone. A bill keeps a copy of the
+  // phone taken when it was saved, so bills saved before the number was added
+  // (or imported / converted / bulk-added without one) showed no phone even
+  // though the customer has one. Used only as a fallback below.
+  const partyPhoneById = useMemo(() => {
+    const map = new Map();
+    (data.parties || []).forEach((p) => {
+      if (p.businessId !== currentBusiness?.id) return;
+      const ph = p.phone || p.altPhone;
+      if (ph) map.set(String(p.id), String(ph));
+    });
+    return map;
+  }, [data.parties, currentBusiness?.id]);
+
   // Quick date-range presets shown in the header, layered on top of the
   // From/To fields in the filter panel (a preset just fills those in).
   const datePresetRange = (preset) => {
     const now = new Date();
-    const toISO = (d) => d.toISOString().split("T")[0];
+    // Local calendar date (not toISOString, which is UTC — in India that put
+    // "today" on yesterday until 5:30 am and started month/year a day early).
+    const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
     if (preset === "today") return { from: toISO(now), to: toISO(now) };
     if (preset === "week") {
       const day = now.getDay() || 7;
@@ -1399,8 +1716,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   // when the underlying data or an actual filter/sort input changes — not
   // on every render (tab switches, unrelated state updates, keystrokes in
   // other fields, etc.), which is what caused visible lag on large datasets.
-  const transactions = useMemo(() => getItems(tableName)
-    .filter((tx) => tx.businessId === currentBusiness?.id)
+  const transactions = useMemo(() => filterOwnRecords(getItems(tableName)
+    .filter((tx) => tx.businessId === currentBusiness?.id), staffSession)
     .filter((tx) => {
       if (debouncedSearch) {
         const s = debouncedSearch.toLowerCase();
@@ -1415,7 +1732,9 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         )
           return false;
       }
-      const preset = datePresetRange(datePreset);
+      // A search looks across all dates — an old invoice number typed while
+      // the list is on the default Today view should still be found.
+      const preset = debouncedSearch ? null : datePresetRange(datePreset);
       const effFrom = filters.dateFrom || preset?.from;
       const effTo = filters.dateTo || preset?.to;
       if (effFrom && new Date(tx.date) < new Date(effFrom)) return false;
@@ -1451,13 +1770,54 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         if (cmp === 0) cmp = (a.invoiceNumber || "").localeCompare(b.invoiceNumber || "", undefined, { numeric: true, sensitivity: 'base' });
       }
       return sortDir === "asc" ? cmp : -cmp;
-    }),
+    })
+    .map((tx) => (tx.partyPhone || !tx.partyId || !partyPhoneById.has(String(tx.partyId))
+      ? tx
+      : { ...tx, partyPhone: partyPhoneById.get(String(tx.partyId)) })),
     // Depend on data[tableName] (the actual sales/purchases array), not
     // getItems — getItems's identity changes on every mutation to ANY table
     // (parties, expenses, etc.), which was forcing this full 16k+ row
     // filter+sort to rerun on completely unrelated edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [data[tableName], tableName, currentBusiness?.id, phoneToPartyIds, debouncedSearch, filters.dateFrom, filters.dateTo, filters.partyId, filters.minAmount, filters.maxAmount, quickStatus, datePreset, sortBy, sortDir]);
+    [data[tableName], tableName, currentBusiness?.id, staffSession, phoneToPartyIds, partyPhoneById, debouncedSearch, filters.dateFrom, filters.dateTo, filters.partyId, filters.minAmount, filters.maxAmount, quickStatus, datePreset, sortBy, sortDir]);
+
+  // One-time backfill: bills part-paid before received vs. written-off were
+  // tracked separately only have `amountPaid` (received + write-off). Rebuild
+  // the split from their own RCV- payment records so "Received" shows the
+  // real money in. Skips any bill whose payments don't add up to amountPaid.
+  useEffect(() => {
+    const bizId = currentBusiness?.id;
+    if (!bizId) return;
+    const rows = (data[tableName] || []).filter(
+      (t) => t.businessId === bizId && Number(t.amountPaid) > 0 && t.amountReceived == null,
+    );
+    if (!rows.length) return;
+    const payType = isSale ? 'PaymentIn' : 'PaymentOut';
+    const pays = (data.payments || []).filter((p) => p.businessId === bizId && (!p.type || p.type === payType));
+    const updates = [];
+    for (const t of rows) {
+      const ref = `RCV-${t.invoiceNumber}`;
+      const mine = pays.filter((p) => p.referenceNo === ref);
+      const received = mine.reduce((sum, p) => sum + (Number(p.totalAmount) || 0), 0);
+      const written = mine.reduce((sum, p) => sum + (Number(p.lessAmount) || 0), 0);
+      if (mine.length && Math.abs(received + written - Number(t.amountPaid)) < 0.01) {
+        updates.push({ id: t.id, amountReceived: received, amountWrittenOff: written });
+      }
+    }
+    if (updates.length) updateItems(tableName, updates);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data[tableName], data.payments, tableName, currentBusiness?.id]);
+
+  // How many of this business's bills exist at all (before search/period
+  // filters) — used to tell the user when older bills are hidden by the
+  // period filter instead of implying there are none.
+  const allBillsCount = useMemo(
+    () => filterOwnRecords((data[tableName] || []).filter((tx) => tx.businessId === currentBusiness?.id), staffSession).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [data[tableName], currentBusiness?.id, staffSession],
+  );
+  const PERIOD_LABELS = { today: "today", week: "this week", month: "this month", year: "this year" };
+  const hiddenByPeriod = datePreset !== "all" && !debouncedSearch ? Math.max(0, allBillsCount - transactions.length) : 0;
 
   // No auto-selected/default preview — the preview only opens when the user
   // explicitly clicks the eye icon (TxDataTable in list mode, or the eye
@@ -1475,7 +1835,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     }
     const today = new Date().toISOString().split("T")[0];
     const keepDate = opts.keepDate ? invoiceDate : today;
-    const nextNum = opts.nextInvoiceNumber || generateInvoiceNumber(keepDate, isSale);
+    const nextNum = allocateDraftNumber(keepDate, opts.extraUsed || []);
+    autoNumberRef.current = true;
     setInvoiceNumber(nextNum);
     if (!opts.keepDate) setInvoiceDate(today);
     setSelectedParty(null);
@@ -1529,11 +1890,14 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     const pending = pendingScannedItemRef.current;
     pendingScannedItemRef.current = null;
     if (pending) {
-      const { found, isSaleAtTime } = pending;
-      const price = Number(isSaleAtTime ? (found.salePrice ?? found.price) : (found.purchasePrice ?? found.price)) || 0;
+      const { found, stockRefId, isSaleAtTime } = pending;
+      const trackedRow = stockRefId ? resolveStockRef(stockRefId, found) : null;
+      const price = (trackedRow && found.stockMode === 'variant' && trackedRow.priceOverride != null)
+        ? Number(trackedRow.priceOverride)
+        : Number(isSaleAtTime ? (found.salePrice ?? found.price) : (found.purchasePrice ?? found.price)) || 0;
       const taxRate = Number(found.taxRate) || 0;
       const discountPercent = isSaleAtTime && Number(found.discount) ? Number(found.discount) : "";
-      setItems([{ itemId: found.id, name: found.name, qty: 1, price: price || "", taxRate, discountPercent, taxInclusive: false, hsnCode: found.hsnCode || '', unit: found.unit || '', total: price * (1 - (Number(discountPercent) || 0) / 100) * (1 + taxRate / 100) }]);
+      setItems([{ itemId: found.id, name: found.name, qty: 1, price: price || "", taxRate, discountPercent, taxInclusive: false, hsnCode: found.hsnCode || '', unit: found.unit || '', stockRefId: stockRefId || "", total: price * (1 - (Number(discountPercent) || 0) / 100) * (1 + taxRate / 100) }]);
     } else {
       setItems([{ itemId: "", name: "", qty: "", price: "", taxRate: 0, discountPercent: "", taxInclusive: false, total: 0, _key: Date.now() }]);
     }
@@ -1559,9 +1923,40 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   }, [view, isSale]); // eslint-disable-line
 
   useEffect(() => {
-    if (view === "create" && !savingRef.current && !isSaving)
-      setInvoiceNumber(generateInvoiceNumber(invoiceDate, isSale));
+    if (view === "create" && !savingRef.current && !isSaving && autoNumberRef.current)
+      setInvoiceNumber(allocateDraftNumber(invoiceDate));
   }, [invoiceDate, isSale]); // eslint-disable-line
+
+  // Leaving the create form: a saved draft's number is now a real invoice
+  // (plain release); an abandoned draft frees its number and the other open
+  // tabs' drafts are re-packed into the gap.
+  const justSavedRef = useRef(false);
+  useEffect(() => {
+    if (view !== "create") {
+      releaseMyDraft(!justSavedRef.current);
+      justSavedRef.current = false;
+    }
+  }, [view]); // eslint-disable-line
+
+  // Tab closed (component unmounts) without saving → free the number.
+  useEffect(() => () => releaseMyDraftRef.current(true), []);
+
+  // Another tab's draft was released → this tab's number may have shifted.
+  useEffect(() => subscribeDrafts((changed) => {
+    if (!changed.has(draftOwnerId)) return;
+    const d = getDraft(draftOwnerId);
+    if (d && autoNumberRef.current && viewRef.current === "create" && !savingRef.current) {
+      setInvoiceNumber(formatInvoiceNumber(d.prefix, d.serial));
+    }
+  }), []); // eslint-disable-line
+
+  // A record saved elsewhere (another tab / POS / another device) took this
+  // tab's draft number → move to the next free one.
+  useEffect(() => {
+    if (view !== "create" || !autoNumberRef.current || savingRef.current) return;
+    const d = getDraft(draftOwnerId);
+    if (d && savedSerialSet(d.prefix).has(d.serial)) setInvoiceNumber(allocateDraftNumber(invoiceDate));
+  }, [data[tableName]]); // eslint-disable-line
 
   useEffect(() => {
     setPage(0);
@@ -1805,7 +2200,6 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       const selected = stockItems.find((i) => i.id === value);
       if (selected) {
         item.name = selected.name || '';
-        item.price = Number(isSale ? (selected.salePrice ?? selected.price) : (selected.purchasePrice ?? selected.price)) || "";
         item.taxRate = Number(selected.taxRate) || 0;
         item.cgstRate = selected.cgstRate != null ? Number(selected.cgstRate) : item.taxRate / 2;
         item.sgstRate = selected.sgstRate != null ? Number(selected.sgstRate) : item.taxRate / 2;
@@ -1814,12 +2208,25 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         item.isComposite = !!selected.isComposite;
         item.gstType = selected.gstType || null;
         item.hsnCode = selected.hsnCode || '';
-        item.unit = selected.unit || item.unit || '';
+        // On a Purchase row, default to the item's first pack size (e.g.
+        // "Box") when one is set up — the row's price then comes straight
+        // from that pack's own cost, not a separately-typed number.
+        const defaultPack = (!isSale && hasBulkConversion(selected)) ? packsOf(selected)[0] : null;
+        item.packId = defaultPack?.id || '';
+        item.unit = defaultPack ? defaultPack.label : (selected.unit || item.unit || '');
+        item.price = defaultPack
+          ? defaultPack.price
+          : Number(isSale ? (selected.salePrice ?? selected.price) : (selected.purchasePrice ?? selected.price)) || "";
         item.taxInclusive = !!selected.taxInclusive;
         // Apply the item's default discount on sales (kept off for purchases).
         item.discountPercent = isSale && Number(selected.discount) ? Number(selected.discount) : "";
         item.recipe = Array.isArray(selected.recipe) ? selected.recipe : [];
         item.recipeOverrides = {};
+        // Variant/batch-tracked item: no default selection — the row's
+        // ItemVariantPicker (rendered below the item field) forces an
+        // explicit choice before the row can be saved, since price/stock
+        // depend on which one is picked.
+        item.stockRefId = "";
         // Auto-fill the default supplier when creating a purchase and no party is selected yet
         if (!isSale && selected.defaultPartyId && !selectedParty) {
           const supplier = getItems("parties").find(
@@ -1827,6 +2234,35 @@ const SalesPage = ({ mode = "sales", tabId }) => {
           );
           if (supplier) setSelectedParty(supplier);
         }
+      }
+    }
+    // Switching a row's pack (Box → Carton → Loose Pcs) re-derives the row's
+    // price/unit straight from that pack's own definition — no conversion
+    // math, no stale price left over from the previous pack. A Purchase
+    // row's price is the pack's own defined cost; a Sale row has no
+    // separate per-pack sale price, so it's derived from the item's normal
+    // per-piece Sale Price × the pack's size (rowPackPrice).
+    if (field === "packId") {
+      const stockItem = item.itemId ? stockItems.find((i) => i.id === item.itemId) : null;
+      const pack = rowPack(value, stockItem);
+      item.packId = value || '';
+      if (pack) {
+        item.unit = pack.label;
+        item.price = rowPackPrice(pack, stockItem, isSale);
+      } else {
+        item.unit = stockItem?.unit || '';
+        item.price = Number(isSale ? (stockItem?.salePrice ?? stockItem?.price) : (stockItem?.purchasePrice ?? stockItem?.price)) || '';
+      }
+    }
+    // Picking a variant/batch — a variant's own priceOverride (if set)
+    // becomes the row's Sale price; a batch never overrides price (same
+    // price regardless of lot), it only identifies which stock to deduct.
+    if (field === "stockRefId") {
+      item.stockRefId = value || "";
+      const stockItem = item.itemId ? stockItems.find((i) => i.id === item.itemId) : null;
+      const row = resolveStockRef(value, stockItem);
+      if (row && stockItem?.stockMode === 'variant' && isSale && row.priceOverride != null) {
+        item.price = row.priceOverride;
       }
     }
     const price = Number(item.price) || 0;
@@ -1939,6 +2375,25 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     return target != null ? target - total : 0;
   };
   const calculateFinalTotal = () => Math.max(0, calculateTotal() + calculateRoundOff() - loyaltyRedeemValue);
+  // "Points on this bill" strip (Sales, new invoice, linked customer only —
+  // points are only earned/saved on a new sale). Redeems this bill's own
+  // points on the same bill; unredeemed points are saved on save.
+  const renderLoyaltyNow = () => {
+    if (!isSale || view === "edit" || !config.features?.loyalty || !selectedParty?.id) return null;
+    const party = (data.parties || []).find((p) => p.id === selectedParty.id) || selectedParty;
+    return (
+      <Box sx={{ mb: 1.5 }}>
+        <LoyaltyRedeemNow
+          loyalty={config.loyalty}
+          billAmount={calculateTotal() + calculateRoundOff()}
+          prevPoints={party.loyaltyPoints}
+          redeemedPoints={loyaltyRedeemPoints}
+          onRedeem={(pts, val) => { setLoyaltyRedeemPoints(pts); setLoyaltyRedeemValue(val); }}
+          accent={tokens.primary}
+        />
+      </Box>
+    );
+  };
   // The amount the "Show Payment QR" button/dialog should ask for — for a
   // Split payment only the bank/UPI portion is being paid via QR (e.g. ₹500
   // total, ₹200 cash + ₹300 QR), so the QR must not ask for the full total.
@@ -1946,9 +2401,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
 
   const handleSave = async (options = {}) => {
     const { saveAndCreateNew = false, saveAndPrint = false } = options;
-    // TallyKraft billing: block saving entirely when the subscription is
-    // inactive — the data layer would reject the write anyway, but this gives
-    // the user a clear message and routes them to renew.
+    // Billing: block saving when the subscription is inactive — the data
+    // layer would reject the write anyway; this gives a clear message.
     if (!canWrite) {
       showAlert("Your subscription is inactive. Please renew to save invoices.");
       return;
@@ -1960,7 +2414,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       const currentSelectedParty = selectedParty;
       const currentInvoiceDate = invoiceDate;
       const currentInvoiceTime = invoiceTime || "";
-      const currentInvoiceNumber = invoiceNumber;
+      let currentInvoiceNumber = invoiceNumber;
       const currentItems = [...items];
       const currentDescription = description;
       const currentNoGST = noGST;
@@ -2007,6 +2461,25 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         savingRef.current = false;
         setIsSaving(false);
         return;
+      }
+      // No two invoices/bills may share a number. An auto-assigned number
+      // that got taken meanwhile (another tab, POS, another device) is
+      // silently moved to the next free one; a typed number must be changed.
+      if (!currentEditId) {
+        const numTaken = (num) => getItems(tableName).some(
+          (t) => t.businessId === currentBusiness?.id && (t.invoiceNumber || '').trim() === num.trim()
+        );
+        if (numTaken(currentInvoiceNumber)) {
+          if (autoNumberRef.current) {
+            currentInvoiceNumber = allocateDraftNumber(currentInvoiceDate);
+            setInvoiceNumber(currentInvoiceNumber);
+          } else {
+            await showAlert({ title: "Number already used", message: `${isSale ? 'Invoice' : 'Bill'} number ${currentInvoiceNumber.trim()} already exists. Please use a different number.`, variant: "warning" });
+            savingRef.current = false;
+            setIsSaving(false);
+            return;
+          }
+        }
       }
       if (!currentInvoiceDate) {
         await showAlert({ title: "Date required", message: "Please select a date for this invoice.", variant: "warning" });
@@ -2078,6 +2551,24 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         setIsSaving(false);
         return;
       }
+      // A variant/batch-tracked item's row must have an explicit pick —
+      // price/stock depend on which one, so an unresolved row would
+      // silently apply stock to nothing (see addLineDeltas above, which
+      // only moves stock when stockRefId is set).
+      const missingRefLine = cleanedItems.find((ci) => {
+        const si = stockItems.find((s) => String(s.id) === String(ci.itemId));
+        return stockRows(si) && !ci.stockRefId;
+      });
+      if (missingRefLine) {
+        await showAlert({
+          title: "Choose a variant/batch",
+          message: `"${missingRefLine.name}" needs a variant or batch selected before this can be saved.`,
+          variant: "warning",
+        });
+        savingRef.current = false;
+        setIsSaving(false);
+        return;
+      }
       if (finalTotalAmount <= 0) {
         await showAlert({ title: "Invalid total", message: "The total amount must be greater than zero.", variant: "warning" });
         savingRef.current = false;
@@ -2109,6 +2600,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         ...(currentConvertSource?.sourceType === "estimate" ? { sourceEstimateId: currentConvertSource.sourceId } : {}),
         ...(currentConvertSource?.sourceType === "order" ? { sourceOrderId: currentConvertSource.sourceId } : {}),
         businessId: currentBusinessId,
+        ...(otgActive ? { onTheGo: true } : {}),
         partyId: currentSelectedParty?.id || "",
         partyName:
           currentSelectedParty?.name ||
@@ -2117,7 +2609,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         partyAddress: currentSelectedParty?.address || "",
         partyCity: currentSelectedParty?.city || "",
         partyState: partyState,
-        partyPhone: currentSelectedParty?.phone || "",
+        partyPhone: currentSelectedParty?.phone || currentSelectedParty?.altPhone
+          || (currentSelectedParty?.id ? partyPhoneById.get(String(currentSelectedParty.id)) : "") || "",
         // Place of Supply is a fixed business-level setting (Settings →
         // Business Profile → State), not a per-invoice value — set once,
         // used on every bill.
@@ -2207,14 +2700,22 @@ const SalesPage = ({ mode = "sales", tabId }) => {
           .map(ci => {
             const si = stockItems.find(s => String(s.id) === String(ci.itemId));
             if (!si) return null;
-            const avail = Number(si.stock) || 0;
+            // Variant/batch-tracked item: check the SPECIFIC row's own
+            // stock, not the item's flat total (which is just the sum
+            // across every row and would let a sale over-draw one variant
+            // as long as another variant still has stock left).
+            const trackedRow = ci.stockRefId ? resolveStockRef(ci.stockRefId, si) : null;
+            const avail = trackedRow ? (Number(trackedRow.stock) || 0) : (Number(si.stock) || 0);
             const qty = Number(ci.qty) || 0;
             let effectiveAvail = avail;
             if (currentEditId && editedOldTx) {
-              const oldLine = editedOldTx.items?.find(oi => String(oi.itemId) === String(ci.itemId));
+              const oldLine = editedOldTx.items?.find(oi =>
+                String(oi.itemId) === String(ci.itemId) && (trackedRow ? oi.stockRefId === ci.stockRefId : true),
+              );
               effectiveAvail = avail + (Number(oldLine?.qty) || 0);
             }
-            return qty > effectiveAvail ? { name: ci.name || si.name || 'Unknown item', qty, avail: effectiveAvail } : null;
+            const label = trackedRow ? `${ci.name || si.name} (${trackedRow.label})` : (ci.name || si.name || 'Unknown item');
+            return qty > effectiveAvail ? { name: label, qty, avail: effectiveAvail } : null;
           })
           .filter(Boolean);
         if (overStockLines.length > 0) {
@@ -2242,6 +2743,42 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         }
       }
 
+      // Expired-batch check — sales only, gated by feature flag. Same
+      // "warn at save time, let them proceed" shape as the stock-alert
+      // check above, not a hard block — some businesses legitimately still
+      // need to clear expired stock (e.g. a documented write-off sale).
+      if (currentIsSale && config.features?.alertExpired !== false) {
+        const expiredLines = cleanedItems
+          .map(ci => {
+            if (!ci.stockRefId) return null;
+            const si = stockItems.find(s => String(s.id) === String(ci.itemId));
+            const batch = resolveStockRef(ci.stockRefId, si);
+            if (!batch) return null;
+            const days = daysUntilExpiry(batch.expiryDate);
+            return days != null && days < 0 ? { name: ci.name || si?.name || 'Unknown item', batchLabel: batch.label, days } : null;
+          })
+          .filter(Boolean);
+        if (expiredLines.length > 0) {
+          const lines = expiredLines.map(l => `${l.name} — batch "${l.batchLabel}" (expired ${Math.abs(l.days)}d ago)`);
+          const proceed = await confirm({
+            title: 'Selling expired stock',
+            message: lines.join('\n') + '\n\nProceed anyway?',
+            confirmLabel: 'Proceed',
+            cancelLabel: 'Cancel',
+          });
+          if (!proceed) {
+            if (currentEditId && editedOldTx && editedOldParty) {
+              await updateItem("parties", editedOldTx.partyId, {
+                balance: editedOldParty.balance,
+              });
+            }
+            savingRef.current = false;
+            setIsSaving(false);
+            return;
+          }
+        }
+      }
+
       // Compute loyalty fields before saving so they are persisted on the transaction record
       const newParty = currentSelectedParty?.id
         ? currentParties.find((p) => p.id === currentSelectedParty.id)
@@ -2250,12 +2787,11 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       let loyaltyNewPoints = 0;
       if (currentIsSale && !currentEditId && config.features?.loyalty && currentSelectedParty?.id && newParty) {
         const loyalty = config.loyalty || {};
-        const pointsPerRupee = Number(loyalty.pointsPerRupee) || 0;
-        const earnEveryRupees = Number(loyalty.earnEveryRupees) || 1;
-        loyaltyEarned = Math.floor((finalGrandTotal / earnEveryRupees) * pointsPerRupee);
+        // Earned on the bill amount before redemption, so points redeemed
+        // on this same bill (incl. the ones it earns) don't reduce earning.
+        loyaltyEarned = pointsEarnedOn(finalGrandTotal + currentLoyaltyRedeemValue, loyalty);
         const prevPoints = Number(newParty.loyaltyPoints) || 0;
-        const afterRedeem = prevPoints - currentLoyaltyRedeemPoints;
-        loyaltyNewPoints = Math.max(0, afterRedeem) + loyaltyEarned;
+        loyaltyNewPoints = loyaltyBalanceAfter(prevPoints, loyaltyEarned, currentLoyaltyRedeemPoints);
         transactionData._loyaltySnapshot = {
           earned: loyaltyEarned,
           balance: loyaltyNewPoints,
@@ -2291,6 +2827,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         }
         Object.assign(transactionData, savedItem);
       }
+      // This draft's number is now a real invoice — don't re-pack other tabs into it.
+      justSavedRef.current = true;
 
       // A Cash/Bank (saleType 'paid') transaction is fully settled via
       // Payment Mode at the moment it's created — it must NOT also add its
@@ -2406,7 +2944,20 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         // expanded into deltas for each of its components instead, using any
         // per-row recipeOverrides the user nudged at sale time (see
         // ConsolidatedRecipeStrip) in place of the recipe's default qtyPerUnit × qty.
-        const addLineDeltas = (deltas, item, sign) => {
+        // A row with a chosen pack (item.packId, e.g. "Box") always moves
+        // that pack's own qty-per-pack of stock instead of a bare 1:1 qty —
+        // buying by the Box adds N pieces, selling by the Box removes N
+        // pieces; `sign` (below) already encodes which direction this call
+        // is for, so the conversion itself doesn't need to know Sale vs
+        // Purchase. A recipe line is deliberately NOT converted — recipes
+        // are a sale-side concept (components consumed per unit sold), and
+        // a recipe item has no packs of its own anyway.
+        // refDeltas holds variant/batch-tracked lines separately, keyed
+        // "itemId::refId", since those need to move a SPECIFIC row inside
+        // item.variants[]/batches[] rather than the item's own flat stock
+        // number — the plain `deltas` map still covers simple items exactly
+        // as before.
+        const addLineDeltas = (deltas, refDeltas, item, sign) => {
           const q = Number(item.qty) || 0;
           if (Array.isArray(item.recipe) && item.recipe.length > 0) {
             for (const r of item.recipe) {
@@ -2415,7 +2966,14 @@ const SalesPage = ({ mode = "sales", tabId }) => {
               if (compQty > 0) deltas[r.itemId] = (deltas[r.itemId] || 0) + sign * compQty;
             }
           } else if (item.itemId) {
-            deltas[item.itemId] = (deltas[item.itemId] || 0) + sign * q;
+            const stockItem = currentStockItems.find((i) => String(i.id) === String(item.itemId));
+            if (stockRows(stockItem) && item.stockRefId) {
+              const key = `${item.itemId}::${item.stockRefId}`;
+              refDeltas[key] = (refDeltas[key] || 0) + sign * q;
+            } else {
+              const factor = rowUnitFactor(effectivePackId(item, stockItem, !currentIsSale), stockItem);
+              deltas[item.itemId] = (deltas[item.itemId] || 0) + sign * q * factor;
+            }
           }
         };
 
@@ -2424,20 +2982,77 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         // because each itemId is only touched once — no double-counting from
         // sequential reads of stale state.
         const stockDeltas = {};
+        const refStockDeltas = {};
         if (currentEditId && editedOldTx) {
-          for (const item of editedOldTx.items) addLineDeltas(stockDeltas, item, currentIsSale ? 1 : -1);
+          for (const item of editedOldTx.items) addLineDeltas(stockDeltas, refStockDeltas, item, currentIsSale ? 1 : -1);
         }
-        for (const item of transactionData.items) addLineDeltas(stockDeltas, item, currentIsSale ? -1 : 1);
+        for (const item of transactionData.items) addLineDeltas(stockDeltas, refStockDeltas, item, currentIsSale ? -1 : 1);
 
-        const stockUpdates = [];
+        // itemId -> partial update payload, merged (not overwritten) so a
+        // line that both moves stock AND changes price ends up as one row.
+        const itemUpdatesById = {};
         for (const [itemId, delta] of Object.entries(stockDeltas)) {
           if (delta !== 0) {
             // Object.entries converts keys to strings; match by string comparison
             // then use stockItem.id (original type) for the update payload.
             const stockItem = currentStockItems.find((i) => String(i.id) === itemId);
-            if (stockItem) stockUpdates.push({ id: stockItem.id, stock: (Number(stockItem.stock) || 0) + delta });
+            if (stockItem) itemUpdatesById[stockItem.id] = { id: stockItem.id, stock: (Number(stockItem.stock) || 0) + delta };
           }
         }
+        // Apply variant/batch deltas — moves one specific row's stock, then
+        // resums the item's own total `stock` (kept in sync for every plain
+        // low-stock/report check that reads item.stock directly).
+        const refDeltasByItem = {};
+        for (const [key, delta] of Object.entries(refStockDeltas)) {
+          if (delta === 0) continue;
+          const [itemId, refId] = key.split('::');
+          (refDeltasByItem[itemId] ||= {})[refId] = delta;
+        }
+        for (const [itemId, byRef] of Object.entries(refDeltasByItem)) {
+          const stockItem = currentStockItems.find((i) => String(i.id) === itemId);
+          if (!stockItem) continue;
+          const field = stockItem.stockMode === 'variant' ? 'variants' : 'batches';
+          const rows = (stockItem[field] || []).map((r) =>
+            byRef[r.id] ? { ...r, stock: (Number(r.stock) || 0) + byRef[r.id] } : r,
+          );
+          const total = rows.reduce((s, r) => s + (Number(r.stock) || 0), 0);
+          itemUpdatesById[stockItem.id] = { ...(itemUpdatesById[stockItem.id] || { id: stockItem.id }), [field]: rows, stock: total };
+        }
+
+        // Auto-update sale/purchase rate — Settings → Item GST Defaults.
+        // Only when ON, and only for a row whose typed price actually
+        // differs from what's currently on the item master (an unchanged
+        // price never triggers a write). Last line wins if an item appears
+        // more than once on the same bill.
+        const priceFlag = currentIsSale ? config.itemDefaults?.autoUpdateSalePrice : config.itemDefaults?.autoUpdatePurchasePrice;
+        const priceField = currentIsSale ? 'salePrice' : 'purchasePrice';
+        if (priceFlag) {
+          for (const item of transactionData.items) {
+            if (!item.itemId || item.notBilled) continue;
+            // A pack-based row's price is the pack's own cost/value (e.g.
+            // ₹450/Box on a Purchase, or salePrice×packQty on a Sale), not a
+            // per-sale-unit rate — never write it onto the item master's
+            // own salePrice/purchasePrice, which the item form documents
+            // and shows as ₹/sale-unit.
+            if (item.packId) continue;
+            const rowPrice = Number(item.price);
+            if (!(rowPrice >= 0)) continue;
+            const stockItem = currentStockItems.find((i) => String(i.id) === String(item.itemId));
+            if (!stockItem) continue;
+            // A variant with its own priceOverride is deliberately priced
+            // differently from the item's default — never let that get
+            // written back onto the item master's own salePrice.
+            if (item.stockRefId) {
+              const ref = resolveStockRef(item.stockRefId, stockItem);
+              if (stockItem.stockMode === 'variant' && ref?.priceOverride != null) continue;
+            }
+            const masterPrice = Number(stockItem[priceField] ?? stockItem.price) || 0;
+            if (rowPrice === masterPrice) continue;
+            itemUpdatesById[stockItem.id] = { ...(itemUpdatesById[stockItem.id] || { id: stockItem.id }), [priceField]: rowPrice };
+          }
+        }
+
+        const stockUpdates = Object.values(itemUpdatesById);
         if (stockUpdates.length) updateItems("items", stockUpdates);
       }
 
@@ -2446,19 +3061,61 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         : (isSale ? 'Invoice saved' : 'Purchase saved');
       setSnack({ open: true, message: successMsg, severity: 'success' });
 
+      // "Always Print Barcode After Purchase" — open the label print dialog
+      // for every distinct item on this bill, using each item's current
+      // master record (not the invoice row) so the printed label reflects
+      // the item's real price/barcode/etc. Computed up front (not fired yet)
+      // so every branch below can treat it exactly like the existing
+      // SendDialog prompt — mutually exclusive with selectTx()'s auto-preview
+      // Dialog. Opening two MUI Dialogs with open=true in the same commit
+      // desyncs MUI's Modal manager (it tracks a stack of open modals and
+      // restores aria-hidden/inert on the rest of the page as each closes),
+      // leaving the app unresponsive — the exact bug this same guard was
+      // already written to avoid for SendDialog above.
+      let barcodeItemsToPrint = null;
+      let barcodeCopiesToPrint = null;
+      if (!currentIsSale && config.barcodeLabel?.autoPrintAfterPurchase) {
+        const seen = new Set();
+        const billedItems = [];
+        const copiesById = {};
+        for (const row of transactionData.items || []) {
+          if (!row.itemId || row.notBilled) continue;
+          const stockItem = currentStockItems.find((i) => String(i.id) === String(row.itemId));
+          if (!stockItem) continue;
+          // Copies default to how many sale-units this row actually adds to
+          // stock — a plain loose-unit row is qty as typed, but a "buy in
+          // bulk, sell in pieces" row (e.g. 2 Boxes of 10) adds 20 pieces,
+          // so it should print 20 labels, not 2. Rounded since copies must
+          // be a whole number of labels; summed across rows so the same
+          // item appearing on multiple lines still gets the right total.
+          const factor = rowUnitFactor(row.packId, stockItem);
+          const units = Math.max(0, Math.round((Number(row.qty) || 0) * factor));
+          if (!seen.has(row.itemId)) { seen.add(row.itemId); billedItems.push(stockItem); }
+          copiesById[row.itemId] = (copiesById[row.itemId] || 0) + units;
+        }
+        if (billedItems.length) {
+          barcodeItemsToPrint = billedItems;
+          barcodeCopiesToPrint = Object.fromEntries(
+            Object.entries(copiesById).map(([id, n]) => [id, Math.max(1, n)])
+          );
+        }
+      }
+
       if (saveAndCreateNew) {
-        // Increment serial directly — getItems hasn't flushed the just-saved record yet
-        const parts = currentInvoiceNumber.trim().split("-");
-        const serial = parseInt(parts[parts.length - 1], 10) || 0;
-        parts[parts.length - 1] = String(serial + 1).padStart(4, "0");
-        const nextNum = parts.join("-");
-        resetForm({ nextInvoiceNumber: nextNum, keepDate: true });
+        if (barcodeItemsToPrint) setAutoPrintBarcode({ items: barcodeItemsToPrint, copies: barcodeCopiesToPrint });
+        // getItems hasn't flushed the just-saved record yet — pass its serial
+        // as already-used so the next draft number skips it.
+        const savedSerial = parseSerial(currentInvoiceNumber.trim(), numberPrefix());
+        releaseMyDraft(false);
+        resetForm({ keepDate: true, extraUsed: savedSerial != null ? [savedSerial] : [] });
+        justSavedRef.current = false;
         setView("create");
       } else if (saveAndPrint) {
         triggerPrint(transactionData);
         setAdvance(""); setAdvanceMode("Cash"); setAdvanceSplitCash(""); setAdvanceSplitBank("");
         setPaymentMode("Cash"); setSplitCash(""); setSplitBank("");
-        selectTx(transactionData);
+        if (barcodeItemsToPrint) setAutoPrintBarcode({ items: barcodeItemsToPrint, copies: barcodeCopiesToPrint });
+        else selectTx(transactionData);
         setView("list");
         setEditId(null);
       } else {
@@ -2466,27 +3123,31 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         setPaymentMode("Cash"); setSplitCash(""); setSplitBank("");
         setView("list");
         setEditId(null);
-        // Prompt to send to customer if it's a sale and party has contact info.
-        // Mutually exclusive with the auto-preview below — selectTx() opens a
-        // full-screen preview Dialog on desktop (open={!isMobile && !!selectedTx}),
-        // and having BOTH that Dialog and SendDialog mount open in the same
-        // commit was leaving the app completely unclickable afterwards (MUI's
-        // Modal manager tracks a stack of open modals and restores aria-hidden/
-        // inert on the rest of the page when each one closes — two modals
-        // opening in the exact same render desyncs that bookkeeping). Since
-        // SendDialog is the actionable one here, it wins; the row is still
-        // reachable from the list without the extra unrequested preview popup.
-        let openedSendPrompt = false;
-        if (currentIsSale && transactionData.partyId) {
-          const savedParty = getItems('parties').find(p => p.id === transactionData.partyId);
-          if (savedParty?.phone || savedParty?.email) {
-            setSendTx(transactionData);
-            setSendParty(savedParty);
-            setSendOpen(true);
-            openedSendPrompt = true;
+        if (barcodeItemsToPrint) {
+          setAutoPrintBarcode({ items: barcodeItemsToPrint, copies: barcodeCopiesToPrint });
+        } else {
+          // Prompt to send to customer if it's a sale and party has contact info.
+          // Mutually exclusive with the auto-preview below — selectTx() opens a
+          // full-screen preview Dialog on desktop (open={!isMobile && !!selectedTx}),
+          // and having BOTH that Dialog and SendDialog mount open in the same
+          // commit was leaving the app completely unclickable afterwards (MUI's
+          // Modal manager tracks a stack of open modals and restores aria-hidden/
+          // inert on the rest of the page when each one closes — two modals
+          // opening in the exact same render desyncs that bookkeeping). Since
+          // SendDialog is the actionable one here, it wins; the row is still
+          // reachable from the list without the extra unrequested preview popup.
+          let openedSendPrompt = false;
+          if (currentIsSale && transactionData.partyId) {
+            const savedParty = getItems('parties').find(p => p.id === transactionData.partyId);
+            if (savedParty?.phone || savedParty?.email) {
+              setSendTx(transactionData);
+              setSendParty(savedParty);
+              setSendOpen(true);
+              openedSendPrompt = true;
+            }
           }
+          if (!openedSendPrompt) selectTx(transactionData);
         }
-        if (!openedSendPrompt) selectTx(transactionData);
       }
     } catch (error) {
       console.error("Error saving transaction:", error);
@@ -2507,97 +3168,13 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   // supports — a real payment could land in any of the three.
   const handleReceivePayment = async (tx) => {
     if (tx.status === 'paid') return;
-    const outstanding = Number(tx.totalAmount || 0) - Number(tx.advance || 0);
-    if (outstanding <= 0) {
-      // Already fully covered by an advance — just clear the due date/status.
+    if (txOutstanding(tx) <= 0) {
+      // Already fully covered by an advance / earlier part payments — just close it.
       await updateItem(isSale ? 'sales' : 'purchases', tx.id, { status: 'paid', dueDate: '' });
       setSnack({ open: true, message: `${tx.invoiceNumber} marked as paid.`, severity: 'success' });
       return;
     }
-    setReceivePayMode('Cash');
-    setReceivePaySplitCash('');
-    setReceivePaySplitBank('');
-    setReceivePayDate(new Date().toISOString().split('T')[0]);
-    setReceivePayLess('');
-    setReceivePayNotes('');
-    setReceivePayDialog({ open: true, tx, outstanding });
-  };
-
-  const closeReceivePayDialog = () => {
-    if (receivePaySaving) return;
-    setReceivePayDialog({ open: false, tx: null, outstanding: 0 });
-  };
-
-  // "Mark Paid without Payment" — for when the bill is being settled outside
-  // the app (already paid in some other record, being reconciled later,
-  // etc.) and the user doesn't want a payment entry recorded right now.
-  // Unlike confirmReceivePayment, this deliberately does NOT touch the
-  // party balance or create a payments record — the money is still owed as
-  // far as the books are concerned, this only flips the invoice's own
-  // paid/due-date display flag. The user is expected to record the actual
-  // payment manually via Payment Entry whenever it's actually received.
-  const markPaidWithoutPayment = async () => {
-    const { tx } = receivePayDialog;
-    if (!tx) return;
-    setReceivePaySaving(true);
-    try {
-      await updateItem(isSale ? 'sales' : 'purchases', tx.id, { status: 'paid', dueDate: '', paidDate: receivePayDate });
-      setSnack({ open: true, message: `${tx.invoiceNumber} marked as paid on ${new Date(receivePayDate).toLocaleDateString('en-IN')} — no payment recorded, add it manually via Payment Entry when received.`, severity: 'info', duration: 6000 });
-      setReceivePayDialog({ open: false, tx: null, outstanding: 0 });
-    } catch (error) {
-      console.error('Error marking as paid:', error);
-      await showAlert({ title: 'Save error', message: 'An error occurred. Please try again.', variant: 'danger' });
-    } finally {
-      setReceivePaySaving(false);
-    }
-  };
-
-  const confirmReceivePayment = async () => {
-    const { tx, outstanding } = receivePayDialog;
-    if (!tx) return;
-    const lessNum = parseFloat(receivePayLess) || 0;
-    const amountNum = Math.max(0, outstanding - lessNum); // actual cash/bank collected, after the write-off
-    let paymentSplit = null;
-    if (receivePayMode === 'Split') {
-      const cashNum = parseFloat(receivePaySplitCash) || 0;
-      const bankNum = parseFloat(receivePaySplitBank) || 0;
-      if (Math.abs(cashNum + bankNum - amountNum) > 0.01) {
-        await showAlert({ title: 'Split does not match', message: `Cash + Bank must add up to ₹${amountNum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}.`, variant: 'warning' });
-        return;
-      }
-      paymentSplit = { cash: cashNum, bank: bankNum, bankMode: 'Bank' };
-    }
-    setReceivePaySaving(true);
-    try {
-      const party = tx.partyId ? getItems('parties').find((p) => p.id === tx.partyId) : null;
-      const paymentData = {
-        businessId: currentBusiness?.id,
-        partyId: tx.partyId || null,
-        partyName: tx.partyName || (party?.name ?? ''),
-        type: isSale ? 'PaymentIn' : 'PaymentOut',
-        totalAmount: amountNum,
-        ...(lessNum > 0 ? { lessAmount: lessNum } : {}),
-        date: receivePayDate,
-        paymentMode: receivePayMode,
-        ...(paymentSplit ? { paymentSplit } : {}),
-        referenceNo: `RCV-${tx.invoiceNumber}`,
-        notes: receivePayNotes || `Payment received against invoice #${tx.invoiceNumber}`,
-      };
-      await addItem('payments', paymentData);
-      if (party) {
-        await updateItem('parties', party.id, {
-          balance: (party.balance || 0) + (isSale ? -outstanding : outstanding),
-        });
-      }
-      await updateItem(isSale ? 'sales' : 'purchases', tx.id, { status: 'paid', dueDate: '', paidDate: receivePayDate });
-      setSnack({ open: true, message: isSale ? 'Payment received — invoice marked paid.' : 'Payment made — bill marked paid.', severity: 'success' });
-      setReceivePayDialog({ open: false, tx: null, outstanding: 0 });
-    } catch (error) {
-      console.error('Error recording received payment:', error);
-      await showAlert({ title: 'Save error', message: 'An error occurred while recording the payment. Please try again.', variant: 'danger' });
-    } finally {
-      setReceivePaySaving(false);
-    }
+    setReceivePayDialog({ open: true, tx });
   };
 
   const handleDelete = async (tx) => {
@@ -2616,7 +3193,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       // minus whatever advance had already been collected — reversing the
       // full totalAmount unconditionally here double-counted the advance and
       // incorrectly adjusted balance for already-settled invoices.
-      const txNet = tx.saleType === 'paid' ? 0 : (Number(tx.totalAmount) || 0) - (Number(tx.advance) || 0);
+      // Received-payment (RCV-) entries already settled part of that net
+      // against the party balance, so only the still-open portion is reversed.
+      const rcvSettled = rcvSettledFor(getItems("payments"), tx, isSale, currentBusiness?.id);
+      const txNet = tx.saleType === 'paid' ? 0 : (Number(tx.totalAmount) || 0) - (Number(tx.advance) || 0) - rcvSettled;
       if (party)
         updateItem("parties", tx.partyId, {
           balance: party.balance + (isSale ? -txNet : txNet),
@@ -2624,8 +3204,12 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       {
         // Reverse stock exactly the way handleSave applied it — a recipe
         // line (e.g. Tomato Rice) never touched its own stock, only its
-        // components', respecting any per-sale recipeOverrides.
+        // components', respecting any per-sale recipeOverrides. A Purchase
+        // line with a chosen pack (buy-in-bulk/sell-in-pieces) also needs
+        // the same pack qty-per-pack factor un-applied.
+        const stockItems = getItems("items");
         const deltas = {};
+        const refDeltas = {};
         for (const item of tx.items) {
           const q = Number(item.qty) || 0;
           if (Array.isArray(item.recipe) && item.recipe.length > 0) {
@@ -2635,16 +3219,39 @@ const SalesPage = ({ mode = "sales", tabId }) => {
               if (compQty > 0) deltas[r.itemId] = (deltas[r.itemId] || 0) + (isSale ? compQty : -compQty);
             }
           } else if (item.itemId) {
-            deltas[item.itemId] = (deltas[item.itemId] || 0) + (isSale ? q : -q);
+            const stockItem = stockItems.find((i) => String(i.id) === String(item.itemId));
+            if (stockRows(stockItem) && item.stockRefId) {
+              const key = `${item.itemId}::${item.stockRefId}`;
+              refDeltas[key] = (refDeltas[key] || 0) + (isSale ? q : -q);
+            } else {
+              const factor = rowUnitFactor(effectivePackId(item, stockItem, !isSale), stockItem);
+              deltas[item.itemId] = (deltas[item.itemId] || 0) + (isSale ? q * factor : -q * factor);
+            }
           }
         }
-        const stockItems = getItems("items");
-        const stockUpdates = [];
+        const updatesById = {};
         for (const [itemId, delta] of Object.entries(deltas)) {
           if (delta === 0) continue;
           const stockItem = stockItems.find((i) => String(i.id) === itemId);
-          if (stockItem) stockUpdates.push({ id: stockItem.id, stock: (Number(stockItem.stock) || 0) + delta });
+          if (stockItem) updatesById[stockItem.id] = { id: stockItem.id, stock: (Number(stockItem.stock) || 0) + delta };
         }
+        const refDeltasByItem = {};
+        for (const [key, delta] of Object.entries(refDeltas)) {
+          if (delta === 0) continue;
+          const [itemId, refId] = key.split('::');
+          (refDeltasByItem[itemId] ||= {})[refId] = delta;
+        }
+        for (const [itemId, byRef] of Object.entries(refDeltasByItem)) {
+          const stockItem = stockItems.find((i) => String(i.id) === itemId);
+          if (!stockItem) continue;
+          const field = stockItem.stockMode === 'variant' ? 'variants' : 'batches';
+          const rows = (stockItem[field] || []).map((r) =>
+            byRef[r.id] ? { ...r, stock: (Number(r.stock) || 0) + byRef[r.id] } : r,
+          );
+          const total = rows.reduce((s, r) => s + (Number(r.stock) || 0), 0);
+          updatesById[stockItem.id] = { ...(updatesById[stockItem.id] || { id: stockItem.id }), [field]: rows, stock: total };
+        }
+        const stockUpdates = Object.values(updatesById);
         if (stockUpdates.length) updateItems("items", stockUpdates);
       }
       // Delete any advance / split / received-payment entries linked to this
@@ -2675,9 +3282,16 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   };
 
   const startEdit = (tx) => {
+    autoNumberRef.current = false;
     setEditId(tx.id);
     setReferenceImageIds(tx.referenceImageIds || []);
+    setEditOnTheGo(!!tx.onTheGo);
     setSelectedParty(
+      tx.onTheGo && !tx.partyId
+        ? ((tx.partyName && tx.partyName !== 'Cash & Carry' && tx.partyName !== 'Cash Purchase') || tx.partyPhone
+            ? { name: tx.partyName === 'Cash & Carry' || tx.partyName === 'Cash Purchase' ? '' : tx.partyName, phone: tx.partyPhone || '' }
+            : null)
+        :
       parties.find((p) => p.id === tx.partyId) ||
         (tx.partyId ? { id: tx.partyId, name: tx.partyName } : null),
     );
@@ -2685,7 +3299,17 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     setInvoiceTime(tx.time || "");
     setInvoiceNumber(tx.invoiceNumber);
     setItems(
-      tx.items.map((i) => ({ ...i, discountPercent: i.discountPercent ?? 0 })),
+      tx.items.map((i) => {
+        const row = { ...i, discountPercent: i.discountPercent ?? 0 };
+        // Legacy purchase row in the old purchase unit → select its pack so a
+        // re-save converts the same way the original save did.
+        if (!isSale && !row.packId && row.itemId) {
+          const si = stockItems.find((x) => String(x.id) === String(row.itemId));
+          const pid = effectivePackId(row, si, true);
+          if (pid) row.packId = pid;
+        }
+        return row;
+      }),
     );
     setDescription(tx.description || "");
     setNoGST(tx.noGST || false);
@@ -2813,7 +3437,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   // from SendDialog's default invoice-summary text since the point here is a
   // polite nudge about the outstanding balance, not re-sending the full bill.
   const buildReminderMessage = (tx) => {
-    const outstanding = Math.max(0, Number(tx.totalAmount || 0) - Number(tx.advance || 0));
+    const outstanding = txOutstanding(tx);
     const due = tx.dueDate ? new Date(tx.dueDate + 'T00:00:00') : null;
     const daysLate = due ? Math.max(0, Math.round((new Date().setHours(0, 0, 0, 0) - due.setHours(0, 0, 0, 0)) / 86400000)) : 0;
     const label = isSale ? 'invoice' : 'bill';
@@ -2827,7 +3451,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       `Kindly arrange payment at your earliest convenience. Please ignore this message if it has already been paid.`,
       '',
       `Thank you,`,
-      currentBusiness?.name || 'TallyKraft',
+      currentBusiness?.name || 'DigitZebra',
     ];
     return lines.join('\n');
   };
@@ -2887,28 +3511,19 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     try {
       await ensurePreviewTarget(target);
       if (_shareCancelledRef.current || !pdfRef.current) return;
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      const [, { jsPDF }] = await Promise.all([
         import('html2canvas'),
         import('jspdf'),
       ]);
       const el = pdfRef.current;
       await waitForCaptureReady(el);
       if (_shareCancelledRef.current) return;
-      const canvas = await html2canvas(el, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+      const canvas = await captureElement(el, { scale: 1.5 });
       if (_shareCancelledRef.current) return;
       // JPEG instead of PNG — jsPDF embeds it as-is (no re-encoding), and JPEG
       // encoding/embedding is far faster than PNG for a large rasterized canvas;
       // quality 0.92 is visually lossless for an invoice's text/lines/white background.
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfWidthMm = getPaperWidthMm(paperSize);
-      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
-      const namedFormat = getJsPdfFormat(paperSize);
-      const pdf = new jsPDF({
-        orientation: 'portrait',
-        unit: 'mm',
-        format: namedFormat || [pdfWidthMm, pdfHeightMm],
-      });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const pdf = canvasToPdf(canvas, jsPDF, paperSize);
       if (_shareCancelledRef.current) return;
       pdf.save(`${target.invoiceNumber || 'invoice'}.pdf`);
     } catch (err) {
@@ -2923,9 +3538,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
   };
 
   const captureInvoiceCanvas = async () => {
-    const { default: html2canvas } = await import('html2canvas');
     await waitForCaptureReady(pdfRef.current);
-    return html2canvas(pdfRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+    return captureElement(pdfRef.current, { scale: 1.5 });
   };
 
   // Tells the user exactly what happened and what to do next — silently
@@ -2957,15 +3571,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         import('jspdf').then(m => ({ jsPDF: m.jsPDF })),
       ]);
       if (_shareCancelledRef.current) return;
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfWidthMm = getPaperWidthMm(paperSize);
-      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
-      const namedFormat = getJsPdfFormat(paperSize);
-      const pdf = new jsPDF({
-        unit: 'mm',
-        format: namedFormat || [pdfWidthMm, pdfHeightMm],
-      });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const pdf = canvasToPdf(canvas, jsPDF, paperSize);
       if (_shareCancelledRef.current) return;
       const fileName = `${target.invoiceNumber || 'invoice'}.pdf`;
       const pdfBlob = pdf.output('blob');
@@ -3186,7 +3792,6 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       delete item.qtyDisplay;
       item.itemId = selected.id;
       item.name = selected.name || '';
-      item.price = Number(isSaleNow ? (selected.salePrice ?? selected.price) : (selected.purchasePrice ?? selected.price)) || '';
       item.taxRate = Number(selected.taxRate) || 0;
       item.cgstRate = selected.cgstRate != null ? Number(selected.cgstRate) : item.taxRate / 2;
       item.sgstRate = selected.sgstRate != null ? Number(selected.sgstRate) : item.taxRate / 2;
@@ -3195,14 +3800,32 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       item.isComposite = !!selected.isComposite;
       item.gstType = selected.gstType || null;
       item.hsnCode = selected.hsnCode || '';
-      item.unit = selected.unit || item.unit || '';
+      // Same pack-size default as updateItemRow's itemId branch above.
+      const defaultPack = (!isSaleNow && hasBulkConversion(selected)) ? packsOf(selected)[0] : null;
+      item.packId = defaultPack?.id || '';
+      item.unit = defaultPack ? defaultPack.label : (selected.unit || item.unit || '');
+      item.price = defaultPack
+        ? defaultPack.price
+        : Number(isSaleNow ? (selected.salePrice ?? selected.price) : (selected.purchasePrice ?? selected.price)) || '';
       item.taxInclusive = !!selected.taxInclusive;
       item.category = selected.category || '';
+      // Color/Size/Variant used to be plain text fields on the item; that
+      // information now lives in the item's default (first) variant label
+      // instead (see ItemFormDialog.jsx) — prefer it when it's a real,
+      // user-given description, falling back to the old fields for an item
+      // that hasn't been re-saved since this change (data kept, not lost).
+      const defaultVariantLabel = selected.stockMode === 'variant' && selected.variants?.[0]?.label && selected.variants[0].label !== 'Default'
+        ? selected.variants[0].label
+        : '';
       item.size = selected.size || '';
-      item.variant = selected.variant || '';
+      item.variant = defaultVariantLabel || selected.variant || '';
       item.discountPercent = isSaleNow && Number(selected.discount) ? Number(selected.discount) : '';
       item.recipe = Array.isArray(selected.recipe) ? selected.recipe : [];
       item.recipeOverrides = {};
+      // Same as updateItemRow's itemId branch — a variant/batch-tracked item
+      // needs an explicit pick via the row's picker, scanning/quick-add can't
+      // know which one was meant.
+      item.stockRefId = "";
       if (item.qty === '' || item.qty == null) item.qty = 1;
       const qty = Number(item.qty) || 0;
       const price = Number(item.price) || 0;
@@ -3217,6 +3840,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     });
   };
 
+  const justCreatedItemRef = useRef(null);
   const openQuickAddItem = (inputValue, callback) => {
     itemDialogCallbackRef.current = callback;
     setItemDialog({ open: true, name: inputValue || "" });
@@ -3471,9 +4095,23 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                 />
               </Box>
 
+              {/* Mobile-only hint — this table scrolls horizontally below
+                  ~650px (Qty/Rate/Disc%/Amount columns), which isn't
+                  discoverable at a glance on a phone otherwise. */}
+              {isMobile && (
+                <Typography variant="caption" sx={{ display: "flex", alignItems: "center", gap: 0.5, color: "text.disabled", px: 2, pt: 1, fontStyle: "italic" }}>
+                  <ArrowRightLeft size={12} /> Swipe the table to see Disc % and Amount
+                </Typography>
+              )}
               {/* Table */}
               <TableContainer sx={{ overflowX: "auto" }}>
-                <Table size="small" sx={{ minWidth: 650 }}>
+                {/* Customer's column had no minWidth, only a flexible
+                    remainder of the table's 650px total — once the other 5
+                    fixed-width columns claimed their share, it was squeezed
+                    to ~104px (barely enough to show a truncated name), so
+                    bumped the table's own floor to make room for a usable
+                    180px Customer column instead. */}
+                <Table size="small" sx={{ minWidth: 730 }}>
                   <TableHead sx={{ bgcolor: alpha(tokens.primary, 0.04) }}>
                     <TableRow>
                       {["#", "Customer *", "Qty", "Rate (₹)", "Disc %", "Amount", ""].map((h, i) => (
@@ -3485,6 +4123,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             letterSpacing: "0.07em", color: alpha(tokens.primary, 0.75),
                             pl: i === 0 ? 1.5 : undefined, pr: i === 6 ? 0.5 : undefined,
                             width: [36, undefined, 100, 140, 90, 120, 36][i],
+                            minWidth: i === 1 ? 180 : undefined,
                             py: 1,
                           }}
                         >
@@ -3738,6 +4377,34 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                 own guided mode. Only offered for a brand-new invoice/bill in
                 the standard Customer First layout (see obActive above). */}
             {view === "create" && entryMode === "customer" && (
+              <Tooltip title={onTheGoPref
+                ? 'On-the-go bill is ON: type the customer name/phone and item names directly — no customer or item is created, no stock moves. Turn off to pick saved customers and items.'
+                : 'On-the-go bill: quick bill without creating a customer or item — just type the name, phone and items'}>
+                <Box
+                  onClick={() => {
+                    const next = !onTheGoPref;
+                    setOnTheGoPref(next);
+                    setSelectedParty(null);
+                    setLoyaltyRedeemPoints(0);
+                    setLoyaltyRedeemValue(0);
+                    if (!next) setSaleType(isSale ? (config.defaultSaleTypeSales ?? 'credit') : (config.defaultSaleTypePOS ?? 'paid'));
+                  }}
+                  sx={{
+                    display: "flex", alignItems: "center", gap: 0.4, cursor: "pointer", userSelect: "none",
+                    px: 1, py: 0.5, borderRadius: "100px", border: "1px solid",
+                    borderColor: onTheGoPref ? "#d97706" : "divider",
+                    bgcolor: onTheGoPref ? alpha("#f59e0b", 0.12) : "transparent",
+                  }}
+                >
+                  <Zap size={13} color={onTheGoPref ? "#d97706" : "#5f4f47"} style={{ flexShrink: 0 }} />
+                  <Typography sx={{ color: onTheGoPref ? "#b45309" : "text.secondary", fontSize: "0.72rem", fontWeight: 700, display: { xs: "none", sm: "inline" }, whiteSpace: "nowrap" }}>
+                    On-the-go
+                  </Typography>
+                  <Switch size="small" checked={onTheGoPref} onChange={() => {}} color="warning" />
+                </Box>
+              </Tooltip>
+            )}
+            {view === "create" && entryMode === "customer" && (
               <Tooltip title={obMode ? 'One by One mode: guided step-by-step entry (Party → Items → Review), turn off for the normal all-in-one form' : 'Turn on One by One mode: a guided flow that walks through Party → Items → Review & Checkout one step at a time'}>
                 <Box
                   onClick={() => { setObMode((v) => !v); setObStep("party"); }}
@@ -3795,7 +4462,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             sx={{
               display: "flex",
               flexDirection: { xs: "column", lg: "row" },
-              gap: 2,
+              gap: 1.5,
               alignItems: "flex-start",
             }}
           >
@@ -3805,29 +4472,67 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                 minWidth: 0,
                 display: "flex",
                 flexDirection: "column",
-                gap: 1.5,
+                gap: 1.25,
               }}
             >
-
-
               {/* Card 1: Invoice Details — One by One mode's Party step.
                   Stays mounted at every step (state never resets switching
                   steps) — only its visibility toggles via display, so a
                   party already picked isn't lost by stepping forward then
                   back. */}
               <EnhancedCard accent tokens={tokens} sx={obActive && obStep !== "party" ? { display: "none" } : {}}>
-                <Box sx={{ px: 2.5, pt: 2, pb: 1 }}>
+                <Box sx={{ px: 2, pt: 1.5, pb: 0.75 }}>
                   <SectionLabel icon={FileText} tokens={tokens}>
                     {isSale ? "Sales Invoice Details" : "Purchase Bill Details"}
                   </SectionLabel>
                 </Box>
-                <CardContent sx={{ pt: 1.5, pb: 2, px: 2.5 }}>
-                  <Grid container spacing={2}>
+                <CardContent sx={{ pt: 1, pb: "14px !important", px: 2 }}>
+                  <Grid container spacing={1.5}>
                     {/* Customer / Vendor select */}
-                    <Grid size={{ xs: 12 }}>
+                    {otgActive && (
+                      <Grid size={{ xs: 12 }}>
+                        <Box sx={{ display: "flex", gap: 1.5, flexDirection: { xs: "column", sm: "row" } }}>
+                          <PartySelect
+                            nameOnly
+                            freeText
+                            options={parties}
+                            value={selectedParty?.name || ""}
+                            onChange={(name, party) => {
+                              setLoyaltyRedeemPoints(0); setLoyaltyRedeemValue(0);
+                              if (party) { setSelectedParty(party); obFocusContinue(); return; }
+                              // Typing (or editing a picked name) = walk-in, not a saved record.
+                              setSelectedParty((prev) => {
+                                const next = { name, phone: prev && !prev.id ? (prev.phone || "") : "" };
+                                return next.name?.trim() || next.phone?.trim() ? next : null;
+                              });
+                            }}
+                            label={`${isSale ? "Customer" : "Vendor"} (search or type)`}
+                            placeholder="Pick a saved one, or just type a name"
+                            sx={inputSx}
+                          />
+                          <TextField
+                            fullWidth size="small"
+                            label="Phone (optional)"
+                            value={selectedParty?.phone || ""}
+                            disabled={!!selectedParty?.id}
+                            onChange={(e) => setOtgParty("phone", e.target.value.replace(/[^\d+ ]/g, "").slice(0, 15))}
+                            autoComplete="off"
+                            inputProps={{ name: "otgPartyPhone", inputMode: "tel" }}
+                            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); obFocusContinue(); } }}
+                            sx={inputSx}
+                          />
+                        </Box>
+                        <Typography variant="caption" sx={{ display: "block", mt: 0.5, color: selectedParty?.id ? tokens.primary : "#b45309", fontWeight: 600 }}>
+                          {selectedParty?.id
+                            ? `On-the-go bill · saved ${isSale ? "customer" : "vendor"} selected — balance and history apply`
+                            : `On-the-go bill · typed ${isSale ? "customer" : "vendor"} is not saved · paid now (Cash / Bank)`}
+                        </Typography>
+                      </Grid>
+                    )}
+                    <Grid size={{ xs: 12 }} sx={otgActive ? { display: "none" } : undefined}>
                       <PartySelect
                         options={parties}
-                        value={selectedParty}
+                        value={otgActive ? null : selectedParty}
                         onChange={(v) => { setSelectedParty(v); setLoyaltyRedeemPoints(0); setLoyaltyRedeemValue(0); obFocusContinue(); }}
                         onAddNew={(inputValue, isPhone) =>
                           openQuickAddParty(inputValue, (p) => { setSelectedParty(p); setShowCustomerPanel(true); obFocusContinue(); }, isPhone)
@@ -3840,7 +4545,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                         <Chip
                           size="small"
                           label="Cash Purchase"
-                          sx={{ mt: 0.75, fontWeight: 700, fontSize: '0.7rem', bgcolor: tokens.successSoft, color: 'success.dark', border: '1px solid rgba(100,116,139,0.25)', height: 20 }}
+                          sx={{ mt: 0.75, fontWeight: 700, fontSize: '0.7rem', bgcolor: tokens.successSoft, color: 'success.dark', border: '1px solid rgba(16,185,129,0.25)', height: 20 }}
                         />
                       )}
                       {/* The Customer/Vendor Preview Panel further down is
@@ -3877,7 +4582,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             size="small"
                             label={isSale ? "Invoice No." : "Bill No."}
                             value={invoiceNumber}
-                            onChange={(e) => setInvoiceNumber(e.target.value)}
+                            onChange={(e) => {
+                              if (autoNumberRef.current) { autoNumberRef.current = false; releaseMyDraft(true); }
+                              setInvoiceNumber(e.target.value);
+                            }}
                             slotProps={{
                               input: {
                                 startAdornment: (
@@ -3999,8 +4707,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
               <EnhancedCard tokens={tokens} sx={obActive && obStep !== "items" ? { display: "none" } : {}}>
                 <Box
                   sx={{
-                    px: 2.5,
-                    py: 1.75,
+                    px: 2,
+                    py: 1,
                     borderBottom: "1px solid rgba(0,0,0,0.06)",
                     bgcolor: "rgba(0,0,0,0.015)",
                     display: "flex",
@@ -4019,7 +4727,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                       bgcolor: tokens.primarySoft,
                       color: tokens.primary,
                       border: `1px solid ${tokens.primaryBorder}`,
-                      fontSize: "0.72rem",
+                      fontSize: "0.7rem",
+                      height: 22,
                     }}
                   />
                 </Box>
@@ -4035,7 +4744,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                   {/* ── Unified compact item rows — one line per item at every
                       screen size, no horizontal scroll. Unit/Disc%/GST live in
                       a per-row expandable strip so the base row stays lean. ── */}
-                  <Box sx={{ display: "flex", flexDirection: "column", gap: 1, p: 1.5 }}>
+                  <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75, p: 1 }}>
                     {items.map((item, index) => {
                       const rowKey = item._key ?? index;
                       const rowHasExtras = !!(item.unit || Number(item.discountPercent) > 0 || Number(item.taxRate) > 0);
@@ -4059,7 +4768,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             transition: "border-color 0.15s, background-color 0.15s",
                           }}
                         >
-                          <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.625, sm: 1 }, p: { xs: 1, sm: 1.25 }, flexWrap: "wrap" }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: { xs: 0.625, sm: 1 }, p: { xs: 0.75, sm: 1 }, flexWrap: "wrap" }}>
                             <Box
                               sx={{
                                 width: 20,
@@ -4085,6 +4794,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             )}
                             <Box sx={{ flex: { xs: "1 1 100%", sm: "1 1 220px" }, minWidth: { xs: 0, sm: 180 } }}>
                               <ItemSelect
+                                // ItemSelect has no helperText prop of its own — the invisible
+                                // spacer below reserves the same height Qty/Rate/Amount's
+                                // hidden helper-text line takes up, so this field's input box
+                                // isn't shifted relative to them by the row's alignItems:"center".
                                 options={stockItems}
                                 value={
                                   item.itemId
@@ -4093,6 +4806,17 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                                 }
                                 inputRef={registerItemRowField(index, "item")}
                                 onChange={(v) => {
+                                  // Just created an item via "+ Create" whose name matches an
+                                  // existing item: when focus then leaves the picker, autoSelect
+                                  // commits the highlighted option — the OLD same-named item (or
+                                  // its label string) — overwriting the new one with its old
+                                  // price. Ignore that echo for a moment after the quick-add.
+                                  const jc = justCreatedItemRef.current;
+                                  if (jc && jc.index === index && Date.now() - jc.at < 2000) {
+                                    const vName = (typeof v === "string" ? v : v?.name || "").trim().toLowerCase();
+                                    const vId = typeof v === "string" ? null : v?.id;
+                                    if (vName === jc.name && vId !== jc.id) return;
+                                  }
                                   // ItemSelect is freeSolo+autoSelect — onChange can fire with a
                                   // plain typed string (e.g. user typed a name then blurred/tabbed
                                   // instead of pressing Enter on the highlighted match) instead of
@@ -4100,24 +4824,37 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                                   // giving up, so a real selection — and its stock link — is never
                                   // silently discarded.
                                   if (typeof v === "string") {
-                                    const match = stockItems.find((i) => i.name?.toLowerCase() === v.trim().toLowerCase());
+                                    // On-the-go: typed text is a one-off item (no record, no stock),
+                                    // even if a saved item has the same name — only a real pick links.
+                                    // Row already linked to an item with this exact name (e.g. a
+                                    // duplicate-named item picked earlier) — keep that one rather
+                                    // than re-resolving to the first item with the name.
+                                    if (!otgActive && item.itemId && (item.name || "").trim().toLowerCase() === v.trim().toLowerCase()) return;
+                                    const match = otgActive ? null : stockItems.find((i) => i.name?.toLowerCase() === v.trim().toLowerCase());
                                     if (match) { applyItemToRow(index, match); focusItemRowField(index, "qty"); return; }
                                     const newItems = [...items];
-                                    newItems[index] = { ...newItems[index], itemId: "", name: v };
+                                    newItems[index] = { ...newItems[index], itemId: "", stockRefId: "", name: v };
                                     setItems(newItems);
+                                    if (otgActive && v.trim()) focusItemRowField(index, "qty");
                                     return;
                                   }
                                   if (v && v.id) { applyItemToRow(index, v); focusItemRowField(index, "qty"); }
                                 }}
                                 onInputChange={(val) => {
-                                  if (!item.itemId) {
+                                  if (!item.itemId || otgActive) {
                                     const newItems = [...items];
-                                    newItems[index] = { ...newItems[index], name: val };
+                                    // On-the-go: typing over a picked item turns the row back into a
+                                    // typed one-off item (unlinked, so no stock moves).
+                                    newItems[index] = otgActive
+                                      ? { ...newItems[index], itemId: "", stockRefId: "", recipe: undefined, name: val }
+                                      : { ...newItems[index], name: val };
                                     setItems(newItems);
                                   }
                                 }}
-                                onAddNew={(inputValue) =>
+                                freeText={otgActive}
+                                onAddNew={otgActive ? undefined : (inputValue) =>
                                   openQuickAddItem(inputValue, (newItem) => {
+                                    justCreatedItemRef.current = { index, id: newItem.id, name: (newItem.name || "").trim().toLowerCase(), at: Date.now() };
                                     applyItemToRow(index, newItem);
                                     focusItemRowField(index, "qty");
                                   })
@@ -4127,7 +4864,54 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                                 placeholder="Search or select item…"
                                 sx={inputSx}
                               />
+                              <Typography sx={{ visibility: "hidden", fontSize: "0.6rem", lineHeight: 1.2, mt: 0.25 }}>·</Typography>
                             </Box>
+                            {(() => {
+                              // Buy-in-bulk item on either a Sales or Purchase row: an
+                              // always-visible pill toggle right next to the item picker
+                              // lets the user flip between selling/buying by a whole pack
+                              // (Box, Carton…) or loose pieces — replaces the old plain
+                              // "Pack" dropdown that was hidden behind the row's expand
+                              // chevron and easy to miss. Switching re-derives unit, price
+                              // (and, on save, the stock delta) immediately via updateItemRow's
+                              // "packId" branch.
+                              const rowStockItem = item.itemId ? stockItems.find((i) => i.id === item.itemId) : null;
+                              if (!hasBulkConversion(rowStockItem)) return null;
+                              const packChoices = [{ id: "", label: rowStockItem.unit || "Pcs" }, ...packsOf(rowStockItem).map((p) => ({ id: p.id, label: p.label || "Pack" }))];
+                              return (
+                                <Box sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+                                  <Box
+                                    role="radiogroup"
+                                    aria-label="Pack or piece"
+                                    sx={{
+                                      display: "flex", flexWrap: "wrap", gap: 0.25, p: 0.25, borderRadius: `${tokens.radius.sm}`,
+                                      bgcolor: alpha(tokens.primary, 0.06), border: "1px solid", borderColor: alpha(tokens.primary, 0.15),
+                                    }}
+                                  >
+                                    {packChoices.map((choice) => {
+                                      const active = (item.packId || "") === choice.id;
+                                      return (
+                                        <Box
+                                          key={choice.id || "loose"}
+                                          role="radio"
+                                          aria-checked={active}
+                                          onClick={() => updateItemRow(index, "packId", choice.id)}
+                                          sx={{
+                                            px: 0.9, py: 0.3, borderRadius: `calc(${tokens.radius.sm} - 2px)`, cursor: "pointer",
+                                            fontSize: "0.68rem", fontWeight: 700, lineHeight: 1.4, whiteSpace: "nowrap", userSelect: "none",
+                                            color: active ? "#fff" : tokens.primary,
+                                            bgcolor: active ? tokens.primary : "transparent",
+                                            transition: "background-color 0.12s, color 0.12s",
+                                          }}
+                                        >
+                                          {choice.label}
+                                        </Box>
+                                      );
+                                    })}
+                                  </Box>
+                                </Box>
+                              );
+                            })()}
                             <Tooltip title={item.qtyDisplay !== undefined ? "Rounded for display — kept precise underneath so the typed Amount stays exact" : ""} disableHoverListener={item.qtyDisplay === undefined}>
                               <TextField
                                 type="number"
@@ -4140,27 +4924,53 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                                 }}
                                 onFocus={(e) => e.target.select()}
                                 onKeyDown={itemFieldKeyDown(index, "qty")}
+                                // Reserves the same hidden helper-text line as Rate's "From
+                                // Last Price" (see its comment) so this field's height always
+                                // matches Rate's, whether or not that hint is showing.
+                                helperText={<Box component="span" sx={{ visibility: "hidden" }}>·</Box>}
                                 slotProps={{ htmlInput: { ref: registerItemRowField(index, "qty"), min: 0, step: "any", style: { textAlign: "center" } } }}
-                                sx={{ width: { xs: 62, sm: 78 }, flexShrink: 0, ...inputSx }}
+                                sx={{
+                                  width: { xs: 62, sm: 78 }, flexShrink: 0, ...inputSx,
+                                  "& .MuiFormHelperText-root": { fontSize: "0.6rem", lineHeight: 1.2, mx: 0, mt: 0.25 },
+                                }}
                               />
                             </Tooltip>
-                            <TextField
-                              type="number"
-                              size="small"
-                              label="Rate (₹)"
-                              value={item.price}
-                              placeholder="0.00"
-                              onChange={(e) => updateItemRow(index, "price", e.target.value)}
-                              onFocus={(e) => e.target.select()}
-                              onKeyDown={itemFieldKeyDown(index, "price")}
-                              slotProps={{
-                                htmlInput: { ref: registerItemRowField(index, "price"), min: 0, step: 0.01 },
-                                input: {
-                                  startAdornment: <InputAdornment position="start"><Typography variant="body2" sx={{ color: "text.secondary", fontWeight: 600 }}>₹</Typography></InputAdornment>,
-                                },
-                              }}
-                              sx={{ width: { xs: 96, sm: 122 }, flexShrink: 0, ...inputSx }}
-                            />
+                            <Tooltip title={autoUpdatePriceOn ? "This item's price auto-updates from the last bill's rate (Settings → Features → Others)" : ""} disableHoverListener={!autoUpdatePriceOn}>
+                              <TextField
+                                type="number"
+                                size="small"
+                                label="Rate (₹)"
+                                value={item.price}
+                                placeholder="0.00"
+                                onChange={(e) => updateItemRow(index, "price", e.target.value)}
+                                onFocus={(e) => e.target.select()}
+                                onKeyDown={itemFieldKeyDown(index, "price")}
+                                // "From Last Price" always renders a helper-text line — an
+                                // invisible placeholder (rather than "") when the hint is off
+                                // — so this field's own height never depends on
+                                // autoUpdatePriceOn. Qty/Amount below reserve the identical
+                                // line for the same reason: with this row's
+                                // alignItems:"center", any ONE field being taller than its
+                                // siblings (because it alone shows a helper text) shifts its
+                                // input box up relative to the others, even though they're
+                                // all meant to sit on the same line.
+                                helperText={
+                                  <Box component="span" sx={{ visibility: autoUpdatePriceOn ? "visible" : "hidden" }}>
+                                    From Last Price
+                                  </Box>
+                                }
+                                slotProps={{
+                                  htmlInput: { ref: registerItemRowField(index, "price"), min: 0, step: 0.01 },
+                                  input: {
+                                    startAdornment: <InputAdornment position="start"><Typography variant="body2" sx={{ color: "text.secondary", fontWeight: 600 }}>₹</Typography></InputAdornment>,
+                                  },
+                                }}
+                                sx={{
+                                  width: { xs: 96, sm: 122 }, flexShrink: 0, ...inputSx,
+                                  "& .MuiFormHelperText-root": { fontSize: "0.6rem", lineHeight: 1.2, mx: 0, mt: 0.25, color: tokens.primary, fontWeight: 600, whiteSpace: "nowrap" },
+                                }}
+                              />
+                            </Tooltip>
                             <Tooltip title={item.notBilled ? "Not billed — amount doesn't apply" : "Type an amount to auto-calculate Qty from the Rate"}>
                               <TextField
                                 type="number"
@@ -4183,6 +4993,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                                   if (item.amountDraft !== undefined) updateItemRow(index, "clearAmountDraft", undefined);
                                 }}
                                 onFocus={(e) => e.target.select()}
+                                // Reserves the same hidden helper-text line as Rate's "From
+                                // Last Price" (see its comment) so this field's height always
+                                // matches Rate's.
+                                helperText={<Box component="span" sx={{ visibility: "hidden" }}>·</Box>}
                                 slotProps={{
                                   input: {
                                     startAdornment: <InputAdornment position="start"><Typography variant="body2" sx={{ color: "text.secondary", fontWeight: 600 }}>₹</Typography></InputAdornment>,
@@ -4191,7 +5005,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                                     style: { fontWeight: 700 },
                                   },
                                 }}
-                                sx={{ width: { xs: 88, sm: 108 }, flexShrink: 0, ...inputSx }}
+                                sx={{
+                                  width: { xs: 88, sm: 108 }, flexShrink: 0, ...inputSx,
+                                  "& .MuiFormHelperText-root": { fontSize: "0.6rem", lineHeight: 1.2, mx: 0, mt: 0.25 },
+                                }}
                               />
                             </Tooltip>
                             <Tooltip title={rowExpanded ? "Hide Unit / Discount / GST" : "Unit, Discount, GST…"}>
@@ -4208,24 +5025,124 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             </IconButton>
                           </Box>
 
-                          {rowExpanded && (
-                            <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 1.25, px: 1.25, pb: 1.25, pt: 0.5, borderTop: "1px dashed", borderColor: "divider", bgcolor: alpha(tokens.primary, 0.02) }}>
-                              {showUnitColumn && (
+                          {item.itemId && config.features?.itemRowSummary !== false && (
+                            <ItemRowSummary
+                              stockItem={stockItems.find((i) => i.id === item.itemId)}
+                              row={item}
+                              isSale={isSale}
+                              canViewPurchasePrice={canViewPurchasePrice}
+                              tokens={tokens}
+                            />
+                          )}
+
+                          {/* ── Variant / batch picker — always visible the
+                              moment a variant/batch-tracked item is picked
+                              (never hidden behind the Unit/Discount/GST
+                              expand toggle), since price/stock depend on
+                              this choice. A clear amber "pick one" prompt
+                              until something is chosen, so the row can't be
+                              silently left ambiguous. ── */}
+                          {item.itemId && (() => {
+                            const rowStockItem = stockItems.find((i) => i.id === item.itemId);
+                            const rows = stockRows(rowStockItem);
+                            if (!rows) return null;
+                            const isVariant = rowStockItem.stockMode === 'variant';
+                            const chosen = resolveStockRef(item.stockRefId, rowStockItem);
+                            const chosenDays = isVariant ? null : daysUntilExpiry(chosen?.expiryDate);
+                            const chosenExpired = chosenDays != null && chosenDays < 0 && config.features?.alertExpired !== false;
+                            return (
+                              <Box sx={{ px: 1, pb: 1, pt: 0.25 }}>
                                 <TextField
                                   select
                                   size="small"
-                                  label="Unit"
-                                  value={item.unit || ""}
-                                  onChange={(e) => updateItemRow(index, "unit", e.target.value)}
-                                  SelectProps={{ displayEmpty: true }}
-                                  sx={{ width: 100, ...inputSx }}
+                                  fullWidth
+                                  label={isVariant ? "Variant" : "Batch / Expiry"}
+                                  value={item.stockRefId || ""}
+                                  onChange={(e) => updateItemRow(index, "stockRefId", e.target.value)}
+                                  error={!item.stockRefId || chosenExpired}
+                                  helperText={
+                                    !item.stockRefId
+                                      ? `Choose which ${isVariant ? "variant" : "batch"} — required before saving`
+                                      : chosenExpired
+                                      ? `⚠ This batch expired ${Math.abs(chosenDays)}d ago`
+                                      : ""
+                                  }
+                                  sx={{
+                                    ...inputSx,
+                                    "& .MuiFormHelperText-root": { fontSize: "0.68rem", fontWeight: 600, mx: 0, mt: 0.4 },
+                                  }}
                                 >
-                                  <MenuItem value=""><em style={{ opacity: 0.5 }}>None</em></MenuItem>
-                                  {itemUnitOptions.map((u) => (
-                                    <MenuItem key={u} value={u}>{u}</MenuItem>
-                                  ))}
+                                  {rows.map((r) => {
+                                    const days = isVariant ? null : daysUntilExpiry(r.expiryDate);
+                                    const expired = days != null && days < 0;
+                                    const low = Number(r.stock) <= 0;
+                                    return (
+                                      <MenuItem key={r.id} value={r.id} disabled={low && !isSale}>
+                                        {isVariant
+                                          ? `${r.label} — ${r.stock} in stock${r.priceOverride != null ? ` · ₹${r.priceOverride}` : ""}`
+                                          : `${r.label}${r.expiryDate ? ` — exp. ${r.expiryDate}` : ""} — ${r.stock} in stock${expired ? " (EXPIRED)" : ""}`}
+                                      </MenuItem>
+                                    );
+                                  })}
                                 </TextField>
-                              )}
+                              </Box>
+                            );
+                          })()}
+
+                          {rowExpanded && (
+                            <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 1, px: 1, pb: 1, pt: 0.5, borderTop: "1px dashed", borderColor: "divider", bgcolor: alpha(tokens.primary, 0.02) }}>
+                              {showUnitColumn && (() => {
+                                const rowStockItem = item.itemId ? stockItems.find((i) => i.id === item.itemId) : null;
+                                const bulkItem = hasBulkConversion(rowStockItem) ? rowStockItem : null;
+
+                                // Buy-in-bulk item: the pack/piece choice itself now lives
+                                // in the always-visible pill toggle next to the item
+                                // picker above (works on both Sales and Purchase rows) —
+                                // this just shows the resulting stock conversion as a
+                                // quick reference, e.g. "= 20 Pcs added to stock".
+                                if (bulkItem) {
+                                  const qtyForHint = Number(item.qty) || 0;
+                                  const chosenPack = rowPack(item.packId, bulkItem);
+                                  const verb = isSale ? "removed from" : "added to";
+                                  const packHelper = chosenPack
+                                    ? (qtyForHint > 0
+                                        ? `= ${(qtyForHint * (Number(chosenPack.qty) || 1)).toLocaleString("en-IN")} ${bulkItem.unit} ${verb} stock`
+                                        : `1 ${chosenPack.label} = ${chosenPack.qty} ${bulkItem.unit}`)
+                                    : `Loose — 1:1 in ${bulkItem.unit}`;
+                                  return (
+                                    <Typography variant="caption" sx={{ color: tokens.primary, fontWeight: 600, alignSelf: "center" }}>
+                                      {packHelper}
+                                    </Typography>
+                                  );
+                                }
+
+                                return (
+                                  <TextField
+                                    select
+                                    size="small"
+                                    label="Unit"
+                                    value={item.unit || ""}
+                                    onChange={(e) => updateItemRow(index, "unit", e.target.value)}
+                                    SelectProps={{ displayEmpty: true }}
+                                    // displayEmpty means the Select never reports itself as
+                                    // "empty" to the label's own shrink logic (it always
+                                    // renders SOME content, even for value=""), so the label
+                                    // never auto-shrinks and sits on top of the shown value —
+                                    // force it to always float above the field instead.
+                                    InputLabelProps={{ shrink: true }}
+                                    helperText=""
+                                    sx={{
+                                      width: 100, ...inputSx,
+                                      "& .MuiFormHelperText-root": { fontSize: "0.62rem", lineHeight: 1.25, mx: 0, mt: 0.25, whiteSpace: "normal" },
+                                    }}
+                                  >
+                                    <MenuItem value=""><em style={{ opacity: 0.5 }}>None</em></MenuItem>
+                                    {itemUnitOptions.map((u) => (
+                                      <MenuItem key={u} value={u}>{u}</MenuItem>
+                                    ))}
+                                  </TextField>
+                                );
+                              })()}
                               <TextField
                                 type="number"
                                 size="small"
@@ -4342,8 +5259,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                       px: 2,
                       py: 1.5,
                       display: "flex",
+                      flexWrap: "wrap",
                       alignItems: "center",
                       justifyContent: "space-between",
+                      gap: 1,
                       borderTop: "1px solid rgba(0,0,0,0.06)",
                       bgcolor: "rgba(0,0,0,0.012)",
                     }}
@@ -4359,13 +5278,14 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                         color: "text.disabled",
                         textTransform: "none",
                         fontSize: "0.78rem",
+                        whiteSpace: "nowrap",
                         "&:hover": { color: tokens.error, bgcolor: `${tokens.error}10` },
                         "&.Mui-disabled": { opacity: 0.3 },
                       }}
                     >
                       Clear All
                     </Button>
-                    <Box sx={{ display: "flex", gap: 1 }}>
+                    <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                       <Tooltip title="Add an item that's used up in the sale but not charged to the customer — e.g. a cover, bag, or packing consumable. Stock still deducts; it won't show on the printed bill.">
                         <Button
                           startIcon={<Ban size={14} />}
@@ -4384,6 +5304,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             borderColor: "divider",
                             color: "text.secondary",
                             textTransform: "none",
+                            whiteSpace: "nowrap",
                             "&:hover": {
                               bgcolor: alpha(tokens.error, 0.06),
                               borderColor: tokens.error,
@@ -4391,7 +5312,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             },
                           }}
                         >
-                          Add Inventory Item
+                          <Box component="span" sx={{ display: { xs: "none", sm: "inline" } }}>Add Inventory Item</Box>
+                          <Box component="span" sx={{ display: { xs: "inline", sm: "none" } }}>Non-Billed</Box>
                         </Button>
                       </Tooltip>
                       <Button
@@ -4405,7 +5327,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           borderColor: tokens.primaryBorder,
                           color: tokens.primary,
                           textTransform: "none",
-                          minWidth: 120,
+                          whiteSpace: "nowrap",
+                          minWidth: { xs: "auto", sm: 120 },
                           "&:hover": {
                             bgcolor: tokens.primarySoft,
                             borderColor: tokens.primary,
@@ -4447,12 +5370,14 @@ const SalesPage = ({ mode = "sales", tabId }) => {
               {obActive && obStep === "items" && (
                 <Box>
                   <Typography sx={{ fontSize: "0.68rem", color: "text.disabled", mb: 0.75, textAlign: "center" }}>
-                    Press <Box component="kbd" sx={{ px: 0.6, py: 0.1, borderRadius: "4px", bgcolor: "rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.12)", fontFamily: "monospace", fontWeight: 700 }}>Enter</Box> on the Rate field to add another item, or{" "}
-                    <Box component="kbd" sx={{ px: 0.6, py: 0.1, borderRadius: "4px", bgcolor: "rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.12)", fontFamily: "monospace", fontWeight: 700 }}>Shift+Enter</Box> to continue to Review
+                    Press <Box component="kbd" sx={{ px: 0.6, py: 0.1, borderRadius: "4px", bgcolor: "rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.12)", fontFamily: "monospace", fontWeight: 700, whiteSpace: "nowrap" }}>Enter</Box> on the Rate field to add another item, or{" "}
+                    <Box component="span" sx={{ whiteSpace: "nowrap" }}>
+                      <Box component="kbd" sx={{ px: 0.6, py: 0.1, borderRadius: "4px", bgcolor: "rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.12)", fontFamily: "monospace", fontWeight: 700 }}>Shift+Enter</Box> to continue
+                    </Box>{" "}to Review
                   </Typography>
                   <Box sx={{ display: "flex", gap: 1 }}>
                     <Button variant="outlined" onClick={() => setObStep("party")} startIcon={<ChevronLeft size={18} />}
-                      sx={{ fontWeight: 700, textTransform: "none", borderRadius: tokens.radius.md, px: 2.5 }}>
+                      sx={{ fontWeight: 700, textTransform: "none", borderRadius: tokens.radius.md, px: 2.5, flexShrink: 0 }}>
                       Back
                     </Button>
                     <GradientButton fullWidth tokens={tokens}
@@ -4612,7 +5537,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           "&.Mui-selected": { bgcolor: tokens.primary, color: "white", "&:hover": { bgcolor: tokens.primary } } }}>
                           {isSale ? 'Cash / Bank Sale' : 'Cash / Bank Purchase'}
                         </ToggleButton>
-                        <ToggleButton value="credit" sx={{ textTransform: "none", fontWeight: 700, py: 0.6, fontSize: "0.78rem",
+                        <ToggleButton value="credit" disabled={otgNoParty} sx={{ textTransform: "none", fontWeight: 700, py: 0.6, fontSize: "0.78rem",
                           "&.Mui-selected": { bgcolor: '#1a1a1a', color: "white", "&:hover": { bgcolor: '#333' } } }}>
                           {isSale ? 'Credit Sale' : 'Credit Purchase'}
                         </ToggleButton>
@@ -4688,7 +5613,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             </Box>
                           )}
                           {Number(advance) > 0 && (
-                            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.25, pt: 1.25, borderTop: "1px dashed rgba(100,116,139,0.3)" }}>
+                            <Box sx={{ display: "flex", justifyContent: "space-between", mt: 1.25, pt: 1.25, borderTop: "1px dashed rgba(16,185,129,0.3)" }}>
                               <Typography variant="body2" sx={{ fontWeight: 700, color: tokens.error }}>
                                 {isSale ? "Balance Due" : "Balance Payable"}
                               </Typography>
@@ -4727,14 +5652,14 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                       elevation={0}
                       sx={{
                         border: `1.5px solid ${tokens.primaryBorder}`,
-                        bgcolor: "rgba(17,17,17,0.025)",
+                        bgcolor: "rgba(92,31,34,0.025)",
                         borderRadius: tokens.radius.lg,
                         overflow: "hidden",
                         borderTop: `3px solid ${tokens.primary}`,
                         boxShadow: `0 4px 20px ${alpha(tokens.primary, 0.08)}`,
                       }}
                     >
-                      <Box sx={{ px: 2.5, pt: 2, pb: 1, borderBottom: "1px solid rgba(17,17,17,0.1)" }}>
+                      <Box sx={{ px: 2.5, pt: 2, pb: 1, borderBottom: "1px solid rgba(92,31,34,0.1)" }}>
                         <SectionLabel icon={Receipt} tokens={tokens}>
                           Totals
                         </SectionLabel>
@@ -4824,7 +5749,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           </Box>
                         </Box>
 
-                        <Box sx={{ p: 1.5, borderRadius: tokens.radius.md, background: `linear-gradient(135deg, ${alpha(tokens.primary, 0.08)} 0%, ${alpha(tokens.primaryLight, 0.06)} 100%)`, border: `1px solid ${tokens.primaryBorder}`, mb: 1.5 }}>
+                        {renderLoyaltyNow()}
+<Box sx={{ p: 1.5, borderRadius: tokens.radius.md, background: `linear-gradient(135deg, ${alpha(tokens.primary, 0.08)} 0%, ${alpha(tokens.primaryLight, 0.06)} 100%)`, border: `1px solid ${tokens.primaryBorder}`, mb: 1.5 }}>
                           <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
                             <Typography variant="body2" sx={{ fontWeight: 700, color: "text.secondary" }}>Invoice Total</Typography>
                             <Typography variant="h6" sx={{ fontWeight: 900, color: tokens.primary, letterSpacing: "-0.02em" }}>
@@ -4836,11 +5762,11 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                         <GradientButton tokens={tokens} fullWidth onClick={() => handleSave()} disabled={isSaving || !canWrite} startIcon={<Save size={18} />} sx={{ py: 1.3, fontSize: "0.95rem", mb: 1 }}>
                           {isSaving ? "Saving…" : view === "edit" ? "Update Transaction" : "Save Transaction"}
                         </GradientButton>
-                        <Button variant="outlined" fullWidth size="large" startIcon={<Plus size={17} />} onClick={() => handleSave({ saveAndCreateNew: true })} disabled={isSaving}
+                        <Button variant="outlined" fullWidth size="large" startIcon={<Plus size={17} />} onClick={() => handleSave({ saveAndCreateNew: true })} disabled={isSaving || !canWrite}
                           sx={{ borderRadius: tokens.radius.md, py: 1, fontWeight: 700, textTransform: "none", fontSize: "0.88rem", borderColor: tokens.primaryBorder, color: tokens.primary, "&:hover": { borderColor: tokens.primary, bgcolor: tokens.primarySoft } }}>
                           Save & Create New
                         </Button>
-                        <Button variant="outlined" fullWidth size="large" startIcon={<Printer size={17} />} onClick={() => handleSave({ saveAndPrint: true })} disabled={isSaving}
+                        <Button variant="outlined" fullWidth size="large" startIcon={<Printer size={17} />} onClick={() => handleSave({ saveAndPrint: true })} disabled={isSaving || !canWrite}
                           sx={{ borderRadius: tokens.radius.md, py: 1, fontWeight: 700, textTransform: "none", fontSize: "0.88rem", mt: 1, borderColor: "success.main", color: "success.main", "&:hover": { borderColor: "success.dark", bgcolor: "success.50" } }}>
                           Save & Print
                         </Button>
@@ -4866,8 +5792,9 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                 guided step now renders inside the content column to this
                 panel's left, so the row is always [content flex:1][rail 280]
                 and this box's geometry is identical on all three steps. ── */}
-            {config.features?.customerPreview !== false && (
-              <Box sx={{ display: { xs: 'none', lg: 'block' }, width: 280, flexShrink: 0, alignSelf: 'flex-start' }}>
+            {isLgUp && !otgNoParty && config.features?.customerPreview !== false && <ResizeHandle panel={previewPanel} side="left" label="Resize customer panel" />}
+            {!otgNoParty && config.features?.customerPreview !== false && (
+              <Box sx={{ display: { xs: 'none', lg: 'block' }, width: previewPanel.width, flexShrink: 0, alignSelf: 'flex-start' }}>
                 <Box sx={{ position: 'sticky', top: 68, maxHeight: 'calc(100vh - 84px)', overflowY: 'auto', overflowX: 'hidden', borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: `0 4px 20px rgba(0,0,0,0.08)` }}>
                   <CustomerPreviewPanel
                     party={selectedParty}
@@ -4897,7 +5824,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                 still take over focus. Not rendering it at all above lg (where
                 the always-visible side rail already shows the same content)
                 is unambiguous. */}
-            {selectedParty && !isLgUp && config.features?.customerPreview !== false && (
+            {selectedParty && !otgNoParty && !isLgUp && config.features?.customerPreview !== false && (
               <Dialog open={showCustomerPanel} onClose={() => setShowCustomerPanel(false)} maxWidth="xs" fullWidth>
                 <CustomerPreviewPanel
                   party={selectedParty}
@@ -4923,38 +5850,26 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                 wide Review & Checkout block above — hidden here on ALL 3
                 steps (not just party/items) since the review step now has
                 its own separate layout instead of reusing this narrow one. ── */}
-            <Box sx={{ width: { xs: "100%", lg: 296 }, flexShrink: 0, ...(obActive ? { display: "none" } : {}) }}>
+            {isLgUp && !obActive && <ResizeHandle panel={summaryPanel} side="left" label="Resize summary panel" />}
+            <Box sx={{ width: { xs: "100%", lg: summaryPanel.width }, flexShrink: 0, ...(obActive ? { display: "none" } : {}) }}>
               <Box sx={{ position: { lg: "sticky" }, top: { lg: 68 }, maxHeight: { lg: "calc(100vh - 84px)" }, overflowY: { lg: "auto" }, pb: { lg: 0.5 } }}>
                 <Card
                   elevation={0}
                   sx={{
                     border: `1.5px solid ${tokens.primaryBorder}`,
-                    bgcolor: "rgba(17,17,17,0.025)",
                     borderRadius: tokens.radius.lg,
                     overflow: "hidden",
                     borderTop: `3px solid ${tokens.primary}`,
                     boxShadow: `0 4px 20px ${alpha(tokens.primary, 0.08)}`,
                   }}
                 >
-                  <Box
-                    sx={{
-                      px: 2.5,
-                      pt: 2,
-                      pb: 1,
-                      borderBottom: "1px solid rgba(17,17,17,0.1)",
-                    }}
-                  >
-                    <SectionLabel icon={TrendingUp} tokens={tokens}>
-                      Summary
-                    </SectionLabel>
-                  </Box>
-                  <CardContent sx={{ pt: 1.5, pb: 2, px: 2.5 }}>
-                    {/* Discount field in sidebar */}
+                  <CardContent sx={{ p: "14px !important" }}>
+                    {/* Discount */}
                     <TextField
                       fullWidth
                       size="small"
                       type="number"
-                      label={discountType === "percent" ? "Invoice Discount %" : "Invoice Discount ₹"}
+                      label={discountType === "percent" ? "Discount %" : "Discount ₹"}
                       value={discountPercent || ""}
                       placeholder="0"
                       onChange={(e) => setDiscountPercent(parseFloat(e.target.value) || 0)}
@@ -4979,8 +5894,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                                 }}
                                 sx={{ mr: 0.5 }}
                               >
-                                <ToggleButton value="percent" sx={{ py: 0.25, px: 0.75, fontSize: '0.7rem', fontWeight: 700, minWidth: 28, lineHeight: 1 }}>%</ToggleButton>
-                                <ToggleButton value="amount" sx={{ py: 0.25, px: 0.75, fontSize: '0.7rem', fontWeight: 700, minWidth: 28, lineHeight: 1 }}>₹</ToggleButton>
+                                <ToggleButton value="percent" sx={{ py: 0.2, px: 0.6, fontSize: '0.68rem', fontWeight: 700, minWidth: 24, lineHeight: 1 }}>%</ToggleButton>
+                                <ToggleButton value="amount" sx={{ py: 0.2, px: 0.6, fontSize: '0.68rem', fontWeight: 700, minWidth: 24, lineHeight: 1 }}>₹</ToggleButton>
                               </ToggleButtonGroup>
                             </InputAdornment>
                           ),
@@ -4988,255 +5903,23 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           step: discountType === "percent" ? 0.5 : 1,
                         },
                       }}
-                      sx={{ ...inputSx, mb: 1.75 }}
+                      sx={inputSx}
                     />
-                    {/* Mixed GST type warning */}
-                    {!noGST && mixedGstWarning && (
-                      <Alert
-                        severity="warning"
-                        sx={{ mb: 1.75, fontSize: '0.72rem', py: 0.75, px: 1.25, '& .MuiAlert-message': { p: 0 }, '& .MuiAlert-icon': { fontSize: 16, mr: 1, py: 0.75 } }}
-                      >
-                        <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, mb: 0.4 }}>
-                          Mixed GST types — not compliant
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.7rem', lineHeight: 1.5 }}>
-                          A single invoice cannot have both IGST and CGST+SGST items.
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary', mt: 0.5, lineHeight: 1.5 }}>
-                          <strong>IGST items:</strong> {mixedGstWarning.igstItems}<br />
-                          <strong>Intra-state items:</strong> {mixedGstWarning.intraItems}
-                        </Typography>
-                        <Typography sx={{ fontSize: '0.68rem', mt: 0.75, fontWeight: 600, color: 'warning.dark' }}>
-                          Please update the item GST type or split into two separate bills.
-                        </Typography>
-                      </Alert>
-                    )}
-
-                    {/* GST type info chip — derived from items */}
-                    {!noGST && items.some(i => (i.itemId || i.name?.trim()) && Number(i.qty) > 0) && (
-                      <Box sx={{ mb: 1.75 }}>
-                        <Chip
-                          size="small"
-                          label={
-                            isComposite ? 'Composite Scheme' :
-                            useIGST ? 'IGST (Inter-State)' :
-                            useUTGST ? 'CGST + UTGST (UT)' :
-                            'CGST + SGST (Intra-State)'
-                          }
-                          sx={{ fontWeight: 700, fontSize: '0.7rem', height: 22, bgcolor: alpha(tokens.primary, 0.08), color: tokens.primary, border: `1px solid ${alpha(tokens.primary, 0.2)}` }}
-                        />
-                      </Box>
-                    )}
-                    <Box
-                      sx={{
-                        display: "flex",
-                        flexDirection: "column",
-                        gap: 0.6,
-                        mb: 1.5,
-                      }}
-                    >
-                      {[
-                        {
-                          label: "Subtotal",
-                          value: `₹${calculateSubtotal().toFixed(2)}`,
-                        },
-                        ...(discountPercent > 0
-                          ? [
-                              {
-                                label: discountType === "amount" ? `Discount (₹${discountPercent})` : `Discount (${discountPercent}%)`,
-                                value: `-₹${calculateDiscountAmount().toFixed(2)}`,
-                                color: tokens.error,
-                              },
-                            ]
-                          : []),
-                        ...(noGST
-                          ? [{ label: "GST (disabled)", value: `₹0.00` }]
-                          : isComposite
-                          ? [{ label: 'Composition Tax', value: `₹${calculateTax().toFixed(2)}` }]
-                          : useIGST
-                          ? [{ label: 'IGST', value: `₹${calculateTax().toFixed(2)}` }]
-                          : useUTGST
-                          ? [
-                              { label: 'CGST', value: `₹${(calculateTax() / 2).toFixed(2)}` },
-                              { label: 'UTGST', value: `₹${(calculateTax() / 2).toFixed(2)}` },
-                            ]
-                          : [
-                              { label: 'CGST', value: `₹${(calculateTax() / 2).toFixed(2)}` },
-                              { label: 'SGST', value: `₹${(calculateTax() / 2).toFixed(2)}` },
-                            ]),
-                        ...(loyaltyRedeemValue > 0
-                          ? [{ label: `${config.loyalty?.programName || 'Reward Points'} (${loyaltyRedeemPoints} pts)`, value: `-₹${loyaltyRedeemValue.toFixed(2)}`, color: tokens.error }]
-                          : []),
-                        ...(calculatePackingCharge() > 0
-                          ? [{ label: "Packing Charges", value: `₹${calculatePackingCharge().toFixed(2)}` }]
-                          : []),
-                        ...(calculateShippingCharge() > 0
-                          ? [{ label: "Shipping Charges", value: `₹${calculateShippingCharge().toFixed(2)}` }]
-                          : []),
-                      ].map((r) => (
-                        <Box
-                          key={r.label}
-                          sx={{
-                            display: "flex",
-                            justifyContent: "space-between",
-                            alignItems: "center",
-                          }}
-                        >
-                          <Typography variant="body2" color="text.secondary">
-                            {r.label}
-                          </Typography>
-                          <Typography
-                            variant="body2"
-                            sx={{
-                              fontWeight: 700,
-                              color: r.color || "text.primary",
-                            }}
-                          >
-                            {r.value}
-                          </Typography>
-                        </Box>
-                      ))}
-                      {/* Round Off row */}
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          mt: 0.25,
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.75,
-                          }}
-                        >
-                          <Typography variant="body2" color="text.secondary">
-                            Round Off
-                          </Typography>
-                          {(() => {
-                            const t = calculateTotal();
-                            const target =
-                              roundOff > 0
-                                ? getRoundUpSeq(t)[roundOff - 1]
-                                : roundOff < 0
-                                  ? getRoundDownSeq(t)[Math.abs(roundOff) - 1]
-                                  : null;
-                            return target != null ? (
-                              <Typography
-                                variant="caption"
-                                sx={{
-                                  bgcolor: alpha(
-                                    roundOff > 0 ? tokens.success : tokens.error,
-                                    0.1,
-                                  ),
-                                  color:
-                                    roundOff > 0 ? tokens.success : tokens.error,
-                                  fontWeight: 800,
-                                  fontSize: "0.68rem",
-                                  px: 0.7,
-                                  py: 0.15,
-                                  borderRadius: "4px",
-                                  letterSpacing: "0.02em",
-                                }}
-                              >
-                                → ₹{target.toFixed(0)}
-                              </Typography>
-                            ) : null;
-                          })()}
-                        </Box>
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.5,
-                          }}
-                        >
-                          {(() => {
-                            const ro = calculateRoundOff();
-                            return (
-                              <Typography
-                                variant="body2"
-                                sx={{
-                                  fontWeight: 700,
-                                  minWidth: "56px",
-                                  textAlign: "right",
-                                  color:
-                                    ro > 0
-                                      ? tokens.success
-                                      : ro < 0
-                                        ? tokens.error
-                                        : "text.disabled",
-                                }}
-                              >
-                                {roundOff !== 0
-                                  ? `${ro >= 0 ? "+" : ""}₹${ro.toFixed(2)}`
-                                  : "—"}
-                              </Typography>
-                            );
-                          })()}
-                          <IconButton
-                            size="small"
-                            onClick={() =>
-                              setRoundOff((l) => Math.max(-3, l - 1))
-                            }
-                            disabled={
-                              roundOff <= -getRoundDownSeq(calculateTotal()).length
-                            }
-                            sx={{
-                              p: 0.4,
-                              border: `1px solid ${alpha(tokens.error, 0.35)}`,
-                              color: tokens.error,
-                              bgcolor: alpha(tokens.error, 0.06),
-                              borderRadius: "6px",
-                              "&:hover": { bgcolor: alpha(tokens.error, 0.12) },
-                              "&.Mui-disabled": { opacity: 0.35 },
-                            }}
-                          >
-                            <Minus size={12} />
-                          </IconButton>
-                          <IconButton
-                            size="small"
-                            onClick={() =>
-                              setRoundOff((l) => Math.min(3, l + 1))
-                            }
-                            disabled={
-                              roundOff >= getRoundUpSeq(calculateTotal()).length
-                            }
-                            sx={{
-                              p: 0.4,
-                              border: `1px solid ${alpha(tokens.success, 0.45)}`,
-                              color: tokens.success,
-                              bgcolor: alpha(tokens.success, 0.06),
-                              borderRadius: "6px",
-                              "&:hover": { bgcolor: alpha(tokens.success, 0.12) },
-                              "&.Mui-disabled": { opacity: 0.35 },
-                            }}
-                          >
-                            <Plus size={12} />
-                          </IconButton>
-                        </Box>
-                      </Box>
-                    </Box>
 
                     {(config.features?.packingCharges !== false || config.features?.shippingCharges !== false) && (
-                      <Box sx={{ mb: 1.5, pt: 1, borderTop: "1px dashed", borderColor: "divider" }}>
-                        <Typography variant="caption" sx={{ fontWeight: 700, color: "text.disabled", fontSize: "0.65rem", textTransform: "uppercase", letterSpacing: "0.06em", display: "block", mb: 0.75 }}>
-                          Extra Charges
-                        </Typography>
-                        <Box sx={{ display: "flex", flexDirection: { xs: "column", sm: "row" }, gap: 1 }}>
+                      <Box sx={{ display: "flex", gap: 0.75, mt: 0.75 }}>
                         {config.features?.packingCharges !== false && (
                           <TextField
                             fullWidth
                             size="small"
                             type="number"
-                            label="Packing Charges"
+                            label="Packing ₹"
                             placeholder="0.00"
                             value={packingCharge}
                             onChange={(e) => setPackingCharge(e.target.value)}
                             onFocus={(e) => e.target.select()}
-                            slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment>, min: 0, step: 0.01 } }}
+                            slotProps={{ input: { min: 0, step: 0.01 } }}
+                            sx={inputSx}
                           />
                         )}
                         {config.features?.shippingCharges !== false && (
@@ -5244,89 +5927,171 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             fullWidth
                             size="small"
                             type="number"
-                            label="Shipping Charges"
+                            label="Shipping ₹"
                             placeholder="0.00"
                             value={shippingCharge}
                             onChange={(e) => setShippingCharge(e.target.value)}
                             onFocus={(e) => e.target.select()}
-                            slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment>, min: 0, step: 0.01 } }}
+                            slotProps={{ input: { min: 0, step: 0.01 } }}
+                            sx={inputSx}
                           />
                         )}
-                        </Box>
                       </Box>
                     )}
 
-                    <Box
-                      sx={{
-                        p: 1.5,
-                        borderRadius: tokens.radius.md,
-                        background: `linear-gradient(135deg, ${alpha(tokens.primary, 0.08)} 0%, ${alpha(tokens.primaryLight, 0.06)} 100%)`,
-                        border: `1px solid ${tokens.primaryBorder}`,
-                        mb: 1.5,
-                      }}
-                    >
-                      <Box
-                        sx={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "baseline",
-                        }}
+                    {/* Mixed GST type warning */}
+                    {!noGST && mixedGstWarning && (
+                      <Alert
+                        severity="warning"
+                        sx={{ mt: 1, fontSize: '0.7rem', py: 0.5, px: 1, '& .MuiAlert-message': { p: 0 }, '& .MuiAlert-icon': { fontSize: 15, mr: 0.75, py: 0.5 } }}
                       >
-                        <Typography
-                          variant="body2"
-                          sx={{ fontWeight: 700, color: "text.secondary" }}
-                        >
-                          Invoice Total
+                        <Typography sx={{ fontSize: '0.72rem', fontWeight: 700 }}>Mixed GST — not compliant</Typography>
+                        <Typography sx={{ fontSize: '0.66rem', lineHeight: 1.4 }}>
+                          IGST: {mixedGstWarning.igstItems} · Intra-state: {mixedGstWarning.intraItems}
                         </Typography>
-                        <Typography
-                          variant="h6"
-                          sx={{
-                            fontWeight: 900,
-                            color: tokens.primary,
-                            letterSpacing: "-0.02em",
-                          }}
-                        >
-                          ₹{calculateFinalTotal().toFixed(2)}
-                        </Typography>
+                      </Alert>
+                    )}
+
+                    {/* ── Dense totals block — one thin divider-rule table
+                        instead of the previous separate boxed sections. ── */}
+                    <Box sx={{ mt: 1.25, pt: 1, borderTop: "1px dashed", borderColor: "divider" }}>
+                      {!noGST && items.some(i => (i.itemId || i.name?.trim()) && Number(i.qty) > 0) && (
+                        <Box sx={{ display: "flex", justifyContent: "flex-end", mb: 0.5 }}>
+                          <Chip
+                            size="small"
+                            label={
+                              isComposite ? 'Composite Scheme' :
+                              useIGST ? 'IGST (Inter-State)' :
+                              useUTGST ? 'CGST + UTGST (UT)' :
+                              'CGST + SGST (Intra-State)'
+                            }
+                            sx={{ fontWeight: 700, fontSize: '0.63rem', height: 18, bgcolor: alpha(tokens.primary, 0.08), color: tokens.primary, border: `1px solid ${alpha(tokens.primary, 0.2)}` }}
+                          />
+                        </Box>
+                      )}
+                      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.35 }}>
+                        {[
+                          { label: "Subtotal", value: `₹${calculateSubtotal().toFixed(2)}` },
+                          ...(discountPercent > 0
+                            ? [{
+                                label: discountType === "amount" ? `Discount (₹${discountPercent})` : `Discount (${discountPercent}%)`,
+                                value: `-₹${calculateDiscountAmount().toFixed(2)}`,
+                                color: tokens.error,
+                              }]
+                            : []),
+                          ...(noGST
+                            ? [{ label: "GST (disabled)", value: `₹0.00` }]
+                            : isComposite
+                            ? [{ label: 'Composition Tax', value: `₹${calculateTax().toFixed(2)}` }]
+                            : useIGST
+                            ? [{ label: 'IGST', value: `₹${calculateTax().toFixed(2)}` }]
+                            : useUTGST
+                            ? [
+                                { label: 'CGST', value: `₹${(calculateTax() / 2).toFixed(2)}` },
+                                { label: 'UTGST', value: `₹${(calculateTax() / 2).toFixed(2)}` },
+                              ]
+                            : [
+                                { label: 'CGST', value: `₹${(calculateTax() / 2).toFixed(2)}` },
+                                { label: 'SGST', value: `₹${(calculateTax() / 2).toFixed(2)}` },
+                              ]),
+                          ...(loyaltyRedeemValue > 0
+                            ? [{ label: `${config.loyalty?.programName || 'Reward Points'} (${loyaltyRedeemPoints} pts)`, value: `-₹${loyaltyRedeemValue.toFixed(2)}`, color: tokens.error }]
+                            : []),
+                          ...(calculatePackingCharge() > 0
+                            ? [{ label: "Packing", value: `₹${calculatePackingCharge().toFixed(2)}` }]
+                            : []),
+                          ...(calculateShippingCharge() > 0
+                            ? [{ label: "Shipping", value: `₹${calculateShippingCharge().toFixed(2)}` }]
+                            : []),
+                        ].map((r) => (
+                          <Box key={r.label} sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.76rem' }}>{r.label}</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.76rem', color: r.color || "text.primary" }}>{r.value}</Typography>
+                          </Box>
+                        ))}
+                        {/* Round Off row */}
+                        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.76rem' }}>Round Off</Typography>
+                            {(() => {
+                              const t = calculateTotal();
+                              const target = roundOff > 0 ? getRoundUpSeq(t)[roundOff - 1] : roundOff < 0 ? getRoundDownSeq(t)[Math.abs(roundOff) - 1] : null;
+                              return target != null ? (
+                                <Typography variant="caption" sx={{ bgcolor: alpha(roundOff > 0 ? tokens.success : tokens.error, 0.1), color: roundOff > 0 ? tokens.success : tokens.error, fontWeight: 800, fontSize: "0.62rem", px: 0.6, py: 0.1, borderRadius: "4px" }}>
+                                  → ₹{target.toFixed(0)}
+                                </Typography>
+                              ) : null;
+                            })()}
+                          </Box>
+                          <Box sx={{ display: "flex", alignItems: "center", gap: 0.35 }}>
+                            {(() => {
+                              const ro = calculateRoundOff();
+                              return (
+                                <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.76rem', minWidth: "48px", textAlign: "right", color: ro > 0 ? tokens.success : ro < 0 ? tokens.error : "text.disabled" }}>
+                                  {roundOff !== 0 ? `${ro >= 0 ? "+" : ""}₹${ro.toFixed(2)}` : "—"}
+                                </Typography>
+                              );
+                            })()}
+                            <IconButton size="small" onClick={() => setRoundOff((l) => Math.max(-3, l - 1))} disabled={roundOff <= -getRoundDownSeq(calculateTotal()).length}
+                              sx={{ p: 0.3, border: `1px solid ${alpha(tokens.error, 0.35)}`, color: tokens.error, bgcolor: alpha(tokens.error, 0.06), borderRadius: "5px", "&:hover": { bgcolor: alpha(tokens.error, 0.12) }, "&.Mui-disabled": { opacity: 0.35 } }}>
+                              <Minus size={11} />
+                            </IconButton>
+                            <IconButton size="small" onClick={() => setRoundOff((l) => Math.min(3, l + 1))} disabled={roundOff >= getRoundUpSeq(calculateTotal()).length}
+                              sx={{ p: 0.3, border: `1px solid ${alpha(tokens.success, 0.45)}`, color: tokens.success, bgcolor: alpha(tokens.success, 0.06), borderRadius: "5px", "&:hover": { bgcolor: alpha(tokens.success, 0.12) }, "&.Mui-disabled": { opacity: 0.35 } }}>
+                              <Plus size={11} />
+                            </IconButton>
+                          </Box>
+                        </Box>
                       </Box>
                     </Box>
 
-                    {/* Sale Type — Cash/Bank (paid now) vs Credit (owed) */}
-                    <Box sx={{ mb: 1.5, p: 1.5, borderRadius: tokens.radius.md, bgcolor: alpha(saleType === 'credit' ? '#1a1a1a' : tokens.primary, 0.05), border: `1px solid ${alpha(saleType === 'credit' ? '#1a1a1a' : tokens.primary, 0.18)}` }}>
-                      <Typography variant="caption" sx={{ fontWeight: 800, color: 'text.secondary', textTransform: "uppercase", letterSpacing: "0.06em", fontSize: "0.65rem", display: "block", mb: 1 }}>
-                        {isSale ? 'Sale Type' : 'Purchase Type'}
+                    <Box sx={{ mt: 1.25 }}>{renderLoyaltyNow()}</Box>
+
+                    <Box
+                      sx={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "baseline",
+                        mt: 1.25,
+                        p: 1.1,
+                        borderRadius: tokens.radius.md,
+                        background: `linear-gradient(135deg, ${alpha(tokens.primary, 0.08)} 0%, ${alpha(tokens.primaryLight, 0.06)} 100%)`,
+                        border: `1px solid ${tokens.primaryBorder}`,
+                      }}
+                    >
+                      <Typography variant="body2" sx={{ fontWeight: 700, color: "text.secondary" }}>Invoice Total</Typography>
+                      <Typography variant="h6" sx={{ fontWeight: 900, color: tokens.primary, letterSpacing: "-0.02em" }}>
+                        ₹{calculateFinalTotal().toFixed(2)}
+                      </Typography>
+                    </Box>
+
+                    {/* Sale Type — Cash/Bank (paid now) vs Credit (owed) —
+                        compact inline label + toggle instead of its own
+                        boxed section. */}
+                    <Box sx={{ mt: 1.25, display: "flex", alignItems: "center", gap: 1 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', fontSize: "0.68rem", flexShrink: 0 }}>
+                        {isSale ? 'Sale' : 'Purchase'}
                       </Typography>
                       <ToggleButtonGroup exclusive size="small" value={saleType} onChange={(_, v) => v && setSaleType(v)}
-                        sx={{ width: "100%", bgcolor: "white", borderRadius: tokens.radius.sm, p: 0.4, border: `1px solid ${alpha(tokens.primary, 0.14)}`,
-                          "& .MuiToggleButtonGroup-grouped": { border: 0, borderRadius: `${tokens.radius.sm} !important`, flex: 1, mx: 0.25 } }}>
-                        <ToggleButton value="paid" sx={{ textTransform: "none", fontWeight: 700, py: 0.6, fontSize: "0.78rem",
+                        sx={{ flex: 1, bgcolor: alpha('#1a1a1a', 0.03), borderRadius: tokens.radius.sm, p: 0.3, border: `1px solid ${alpha(tokens.primary, 0.14)}`,
+                          "& .MuiToggleButtonGroup-grouped": { border: 0, borderRadius: `${tokens.radius.sm} !important`, flex: 1, mx: 0.2 } }}>
+                        <ToggleButton value="paid" sx={{ textTransform: "none", fontWeight: 700, py: 0.35, fontSize: "0.7rem",
                           "&.Mui-selected": { bgcolor: tokens.primary, color: "white", "&:hover": { bgcolor: tokens.primary } } }}>
-                          {isSale ? 'Cash / Bank Sale' : 'Cash / Bank Purchase'}
+                          Cash / Bank
                         </ToggleButton>
-                        <ToggleButton value="credit" sx={{ textTransform: "none", fontWeight: 700, py: 0.6, fontSize: "0.78rem",
+                        <ToggleButton value="credit" disabled={otgNoParty} sx={{ textTransform: "none", fontWeight: 700, py: 0.35, fontSize: "0.7rem",
                           "&.Mui-selected": { bgcolor: '#1a1a1a', color: "white", "&:hover": { bgcolor: '#333' } } }}>
-                          {isSale ? 'Credit Sale' : 'Credit Purchase'}
+                          Credit
                         </ToggleButton>
                       </ToggleButtonGroup>
                     </Box>
 
-                    {/* Payment mode — shown on both create and edit. Previously
-                        hidden whenever view === "edit" for no documented
-                        reason, even though startEdit() already correctly
-                        restores paymentMode/splitCash/splitBank from the
-                        transaction and handleSave already always saves
-                        whatever paymentMode currently holds regardless of
-                        this gate — so editing a Cash/Bank invoice silently
-                        hid the Cash/Bank/Split selector with no way to see or
-                        change how it was actually paid. */}
+                    {/* Payment mode — shown on both create and edit. */}
                     {saleType === 'paid' && (
-                      <Box sx={{ mb: 1.5, p: 1.5, borderRadius: tokens.radius.md, bgcolor: alpha(tokens.primary, 0.04), border: `1px solid ${alpha(tokens.primary, 0.14)}` }}>
-                        <Typography variant="caption" sx={{ fontWeight: 800, color: alpha(tokens.primary, 0.85), textTransform: "uppercase", letterSpacing: "0.06em", fontSize: "0.65rem", display: "block", mb: 1 }}>
-                          Payment Mode
-                        </Typography>
+                      <Box sx={{ mt: 1 }}>
                         <PayModeTiles value={paymentMode} onChange={setPaymentMode} tokens={tokens} ariaLabel="Payment mode" />
                         {paymentMode === "Split" && (
-                          <Box sx={{ mt: 1.25 }}>
+                          <Box sx={{ mt: 1 }}>
                             <SplitPaymentInput
                               cash={splitCash} onCashChange={setSplitCash}
                               bank={splitBank} onBankChange={setSplitBank}
@@ -5344,9 +6109,9 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           <Button
                             fullWidth
                             size="small"
-                            startIcon={<QrCode size={14} />}
+                            startIcon={<QrCode size={13} />}
                             onClick={() => setPaymentQrOpen(true)}
-                            sx={{ mt: 1.25, fontWeight: 700, textTransform: "none", borderRadius: tokens.radius.sm, color: tokens.primary, bgcolor: "white", border: `1px solid ${alpha(tokens.primary, 0.25)}`, "&:hover": { bgcolor: tokens.primarySoft } }}
+                            sx={{ mt: 1, py: 0.4, fontWeight: 700, fontSize: "0.72rem", textTransform: "none", borderRadius: tokens.radius.sm, color: tokens.primary, bgcolor: "white", border: `1px solid ${alpha(tokens.primary, 0.25)}`, "&:hover": { bgcolor: tokens.primarySoft } }}
                           >
                             Show Payment QR (₹{paymentQrAmount.toFixed(2)})
                           </Button>
@@ -5358,34 +6123,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                         Applies to both Sales (advance received from customer)
                         and Purchases (advance paid to vendor). */}
                     {saleType === 'credit' && !!selectedParty?.id && (
-                      <Box
-                        sx={{
-                          mb: 1.5,
-                          p: 1.5,
-                          borderRadius: tokens.radius.md,
-                          bgcolor: tokens.successSoft,
-                          border: `1px solid rgba(100,116,139,0.2)`,
-                        }}
-                      >
-                        <Box
-                          sx={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: 0.75,
-                            mb: 1,
-                          }}
-                        >
-                          <Wallet size={14} color={tokens.success} />
-                          <Typography
-                            variant="caption"
-                            sx={{
-                              fontWeight: 800,
-                              color: "success.dark",
-                              textTransform: "uppercase",
-                              letterSpacing: "0.06em",
-                              fontSize: "0.65rem",
-                            }}
-                          >
+                      <Box sx={{ mt: 1.25, pt: 1, borderTop: "1px dashed", borderColor: "divider" }}>
+                        <Box sx={{ display: "flex", alignItems: "center", gap: 0.6, mb: 0.6 }}>
+                          <Wallet size={13} color={tokens.success} />
+                          <Typography variant="caption" sx={{ fontWeight: 700, color: "success.dark", fontSize: "0.68rem" }}>
                             {isSale ? "Advance Received" : "Advance Paid"}
                           </Typography>
                         </Box>
@@ -5397,40 +6138,14 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           value={advance}
                           onChange={(e) => setAdvance(e.target.value)}
                           onFocus={(e) => e.target.select()}
-                          disabled={false}
-                          slotProps={{
-                            input: {
-                              startAdornment: (
-                                <InputAdornment position="start">
-                                  ₹
-                                </InputAdornment>
-                              ),
-                              min: 0,
-                              step: 0.01,
-                            },
-                          }}
-                          sx={{
-                            "& .MuiOutlinedInput-root": {
-                              bgcolor: "white",
-                              borderRadius: tokens.radius.sm,
-                            },
-                          }}
+                          slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment>, min: 0, step: 0.01 } }}
+                          sx={inputSx}
                         />
-                        <Typography
-                          variant="caption"
-                          color="text.secondary"
-                          sx={{ display: "block", mt: 0.5 }}
-                        >
-                          {isSale ? "Auto-recorded as payment in" : "Auto-recorded as payment out"}
-                        </Typography>
                         {Number(advance) > 0 && (
-                          <Box sx={{ mt: 1.25 }}>
-                            <Typography variant="caption" sx={{ fontWeight: 800, color: 'success.dark', textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.65rem', display: 'block', mb: 0.75 }}>
-                              {isSale ? "Received Via" : "Paid Via"}
-                            </Typography>
+                          <Box sx={{ mt: 0.75 }}>
                             <PayModeTiles value={advanceMode} onChange={setAdvanceMode} tokens={tokens} accent={tokens.success} ariaLabel={isSale ? "Advance received via" : "Advance paid via"} />
                             {advanceMode === "Split" && (
-                              <Box sx={{ mt: 1.25 }}>
+                              <Box sx={{ mt: 1 }}>
                                 <SplitPaymentInput
                                   cash={advanceSplitCash} onCashChange={setAdvanceSplitCash}
                                   bank={advanceSplitBank} onBankChange={setAdvanceSplitBank}
@@ -5442,30 +6157,12 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           </Box>
                         )}
                         {Number(advance) > 0 && (
-                          <Box
-                            sx={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              mt: 1.25,
-                              pt: 1.25,
-                              borderTop: "1px dashed rgba(100,116,139,0.3)",
-                            }}
-                          >
-                            <Typography
-                              variant="body2"
-                              sx={{ fontWeight: 700, color: tokens.error }}
-                            >
+                          <Box sx={{ display: "flex", justifyContent: "space-between", mt: 0.75 }}>
+                            <Typography variant="caption" sx={{ fontWeight: 700, fontSize: '0.76rem', color: tokens.error }}>
                               {isSale ? "Balance Due" : "Balance Payable"}
                             </Typography>
-                            <Typography
-                              variant="body2"
-                              sx={{ fontWeight: 800, color: tokens.error }}
-                            >
-                              ₹
-                              {Math.max(
-                                0,
-                                calculateFinalTotal() - Number(advance),
-                              ).toFixed(2)}
+                            <Typography variant="caption" sx={{ fontWeight: 800, fontSize: '0.76rem', color: tokens.error }}>
+                              ₹{Math.max(0, calculateFinalTotal() - Number(advance)).toFixed(2)}
                             </Typography>
                           </Box>
                         )}
@@ -5476,142 +6173,65 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                       tokens={tokens}
                       fullWidth
                       onClick={() => handleSave()}
-                      disabled={isSaving}
-                      startIcon={<Save size={18} />}
-                      sx={{ py: 1.3, fontSize: "0.95rem", mb: 1 }}
+                      disabled={isSaving || !canWrite}
+                      startIcon={<Save size={17} />}
+                      sx={{ py: 1.05, fontSize: "0.88rem", mt: 1.5, mb: 0.75 }}
                     >
-                      {isSaving
-                        ? "Saving…"
-                        : view === "edit"
-                          ? "Update Transaction"
-                          : "Save Transaction"}
+                      {isSaving ? "Saving…" : view === "edit" ? "Update Transaction" : "Save Transaction"}
                     </GradientButton>
 
-                    {view === "create" && (
+                    <Box sx={{ display: "flex", gap: 0.75 }}>
+                      {view === "create" && (
+                        <Button
+                          variant="outlined"
+                          fullWidth
+                          size="small"
+                          startIcon={<Plus size={15} />}
+                          onClick={() => handleSave({ saveAndCreateNew: true })}
+                          disabled={isSaving || !canWrite}
+                          sx={{ borderRadius: tokens.radius.md, py: 0.6, fontWeight: 700, textTransform: "none", fontSize: "0.72rem", borderColor: tokens.primaryBorder, color: tokens.primary, "&:hover": { borderColor: tokens.primary, bgcolor: tokens.primarySoft } }}
+                        >
+                          Save & New
+                        </Button>
+                      )}
                       <Button
                         variant="outlined"
                         fullWidth
-                        size="large"
-                        startIcon={<Plus size={17} />}
-                        onClick={() => handleSave({ saveAndCreateNew: true })}
-                        disabled={isSaving}
-                        sx={{
-                          borderRadius: tokens.radius.md,
-                          py: 1,
-                          fontWeight: 700,
-                          textTransform: "none",
-                          fontSize: "0.88rem",
-                          borderColor: tokens.primaryBorder,
-                          color: tokens.primary,
-                          "&:hover": {
-                            borderColor: tokens.primary,
-                            bgcolor: tokens.primarySoft,
-                          },
-                        }}
+                        size="small"
+                        startIcon={<Printer size={15} />}
+                        onClick={() => handleSave({ saveAndPrint: true })}
+                        disabled={isSaving || !canWrite}
+                        sx={{ borderRadius: tokens.radius.md, py: 0.6, fontWeight: 700, textTransform: "none", fontSize: "0.72rem", borderColor: "success.main", color: "success.main", "&:hover": { borderColor: "success.dark", bgcolor: "success.50" } }}
                       >
-                        Save & Create New
+                        Save & Print
                       </Button>
-                    )}
-
-                    <Button
-                      variant="outlined"
-                      fullWidth
-                      size="large"
-                      startIcon={<Printer size={17} />}
-                      onClick={() => handleSave({ saveAndPrint: true })}
-                      disabled={isSaving}
-                      sx={{
-                        borderRadius: tokens.radius.md,
-                        py: 1,
-                        fontWeight: 700,
-                        textTransform: "none",
-                        fontSize: "0.88rem",
-                        mt: view === "create" ? 1 : 0,
-                        borderColor: "success.main",
-                        color: "success.main",
-                        "&:hover": {
-                          borderColor: "success.dark",
-                          bgcolor: "success.50",
-                        },
-                      }}
-                    >
-                      Save & Print
-                    </Button>
+                    </Box>
 
                     {view === "create" && (
                       <Button
                         variant="text"
                         fullWidth
-                        size="medium"
-                        startIcon={<RotateCcw size={15} />}
+                        size="small"
+                        startIcon={<RotateCcw size={13} />}
                         onClick={() => resetForm()}
-                        sx={{
-                          borderRadius: tokens.radius.md,
-                          py: 0.75,
-                          fontWeight: 600,
-                          textTransform: "none",
-                          fontSize: "0.82rem",
-                          color: "text.secondary",
-                          "&:hover": { bgcolor: "rgba(0,0,0,0.04)", color: "error.main" },
-                        }}
+                        sx={{ borderRadius: tokens.radius.md, py: 0.4, mt: 0.5, fontWeight: 600, textTransform: "none", fontSize: "0.72rem", color: "text.secondary", "&:hover": { bgcolor: "rgba(0,0,0,0.04)", color: "error.main" } }}
                       >
                         Clear All
                       </Button>
                     )}
 
                     {!isMobile && (
-                      <Box
-                        sx={{
-                          mt: 1.25,
-                          pt: 1.25,
-                          borderTop: "1px solid rgba(0,0,0,0.07)",
-                          display: "flex",
-                          flexWrap: "wrap",
-                          gap: 0.75,
-                          justifyContent: "center",
-                        }}
-                      >
+                      <Box sx={{ mt: 1, pt: 0.75, borderTop: "1px solid rgba(0,0,0,0.07)", display: "flex", flexWrap: "wrap", gap: 0.6, justifyContent: "center" }}>
                         {[
-                          {
-                            key: "Ctrl+S",
-                            label: view === "edit" ? "Update" : "Save",
-                          },
-                          ...(view === "create"
-                            ? [{ key: "Ctrl+↵", label: "Save & New" }]
-                            : []),
+                          { key: "Ctrl+S", label: view === "edit" ? "Update" : "Save" },
+                          ...(view === "create" ? [{ key: "Ctrl+↵", label: "Save & New" }] : []),
                           { key: "Esc", label: "Back" },
                         ].map((s) => (
-                          <Box
-                            key={s.key}
-                            sx={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 0.4,
-                            }}
-                          >
-                            <Box
-                              component="kbd"
-                              sx={{
-                                px: 0.8,
-                                py: 0.25,
-                                borderRadius: "5px",
-                                bgcolor: "rgba(0,0,0,0.06)",
-                                border: "1px solid rgba(0,0,0,0.12)",
-                                fontSize: "0.6rem",
-                                fontFamily: "monospace",
-                                fontWeight: 800,
-                                color: "text.secondary",
-                              }}
-                            >
+                          <Box key={s.key} sx={{ display: "flex", alignItems: "center", gap: 0.35 }}>
+                            <Box component="kbd" sx={{ px: 0.6, py: 0.15, borderRadius: "4px", bgcolor: "rgba(0,0,0,0.06)", border: "1px solid rgba(0,0,0,0.12)", fontSize: "0.56rem", fontFamily: "monospace", fontWeight: 800, color: "text.secondary" }}>
                               {s.key}
                             </Box>
-                            <Typography
-                              variant="caption"
-                              color="text.secondary"
-                              sx={{ fontSize: "0.68rem" }}
-                            >
-                              {s.label}
-                            </Typography>
+                            <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.64rem" }}>{s.label}</Typography>
                           </Box>
                         ))}
                       </Box>
@@ -5659,7 +6279,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
               tokens={tokens}
               fullWidth
               onClick={() => handleSave()}
-              disabled={isSaving}
+              disabled={isSaving || !canWrite}
               startIcon={<Save size={18} />}
               sx={{ py: 1.2, fontSize: "0.95rem" }}
             >
@@ -5729,7 +6349,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
       filters.maxAmount,
     ].filter(Boolean).length
     + (quickStatus !== "all" ? 1 : 0)
-    + (datePreset !== "all" ? 1 : 0);
+    + (datePreset !== "today" ? 1 : 0);
 
   const printBusy = pdfLoading || shareLoading;
 
@@ -5739,7 +6359,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
     <>
       <Box
         sx={{
-          background: '#ffffff', borderBottom: '1px solid #ece2db',
+          background: `linear-gradient(135deg, ${tokens.primaryDark} 0%, ${tokens.primaryLight} 100%)`,
           px: 2.5,
           py: 1.75,
           display: "flex",
@@ -5749,7 +6369,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         }}
       >
         <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Typography variant="overline" sx={{ color: "#57433e", fontWeight: 700, fontSize: "0.62rem", letterSpacing: "0.1em", lineHeight: 1 }}>
+          <Typography variant="overline" sx={{ color: "rgba(255,255,255,0.72)", fontWeight: 700, fontSize: "0.62rem", letterSpacing: "0.1em", lineHeight: 1 }}>
             {isSale ? "Invoice Preview" : "Bill Preview"}
           </Typography>
           <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
@@ -5761,45 +6381,45 @@ const SalesPage = ({ mode = "sales", tabId }) => {
               const label = selectedTx.status === 'paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Unpaid';
               return (
                 <Chip size="small" label={label}
-                  sx={{ fontWeight: 800, fontSize: '0.62rem', height: 18, bgcolor: isOverdue ? '#fee2e2' : 'rgba(92,31,34,0.08)', color: isOverdue ? '#991b1b' : '#5c1f22', border: isOverdue ? '1px solid #fecaca' : '1px solid #ece2db' }} />
+                  sx={{ fontWeight: 800, fontSize: '0.62rem', height: 18, bgcolor: isOverdue ? 'rgba(254,202,202,0.9)' : 'rgba(255,255,255,0.18)', color: isOverdue ? '#7f1d1d' : 'white', border: isOverdue ? '1px solid rgba(220,38,38,0.4)' : '1px solid rgba(255,255,255,0.3)' }} />
               );
             })()}
             {selectedTx.sourceEstimateId && (
               <Chip size="small" icon={<FileText size={12} />} label={`From Estimate${estimatesById.get(selectedTx.sourceEstimateId)?.estimateNumber ? `: ${estimatesById.get(selectedTx.sourceEstimateId).estimateNumber}` : ''}`}
                 onClick={() => viewSourceEstimate(selectedTx.sourceEstimateId)}
-                sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(92,31,34,0.08)', color: '#5c1f22', border: '1px solid #ece2db', cursor: 'pointer', '& .MuiChip-icon': { color: '#5c1f22' } }} />
+                sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', '& .MuiChip-icon': { color: 'white' } }} />
             )}
             {selectedTx.sourceOrderId && (
               <Chip size="small" icon={<ClipboardList size={12} />} label={`From Order${ordersById.get(selectedTx.sourceOrderId)?.orderNumber ? `: ${ordersById.get(selectedTx.sourceOrderId).orderNumber}` : ''}`}
                 onClick={() => viewSourceOrder(selectedTx.sourceOrderId)}
-                sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(92,31,34,0.08)', color: '#5c1f22', border: '1px solid #ece2db', cursor: 'pointer', '& .MuiChip-icon': { color: '#5c1f22' } }} />
+                sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', '& .MuiChip-icon': { color: 'white' } }} />
             )}
           </Box>
         </Box>
         <Tooltip title="Edit">
-          <IconButton size="small" onClick={() => startEdit(selectedTx)} sx={{ color: "#5c1f22", bgcolor: "rgba(92,31,34,0.08)", "&:hover": { bgcolor: "rgba(92,31,34,0.14)" } }}>
+          <IconButton size="small" onClick={() => startEdit(selectedTx)} sx={{ color: "white", bgcolor: "rgba(255,255,255,0.14)", "&:hover": { bgcolor: "rgba(255,255,255,0.25)" } }}>
             <Edit size={16} />
           </IconButton>
         </Tooltip>
         <Tooltip title="Print">
-          <IconButton size="small" onClick={() => triggerPrint(selectedTx)} sx={{ color: "#5c1f22", bgcolor: "rgba(92,31,34,0.08)", "&:hover": { bgcolor: "rgba(92,31,34,0.14)" } }}>
+          <IconButton size="small" onClick={() => triggerPrint(selectedTx)} sx={{ color: "white", bgcolor: "rgba(255,255,255,0.14)", "&:hover": { bgcolor: "rgba(255,255,255,0.25)" } }}>
             <Printer size={16} />
           </IconButton>
         </Tooltip>
         {selectedTx.status !== 'paid' && selectedTx.partyId && (
           <Tooltip title={isSale ? "Received Payment" : "Payment Made"}>
-            <IconButton size="small" onClick={() => handleReceivePayment(selectedTx)} sx={{ color: "#5c1f22", bgcolor: "rgba(92,31,34,0.08)", "&:hover": { bgcolor: "rgba(92,31,34,0.14)" } }}>
+            <IconButton size="small" onClick={() => handleReceivePayment(selectedTx)} sx={{ color: "white", bgcolor: "rgba(255,255,255,0.14)", "&:hover": { bgcolor: "rgba(255,255,255,0.25)" } }}>
               <Wallet size={16} />
             </IconButton>
           </Tooltip>
         )}
         <Tooltip title="More">
-          <IconButton size="small" onClick={(e) => setRowMoreMenu({ anchorEl: e.currentTarget, tx: selectedTx })} sx={{ color: "#5c1f22", bgcolor: "rgba(92,31,34,0.08)", "&:hover": { bgcolor: "rgba(92,31,34,0.14)" } }}>
+          <IconButton size="small" onClick={(e) => setRowMoreMenu({ anchorEl: e.currentTarget, tx: selectedTx })} sx={{ color: "white", bgcolor: "rgba(255,255,255,0.14)", "&:hover": { bgcolor: "rgba(255,255,255,0.25)" } }}>
             <MoreVertical size={16} />
           </IconButton>
         </Tooltip>
         <Tooltip title="Close preview">
-          <IconButton size="small" onClick={closeTxPreview} sx={{ color: "#57433e", "&:hover": { color: "#5c1f22", bgcolor: "rgba(92,31,34,0.08)" } }}>
+          <IconButton size="small" onClick={closeTxPreview} sx={{ color: "rgba(255,255,255,0.8)", "&:hover": { color: "white", bgcolor: "rgba(255,255,255,0.12)" } }}>
             <X size={16} />
           </IconButton>
         </Tooltip>
@@ -5888,10 +6508,8 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                   variant="body2"
                   sx={{ fontWeight: 700, color: tokens.primary }}
                 >
-                  {transactions.length} records · ₹
-                  {totalRevenue.toLocaleString("en-IN", {
-                    maximumFractionDigits: 0,
-                  })}
+                  {transactions.length} records
+                  {canSeeSummaries(staffSession) && ` · ₹${totalRevenue.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`}
                 </Typography>
               </>
             )}
@@ -6159,7 +6777,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                     search: "",
                   });
                   setQuickStatus("all");
-                  setDatePreset("all");
+                  setDatePreset("today");
                 }}
                 variant="text"
                 size="small"
@@ -6371,15 +6989,48 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             minHeight: 0,
           }}
         >
+          {/* Older bills hidden by the period filter — say so, one click to see them */}
+          {hiddenByPeriod > 0 && transactions.length > 0 && (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.75, py: 0.75, bgcolor: alpha(tokens.primary, 0.06), borderBottom: '1px solid', borderColor: alpha(tokens.primary, 0.15), flexShrink: 0, flexWrap: 'wrap' }}>
+              <CalendarDays size={14} color={tokens.primary} />
+              <Typography sx={{ fontSize: '0.78rem', color: 'text.secondary', flex: 1, minWidth: 0 }}>
+                Showing {PERIOD_LABELS[datePreset] || 'the selected period'} only · <strong>{hiddenByPeriod.toLocaleString('en-IN')}</strong> other {isSale ? 'invoice' : 'bill'}{hiddenByPeriod !== 1 ? 's' : ''} not shown
+              </Typography>
+              <Button size="small" onClick={() => setDatePreset('all')} sx={{ textTransform: 'none', fontWeight: 700, py: 0.25 }}>Show all</Button>
+            </Box>
+          )}
           {transactions.length === 0 ? (
             <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1.5, py: 8, px: 2 }}>
               <Box sx={{ p: 2, borderRadius: '50%', bgcolor: tokens.primarySoft }}>
                 {isSale ? <Receipt size={28} color={tokens.primary} /> : <ShoppingBasket size={28} color={tokens.primary} />}
               </Box>
-              <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.secondary' }}>No transactions yet</Typography>
-              <GradientButton tokens={tokens} onClick={() => { resetForm(); setView('create'); }} size="small" sx={{ mt: 0.5, px: 3 }}>
-                {isSale ? t('sales.newInvoice') : t('sales.newBill')}
-              </GradientButton>
+              {hiddenByPeriod > 0 ? (
+                <>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                    No {isSale ? 'invoices' : 'bills'} {PERIOD_LABELS[datePreset] || 'in this period'}
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: -1 }}>
+                    {hiddenByPeriod.toLocaleString('en-IN')} earlier {isSale ? 'invoice' : 'bill'}{hiddenByPeriod !== 1 ? 's are' : ' is'} hidden by the date filter.
+                  </Typography>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
+                    <Button variant="outlined" size="small" startIcon={<CalendarDays size={15} />} onClick={() => setDatePreset('all')} sx={{ textTransform: 'none', fontWeight: 700 }}>
+                      Show all {isSale ? 'invoices' : 'bills'}
+                    </Button>
+                    <GradientButton tokens={tokens} onClick={() => { resetForm(); setView('create'); }} size="small" sx={{ px: 3 }}>
+                      {isSale ? t('sales.newInvoice') : t('sales.newBill')}
+                    </GradientButton>
+                  </Box>
+                </>
+              ) : (
+                <>
+                  <Typography variant="subtitle1" sx={{ fontWeight: 700, color: 'text.secondary' }}>
+                    {allBillsCount > 0 ? 'No matching transactions' : 'No transactions yet'}
+                  </Typography>
+                  <GradientButton tokens={tokens} onClick={() => { resetForm(); setView('create'); }} size="small" sx={{ mt: 0.5, px: 3 }}>
+                    {isSale ? t('sales.newInvoice') : t('sales.newBill')}
+                  </GradientButton>
+                </>
+              )}
             </Box>
           ) : (
             <Box sx={{ display: 'flex', flexDirection: 'column', minHeight: 0, flex: 1 }}>
@@ -6511,7 +7162,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{tx.partyName}</Typography>
                         ) : (
                           <Chip size="small" label={tx.partyName || (isSale ? 'Cash & Carry' : 'Cash Purchase')}
-                            sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(100,116,139,0.08)', color: 'success.dark', border: '1px solid rgba(100,116,139,0.22)' }} />
+                            sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(16,185,129,0.08)', color: 'success.dark', border: '1px solid rgba(16,185,129,0.22)' }} />
                         )}
                         {tx.partyPhone && (
                           <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }} noWrap>{tx.partyPhone}</Typography>
@@ -6520,7 +7171,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
 
                       {/* Chips: status, payment mode/credit, transaction type, source */}
                       <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                        {config.features?.billPaymentStatusChip !== false && <PaidStatusChip status={tx.status} overdue={overdue} />}
+                        {config.features?.billPaymentStatusChip !== false && <PaidStatusChip status={tx.status} overdue={overdue} partial={isPartPaid(tx)} />}
                         <Chip size="small" label={tx.status === 'unpaid' ? 'Credit' : (tx.paymentMode || '—')}
                           sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: alpha(tokens.primary, 0.08), color: tokens.primary, border: `1px solid ${alpha(tokens.primary, 0.2)}` }} />
                         <Chip size="small" label={tx.type === 'Purchases' ? 'Purchase' : 'Sale'}
@@ -6534,6 +7185,9 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             onClick={(e) => { e.stopPropagation(); viewSourceOrder(tx.sourceOrderId); }} />
                         )}
                       </Box>
+
+                      {isPartPaid(tx) && <PartPaymentBar tx={tx} isSale={isSale} />}
+                      {!isPartPaid(tx) && txWrittenOff(tx) > 0 && <WriteOffNote amount={txWrittenOff(tx)} />}
 
                       {/* Due date, when set — plus an inline WhatsApp
                           reminder button for any unpaid invoice/bill with a
@@ -6581,6 +7235,20 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                             <Edit size={15} />
                           </IconButton>
                         </Tooltip>
+                        {tx.status !== 'paid' && tx.partyId && (
+                          <Tooltip title={isSale ? 'Received Payment' : 'Payment Made'}>
+                            <IconButton size="small" onClick={() => handleReceivePayment(tx)}
+                              sx={{ flex: 1, borderRadius: tokens.radius.sm, color: tokens.success, bgcolor: `${tokens.success}10`, '&:hover': { bgcolor: `${tokens.success}20` } }}>
+                              <Wallet size={15} />
+                            </IconButton>
+                          </Tooltip>
+                        )}
+                        <Tooltip title="Share">
+                          <IconButton size="small" onClick={() => handleShare(tx)}
+                            sx={{ flex: 1, borderRadius: tokens.radius.sm, color: '#25D366', bgcolor: 'rgba(37,211,102,0.08)', '&:hover': { bgcolor: 'rgba(37,211,102,0.16)' } }}>
+                            <Share2 size={15} />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="More">
                           <IconButton size="small" onClick={(e) => setRowMoreMenu({ anchorEl: e.currentTarget, tx })}
                             sx={{ flex: 1, borderRadius: tokens.radius.sm, color: tokens.primary, bgcolor: `${tokens.primary}10`, '&:hover': { bgcolor: `${tokens.primary}20` } }}>
@@ -6611,7 +7279,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                         cursor: 'pointer',
                         transition: 'background 0.12s, border-color 0.12s',
                         bgcolor: isActive ? tokens.primarySoft : selectedIds.has(tx.id) ? 'primary.50' : statusTint || 'transparent',
-                        '&:hover': { bgcolor: isActive ? tokens.primarySoft : statusTint ? alpha(STATUS_COLOR[statusKeyOf(tx.status, overdue)], 0.1) : 'rgba(17,17,17,0.04)' },
+                        '&:hover': { bgcolor: isActive ? tokens.primarySoft : statusTint ? alpha(STATUS_COLOR[statusKeyOf(tx.status, overdue)], 0.1) : 'rgba(92,31,34,0.04)' },
                       }}
                     >
                       {/* Top row: doc # + amount */}
@@ -6648,9 +7316,9 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>{tx.partyName}</Typography>
                         ) : (
                           <Chip size="small" label={tx.partyName || (isSale ? 'Cash & Carry' : 'Cash Purchase')}
-                            sx={{ fontWeight: 700, fontSize: '0.68rem', height: 20, bgcolor: 'rgba(100,116,139,0.08)', color: 'success.dark', border: '1px solid rgba(100,116,139,0.22)' }} />
+                            sx={{ fontWeight: 700, fontSize: '0.68rem', height: 20, bgcolor: 'rgba(16,185,129,0.08)', color: 'success.dark', border: '1px solid rgba(16,185,129,0.22)' }} />
                         )}
-                        {config.features?.billPaymentStatusChip !== false && <PaidStatusChip status={tx.status} overdue={overdue} />}
+                        {config.features?.billPaymentStatusChip !== false && <PaidStatusChip status={tx.status} overdue={overdue} partial={isPartPaid(tx)} />}
                         {tx.sourceEstimateId && (
                           <SourceChip label={`From Estimate${estimatesById.get(tx.sourceEstimateId)?.estimateNumber ? `: ${estimatesById.get(tx.sourceEstimateId).estimateNumber}` : ''}`} icon={FileText}
                             onClick={(e) => { e.stopPropagation(); viewSourceEstimate(tx.sourceEstimateId); }} />
@@ -6673,6 +7341,9 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                           </Tooltip>
                         )}
                       </Box>
+
+                      {isPartPaid(tx) && <PartPaymentBar tx={tx} isSale={isSale} sx={{ ml: 4 }} />}
+                      {!isPartPaid(tx) && txWrittenOff(tx) > 0 && <WriteOffNote amount={txWrittenOff(tx)} sx={{ ml: 4 }} />}
 
                       {/* Actions — Edit, Print (desktop only) + Received Payment
                           (+ Reference Images, when present) stay as always-visible
@@ -6738,6 +7409,18 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                   <MenuItem onClick={() => { setImageViewerRecordId(rowMoreMenu.tx.id); setRowMoreMenu({ anchorEl: null, tx: null }); }} sx={{ gap: 1.5, py: 1.1 }}>
                     <ListItemIcon sx={{ minWidth: "unset" }}><Images size={16} color="#0891b2" /></ListItemIcon>
                     <ListItemText primary="View Reference Images" primaryTypographyProps={{ fontSize: "0.85rem", fontWeight: 600 }} />
+                  </MenuItem>
+                )}
+                {rowMoreMenu.tx?.status !== 'paid' && rowMoreMenu.tx?.partyId && (
+                  <MenuItem onClick={() => { const tx = rowMoreMenu.tx; setRowMoreMenu({ anchorEl: null, tx: null }); handleReceivePayment(tx); }} sx={{ gap: 1.5, py: 1.1 }}>
+                    <ListItemIcon sx={{ minWidth: "unset" }}><Wallet size={16} color={tokens.success} /></ListItemIcon>
+                    <ListItemText primary={isSale ? 'Received Payment' : 'Payment Made'} primaryTypographyProps={{ fontSize: "0.85rem", fontWeight: 600 }} />
+                  </MenuItem>
+                )}
+                {rowMoreMenu.tx?.status !== 'paid' && rowMoreMenu.tx?.partyId && (
+                  <MenuItem onClick={() => { const tx = rowMoreMenu.tx; setRowMoreMenu({ anchorEl: null, tx: null }); handleSendReminder(tx); }} sx={{ gap: 1.5, py: 1.1 }}>
+                    <ListItemIcon sx={{ minWidth: "unset" }}><MessageCircle size={16} color="#25D366" /></ListItemIcon>
+                    <ListItemText primary="Send Payment Reminder" primaryTypographyProps={{ fontSize: "0.85rem", fontWeight: 600 }} />
                   </MenuItem>
                 )}
                 <MenuItem onClick={() => { const tx = rowMoreMenu.tx; setRowMoreMenu({ anchorEl: null, tx: null }); handleDelete(tx); }} sx={{ gap: 1.5, py: 1.1 }}>
@@ -6858,7 +7541,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         {/* Gradient header */}
         <Box
           sx={{
-            background: '#ffffff', borderBottom: '1px solid #ece2db',
+            background: `linear-gradient(135deg, ${tokens.primaryDark} 0%, ${tokens.primaryLight} 100%)`,
             px: 3,
             py: 2.5,
             display: "flex",
@@ -6871,20 +7554,20 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             sx={{
               p: 1,
               borderRadius: tokens.radius.md,
-              bgcolor: "rgba(92,31,34,0.08)",
+              bgcolor: "rgba(255,255,255,0.15)",
               display: "flex",
               alignItems: "center",
               mt: 0.5,
               flexShrink: 0,
             }}
           >
-            <Eye size={18} color="#5c1f22" />
+            <Eye size={18} color="white" />
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography
               variant="overline"
               sx={{
-                color: "#57433e",
+                color: "rgba(255,255,255,0.72)",
                 fontWeight: 700,
                 fontSize: "0.65rem",
                 letterSpacing: "0.1em",
@@ -6896,7 +7579,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             <Typography
               variant="h6"
               sx={{
-                color: "#5c1f22",
+                color: "white",
                 fontWeight: 800,
                 mt: 0.5,
                 fontSize: "1.05rem",
@@ -6917,10 +7600,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             >
               {previewTx?.partyName && (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <User size={12} color="#5f4f47" />
+                  <User size={12} color="rgba(255,255,255,0.65)" />
                   <Typography
                     variant="caption"
-                    sx={{ color: "#7a2e30", fontWeight: 600 }}
+                    sx={{ color: "rgba(255,255,255,0.85)", fontWeight: 600 }}
                   >
                     {previewTx.partyName}
                   </Typography>
@@ -6928,10 +7611,10 @@ const SalesPage = ({ mode = "sales", tabId }) => {
               )}
               {previewTx?.date && (
                 <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                  <Calendar size={12} color="#5f4f47" />
+                  <Calendar size={12} color="rgba(255,255,255,0.65)" />
                   <Typography
                     variant="caption"
-                    sx={{ color: "#7a2e30", fontWeight: 600 }}
+                    sx={{ color: "rgba(255,255,255,0.85)", fontWeight: 600 }}
                   >
                     {formatDate(previewTx.date)}
                   </Typography>
@@ -6942,14 +7625,14 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                   sx={{
                     px: 1.25,
                     py: 0.25,
-                    bgcolor: "rgba(92,31,34,0.08)",
+                    bgcolor: "rgba(255,255,255,0.18)",
                     borderRadius: "100px",
-                    border: "1px solid #ece2db",
+                    border: "1px solid rgba(255,255,255,0.25)",
                   }}
                 >
                   <Typography
                     variant="caption"
-                    sx={{ color: "#5c1f22", fontWeight: 800, fontSize: "0.8rem" }}
+                    sx={{ color: "white", fontWeight: 800, fontSize: "0.8rem" }}
                   >
                     ₹{previewTx.totalAmount.toFixed(2)}
                   </Typography>
@@ -6960,26 +7643,26 @@ const SalesPage = ({ mode = "sales", tabId }) => {
                 const label = previewTx.status === 'paid' ? 'Paid' : isOverdue ? 'Overdue' : 'Unpaid';
                 return (
                   <Chip size="small" label={label}
-                    sx={{ fontWeight: 800, fontSize: '0.62rem', height: 18, bgcolor: isOverdue ? '#fee2e2' : 'rgba(92,31,34,0.08)', color: isOverdue ? '#991b1b' : '#5c1f22', border: isOverdue ? '1px solid #fecaca' : '1px solid #ece2db' }} />
+                    sx={{ fontWeight: 800, fontSize: '0.62rem', height: 18, bgcolor: isOverdue ? 'rgba(254,202,202,0.9)' : 'rgba(255,255,255,0.18)', color: isOverdue ? '#7f1d1d' : 'white', border: isOverdue ? '1px solid rgba(220,38,38,0.4)' : '1px solid rgba(255,255,255,0.3)' }} />
                 );
               })()}
               {previewTx?.sourceEstimateId && (
                 <Chip size="small" icon={<FileText size={12} />} label={`From Estimate${estimatesById.get(previewTx.sourceEstimateId)?.estimateNumber ? `: ${estimatesById.get(previewTx.sourceEstimateId).estimateNumber}` : ''}`}
                   onClick={() => viewSourceEstimate(previewTx.sourceEstimateId)}
-                  sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(92,31,34,0.08)', color: '#5c1f22', border: '1px solid #ece2db', cursor: 'pointer', '& .MuiChip-icon': { color: '#5c1f22' } }} />
+                  sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', '& .MuiChip-icon': { color: 'white' } }} />
               )}
               {previewTx?.sourceOrderId && (
                 <Chip size="small" icon={<ClipboardList size={12} />} label={`From Order${ordersById.get(previewTx.sourceOrderId)?.orderNumber ? `: ${ordersById.get(previewTx.sourceOrderId).orderNumber}` : ''}`}
                   onClick={() => viewSourceOrder(previewTx.sourceOrderId)}
-                  sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(92,31,34,0.08)', color: '#5c1f22', border: '1px solid #ece2db', cursor: 'pointer', '& .MuiChip-icon': { color: '#5c1f22' } }} />
+                  sx={{ fontWeight: 700, fontSize: '0.62rem', height: 18, bgcolor: 'rgba(255,255,255,0.18)', color: 'white', border: '1px solid rgba(255,255,255,0.3)', cursor: 'pointer', '& .MuiChip-icon': { color: 'white' } }} />
               )}
               {previewTx?.billedBy && (
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
                   <Typography
                     variant="caption"
-                    sx={{ color: '#57433e', fontSize: '0.7rem' }}
+                    sx={{ color: 'rgba(255,255,255,0.75)', fontSize: '0.7rem' }}
                   >
-                    Billed by: <strong style={{ color: '#5c1f22' }}>{previewTx.billedBy}</strong>
+                    Billed by: <strong style={{ color: 'rgba(255,255,255,0.95)' }}>{previewTx.billedBy}</strong>
                   </Typography>
                 </Box>
               )}
@@ -6989,12 +7672,12 @@ const SalesPage = ({ mode = "sales", tabId }) => {
             onClick={() => setPreviewOpen(false)}
             size="small"
             sx={{
-              color: "#57433e",
+              color: "rgba(255,255,255,0.75)",
               mt: -0.5,
               mr: -0.5,
               "&:hover": {
-                color: "#5c1f22",
-                bgcolor: "rgba(92,31,34,0.08)",
+                color: "white",
+                bgcolor: "rgba(255,255,255,0.12)",
               },
             }}
           >
@@ -7132,121 +7815,17 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         </Box>
       </Dialog>
 
-      {/* Received Payment / Payment Made — pick Cash / Bank / Split before settling */}
-      <Dialog
+      {/* Received Payment / Payment Made — full or partial (custom amount) */}
+      <ReceivePaymentDialog
         open={receivePayDialog.open}
-        onClose={closeReceivePayDialog}
-        maxWidth="xs"
-        fullWidth
-        slotProps={{ paper: { sx: { borderRadius: tokens.radius.lg } } }}
-      >
-        <Box sx={{ px: 3, pt: 2.5, pb: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.05rem' }}>
-            {isSale ? 'Received Payment' : 'Payment Made'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Invoice #{receivePayDialog.tx?.invoiceNumber} · {receivePayDialog.tx?.partyName}
-          </Typography>
-          <Typography sx={{ mt: 1.5, fontWeight: 800, fontSize: '1.5rem', color: tokens.success }}>
-            ₹{receivePayDialog.outstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </Typography>
-        </Box>
-        <Box sx={{ px: 3, pb: 1 }}>
-          <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>
-            Received Via
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5 }}>
-            {[
-              { value: 'Cash', icon: <Banknote size={14} />, color: '#16a34a' },
-              { value: 'Bank', icon: <Landmark size={14} />, color: '#5c1f22' },
-              { value: 'Split', icon: <Wallet size={14} />, color: '#7c3aed' },
-            ].map((opt) => {
-              const sel = receivePayMode === opt.value;
-              return (
-                <Box
-                  key={opt.value}
-                  onClick={() => setReceivePayMode(opt.value)}
-                  sx={{
-                    display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, borderRadius: '8px',
-                    border: '1.5px solid', cursor: 'pointer', userSelect: 'none', transition: 'all 0.12s',
-                    fontWeight: 700, fontSize: '0.8rem',
-                    borderColor: sel ? opt.color : 'divider',
-                    bgcolor: sel ? alpha(opt.color, 0.07) : 'transparent',
-                    color: sel ? opt.color : 'text.secondary',
-                    '&:hover': { borderColor: opt.color, color: opt.color, bgcolor: alpha(opt.color, 0.05) },
-                  }}
-                >
-                  {opt.icon}{opt.value}
-                </Box>
-              );
-            })}
-          </Box>
-          {receivePayMode === 'Split' && (
-            <SplitPaymentInput
-              cash={receivePaySplitCash} onCashChange={setReceivePaySplitCash}
-              bank={receivePaySplitBank} onBankChange={setReceivePaySplitBank}
-              total={Math.max(0, receivePayDialog.outstanding - (parseFloat(receivePayLess) || 0))}
-            />
-          )}
-          <TextField
-            fullWidth size="small" type="date" label="Payment Date"
-            value={receivePayDate}
-            onChange={(e) => setReceivePayDate(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: new Date().toISOString().split('T')[0] } }}
-            sx={{ mt: 1.5 }}
-          />
-          <Box sx={{ mt: 1.5, border: '1.5px solid', borderColor: receivePayLess ? '#d97706' : 'divider', borderRadius: '10px', px: 1.5, py: 0.75, bgcolor: receivePayLess ? alpha('#d97706', 0.05) : 'transparent', transition: 'all 0.15s' }}>
-            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: receivePayLess ? '#d97706' : 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.25 }}>
-              Less (Discount / Write-off)
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: receivePayLess ? '#d97706' : '#ddd0c9' }}>₹</Typography>
-              <InputBase
-                fullWidth type="number" placeholder="0 (optional)"
-                value={receivePayLess}
-                onChange={(e) => setReceivePayLess(e.target.value)}
-                slotProps={{ input: { min: 0, max: receivePayDialog.outstanding, step: '0.01' } }}
-                sx={{ fontSize: '0.9rem', fontWeight: 600 }}
-              />
-            </Box>
-          </Box>
-          {parseFloat(receivePayLess) > 0 && (
-            <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mt: 0.5 }}>
-              Collecting ₹{Math.max(0, receivePayDialog.outstanding - (parseFloat(receivePayLess) || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })} · writing off ₹{(parseFloat(receivePayLess) || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })} — invoice still marked fully paid.
-            </Typography>
-          )}
-          <TextField
-            fullWidth size="small" label="Notes (optional)" placeholder="e.g. Paid via GPay, ref #123"
-            value={receivePayNotes}
-            onChange={(e) => setReceivePayNotes(e.target.value)}
-            sx={{ mt: 1.5 }}
-          />
-        </Box>
-        <DialogActions sx={{ px: 3, pb: 2.5, flexWrap: 'wrap', gap: 1 }}>
-          <Button onClick={closeReceivePayDialog} disabled={receivePaySaving} sx={{ fontWeight: 600 }}>Cancel</Button>
-          <Box sx={{ flex: 1 }} />
-          <Tooltip title="Marks the invoice as paid without recording any payment — add it manually via Payment Entry later.">
-            <span>
-              <Button
-                onClick={markPaidWithoutPayment}
-                disabled={receivePaySaving}
-                variant="outlined"
-                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2 }}
-              >
-                Mark Paid without Payment
-              </Button>
-            </span>
-          </Tooltip>
-          <Button
-            variant="contained"
-            onClick={confirmReceivePayment}
-            disabled={receivePaySaving}
-            sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, bgcolor: tokens.success, '&:hover': { bgcolor: tokens.success } }}
-          >
-            {receivePaySaving ? 'Saving…' : (isSale ? 'Confirm Received' : 'Confirm Paid')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        tx={receivePayDialog.tx}
+        isSale={isSale}
+        onClose={() => setReceivePayDialog({ open: false, tx: null })}
+        onDone={({ message, severity }) => {
+          setReceivePayDialog({ open: false, tx: null });
+          setSnack({ open: true, message, severity, duration: severity === 'info' ? 6000 : undefined });
+        }}
+      />
 
       <Snackbar
         open={snack.open}
@@ -7274,7 +7853,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         onClose={() => setBulkSendOpen(false)}
         transactions={transactions.filter(t => selectedIds.has(t.id))}
         parties={getItems('parties').filter(p => p.businessId === currentBusiness?.id)}
-        businessName={currentBusiness?.name || 'TallyKraft'}
+        businessName={currentBusiness?.name || 'DigitZebra'}
         isSale={isSale}
       />
 
@@ -7318,7 +7897,7 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         onClose={() => { setSendOpen(false); setSendInitialMessage(undefined); setSendDialogTitle(undefined); }}
         tx={sendTx}
         party={sendParty}
-        businessName={currentBusiness?.name || 'TallyKraft'}
+        businessName={currentBusiness?.name || 'DigitZebra'}
         isSale={isSale}
         onSharePDF={() => shareAsPDF(sendTx)}
         onShareImage={() => shareAsImage(sendTx)}
@@ -7334,6 +7913,14 @@ const SalesPage = ({ mode = "sales", tabId }) => {
         onClose={() => setImageViewerRecordId(null)}
         recordId={imageViewerRecordId}
       />
+
+      {autoPrintBarcode && (
+        <BulkBarcodeDialog
+          items={autoPrintBarcode.items}
+          defaultCopies={autoPrintBarcode.copies}
+          onClose={() => setAutoPrintBarcode(null)}
+        />
+      )}
     </Box>
   );
 };

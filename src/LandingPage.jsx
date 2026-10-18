@@ -1,46 +1,80 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   Receipt, ShoppingCart, Users, Package, Wallet, BarChart3,
-  Printer, UserCheck, Building2, CloudUpload, Globe, Shield,
-  FileText, TrendingUp, CheckCircle, ArrowRight, Zap,
-  Smartphone, Monitor, Tablet, Wifi, Star, ChevronDown,
-  CreditCard, ArrowUpRight, Lock, ClipboardList, Download,
-  Layers, Eye, Plus, AlignLeft,
-  Scissors, Activity, Wrench, ChevronLeft, ChevronRight,
+  Printer, UserCheck, Building2, CloudUpload, Globe, ShieldCheck,
+  FileText, Check, ArrowRight, ArrowUpRight, Lock, ClipboardList,
+  Layers, Eye, Plus, Minus, Scissors, Activity, Wrench, Zap, Star,
+  Smartphone, Monitor, Tablet, TrendingUp, Send,
 } from 'lucide-react';
 import { firestore } from './db';
 import { doc, getDoc } from 'firebase/firestore';
-import TallyKraftLogo from './TallyKraftLogo';
+import BillDhekoLogo, { TM } from './BillDhekoLogo';
 import FeatureDemos from './FeatureDemos';
+import { TRIAL_DAYS, PLAN_DAYS, PLAN_PRICE } from './planTiers';
 
-/* ── accent (fixed regardless of theme) ── */
-const P    = '#5c1f22';
-const P2   = '#3f1417';
-const GRAD = `linear-gradient(135deg, ${P} 0%, ${P2} 100%)`;
+/* ── brand ── */
+const P    = '#5c1f22';   // oxblood
+const P2   = '#3f1417';   // deep oxblood
+const GOLD = '#b08d57';   // champagne gold accent
 
-/* ── static data ── */
-const FEATURES = [
-  { icon: Receipt,      title: 'GST Invoicing',        desc: 'Create professional tax invoices instantly. Auto-calculate GST, discounts, and round-off.' },
-  { icon: ShoppingCart, title: 'Purchase Management',  desc: 'Track supplier bills, manage purchase orders, and monitor outstanding payables.' },
-  { icon: Users,        title: 'Party Ledger',         desc: 'Complete customer & vendor management with real-time balance tracking.' },
-  { icon: Package,      title: 'Inventory Control',    desc: 'Real-time stock tracking with item-level pricing, units, and barcode support.' },
-  { icon: Wallet,       title: 'Payment Tracking',     desc: 'Record payment-in and payment-out. Know who owes you and what you owe.' },
-  { icon: BarChart3,    title: 'Financial Reports',    desc: 'Profit & Loss, balance sheet, GST reports — all at a single click.' },
-  { icon: Printer,      title: 'Print & Share',        desc: 'Print A4/thermal bills or share as PDF/image via WhatsApp in seconds.' },
-  { icon: UserCheck,    title: 'Staff Management',     desc: 'Add staff with custom permissions. Control what each person can see or do.' },
-  { icon: Building2,    title: 'Multi-Business',       desc: 'Run multiple businesses from one account. Switch between them instantly.' },
-  { icon: CloudUpload,  title: 'Cloud Backup',         desc: 'Your data syncs to the cloud automatically. Never lose a record again.' },
-  { icon: Globe,        title: 'Any Device, Anywhere', desc: 'Open on any phone, tablet, or desktop — all you need is a browser and internet.' },
-  { icon: FileText,     title: 'Estimates & Notes',    desc: 'Send quotations, credit notes, debit notes, and delivery notes professionally.' },
-  { icon: Layers,        title: 'Custom Sections & Fields',          desc: 'Build any form your business needs — eye exams, tailoring measurements, gym records, clinic notes, and more.' },
-  { icon: Lock,          title: 'Complete Offline Mode (if Needed)', desc: 'Keep all data on your device only. No cloud sync — full privacy, works without internet.' },
-  { icon: ClipboardList, title: 'Auditor Login',                     desc: 'Give your CA or auditor a secure PIN. They log in, view reports, and export what they need — no owner involvement.' },
+/* ── content ── */
+const FEATURE_GROUPS = [
+  {
+    title: 'Billing & GST',
+    items: [
+      { icon: Receipt,  title: 'GST Invoicing',     desc: 'Professional tax invoices in seconds — GST, discounts and round-off calculated for you.' },
+      { icon: FileText, title: 'Estimates & Notes', desc: 'Quotations, credit, debit and delivery notes that convert to invoices in one tap.' },
+      { icon: Printer,  title: 'Print & Share',     desc: 'A4 or thermal bills, or a PDF straight to your customer on WhatsApp.' },
+    ],
+  },
+  {
+    title: 'Stock & Purchases',
+    items: [
+      { icon: Package,      title: 'Inventory Control',   desc: 'Live stock with item pricing, units, variants, batches and barcode support.' },
+      { icon: ShoppingCart, title: 'Purchase Management', desc: 'Supplier bills, purchase orders and payables — all in one place.' },
+      { icon: Layers,       title: 'Custom Sections',     desc: 'Build any form your trade needs — eye exams, measurements, job cards and more.' },
+    ],
+  },
+  {
+    title: 'Money & Reports',
+    items: [
+      { icon: Wallet,    title: 'Payment Tracking',  desc: 'Payments in and out, part payments and cash or bank — always reconciled.' },
+      { icon: Users,     title: 'Party Ledger',      desc: 'Every customer and vendor with a real-time running balance.' },
+      { icon: BarChart3, title: 'Financial Reports', desc: 'Profit & loss, day book, GST returns and more — one click away.' },
+    ],
+  },
+  {
+    title: 'Team & Scale',
+    items: [
+      { icon: UserCheck, title: 'Staff Management',     desc: 'Add staff with precise permissions over what each person can see and do.' },
+      { icon: Building2, title: 'Multi-Business',       desc: 'Run several businesses from one account and switch instantly.' },
+      { icon: Globe,     title: 'Any Device, Anywhere', desc: 'Phone, tablet or desktop — all you need is a browser.' },
+    ],
+  },
+];
+
+const TRUST = [
+  {
+    icon: CloudUpload, title: 'Cloud backup & sync',
+    desc: 'Every entry is backed up online and synced across your devices automatically. Never lose a record again.',
+    points: ['Automatic backup', 'Sync across devices', 'Restore any time'],
+  },
+  {
+    icon: Lock, title: 'Complete offline mode',
+    desc: 'Prefer maximum privacy? Keep all business data on your own device — no cloud uploads, works without internet.',
+    points: ['Data stays on your device', 'Works without internet', 'Switch modes any time'],
+  },
+  {
+    icon: ClipboardList, title: 'Auditor login',
+    desc: 'Give your chartered accountant a secure login. They view reports and ledgers and export what they need on their own.',
+    points: ['Read-only access', 'Ledgers, P&L and GST reports', 'No password sharing'],
+  },
 ];
 
 const STEPS = [
-  { n: '01', title: 'Sign In',         desc: 'Log in with your Google account in one click. No lengthy registration.' },
-  { n: '02', title: 'Set Up Business', desc: 'Enter your business details, logo, and GSTIN. Ready in under 2 minutes.' },
-  { n: '03', title: 'Start Billing',   desc: "Add parties, items, and create your first invoice. It's that simple." },
+  { n: '01', title: 'Sign in',            desc: 'One click with your Google account. No lengthy registration.' },
+  { n: '02', title: 'Set up your business', desc: 'Add your business details, logo and GSTIN — ready in under two minutes.' },
+  { n: '03', title: 'Start billing',      desc: 'Add customers and items, then create your first invoice. That’s it.' },
 ];
 
 const PLAN_FEATURES = [
@@ -55,6 +89,8 @@ const PLAN_FEATURES = [
   'Staff accounts with permissions',
   'WhatsApp bill sharing & barcode scanning',
 ];
+
+const INDUSTRIES = ['Retail', 'Wholesale', 'Opticals', 'Clinics', 'Tailoring', 'Salons', 'Gyms', 'Service centres', 'Distributors'];
 
 /* ── carousel examples ── */
 const EXAMPLES = [
@@ -126,6 +162,7 @@ const EXAMPLES = [
   },
 ];
 
+
 /* ─────────────── hooks ─────────────── */
 function useInView(threshold = 0.15) {
   const ref = useRef(null);
@@ -162,26 +199,39 @@ function useCounter(target, inView, duration = 1400) {
   return count;
 }
 
+/* Section that fades up once when scrolled into view. */
+const Reveal = ({ children, className = '', delay = 0, ...rest }) => {
+  const [ref, inView] = useInView(0.12);
+  return (
+    <div ref={ref} className={`lp-reveal ${inView ? 'in' : ''} ${className}`} style={{ transitionDelay: `${delay}ms` }} {...rest}>
+      {children}
+    </div>
+  );
+};
+
+const Eyebrow = ({ children, light }) => (
+  <div className={`lp-eyebrow ${light ? 'light' : ''}`}><span className="lp-eyebrow-rule" />{children}</div>
+);
+
+const Brand = ({ size = 34 }) => (
+  <span className="lp-brand">
+    <BillDhekoLogo size={size} />
+    <span className="lp-brand-name">Bill<span>Dheko</span><TM /></span>
+  </span>
+);
+
 /* ─────────────── component ─────────────── */
 export default function LandingPage({ onLoginClick }) {
   const [scrolled, setScrolled]           = useState(false);
   const [activeExample, setActiveExample] = useState(0);
+  const [openFaq, setOpenFaq]             = useState(0);
   const [isDark, setIsDark]               = useState(() => localStorage.getItem('tallykraft_landing_dark') === 'true');
-  const [expandedFeat, setExpandedFeat]   = useState(null);
-  const featRef    = useRef(null);
+  // Live GST setting (Admin → Billing & Tax) so the price line is accurate.
+  const [gstNote, setGstNote]             = useState('');
   const carouselId = useRef(null);
+  const pausedRef  = useRef(false);
 
-  /* scroll-reveal refs */
-  const [deviceRef,  deviceIn]  = useInView(0.2);
-  const [featHdRef,  featHdIn]  = useInView(0.2);
-  const [featDemoRef, featDemoIn] = useInView(0.1);
-  const [stepsRef,   stepsIn]   = useInView(0.2);
-  const [pricingRef, pricingIn] = useInView(0.15);
-  const [offlineRef, offlineIn] = useInView(0.2);
-  const [auditorRef, auditorIn] = useInView(0.2);
-  const [statsRef,   statsIn]   = useInView(0.4);
-
-  /* animated counters */
+  const [statsRef, statsIn] = useInView(0.4);
   const cInvoices = useCounter(50000, statsIn, 1600);
   const cBiz      = useCounter(3000,  statsIn, 1800);
 
@@ -196,1049 +246,725 @@ export default function LandingPage({ onLoginClick }) {
         }
       })
       .catch(() => {});
+    getDoc(doc(firestore, 'globalConfig', 'billing'))
+      .then(snap => {
+        const b = snap.exists() ? snap.data() : null;
+        if (!b || b.taxEnabled === false) setGstNote('');
+        else setGstNote(b.taxInclusive ? 'incl. GST' : '+ GST');
+      })
+      .catch(() => {});
   }, []);
 
-  /* Auto-advance carousel every 3 s; resets when user manually picks a slide */
+  /* Industry showcase auto-advances slowly; pauses while hovered. */
   const startCarousel = useCallback(() => {
     clearInterval(carouselId.current);
-    carouselId.current = setInterval(() => setActiveExample(i => (i + 1) % EXAMPLES.length), 3000);
+    carouselId.current = setInterval(() => {
+      if (!pausedRef.current) setActiveExample(i => (i + 1) % EXAMPLES.length);
+    }, 6000);
   }, []);
-
   useEffect(() => { startCarousel(); return () => clearInterval(carouselId.current); }, [startCarousel]);
-
-  const goToExample = useCallback((idx) => {
-    setActiveExample(typeof idx === 'function' ? idx : () => idx);
-    startCarousel();
-  }, [startCarousel]);
+  const goToExample = (idx) => { setActiveExample(idx); startCarousel(); };
 
   useEffect(() => {
-    const fn = () => setScrolled(window.scrollY > 40);
+    const fn = () => setScrolled(window.scrollY > 24);
+    fn();
     window.addEventListener('scroll', fn, { passive: true });
     return () => window.removeEventListener('scroll', fn);
   }, []);
 
-  const scrollTo = (ref) => ref.current?.scrollIntoView({ behavior: 'smooth' });
+  const go = (id) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 
-  /* ── theme palette ── */
-  const C = isDark ? {
-    bg:           '#07080f',
-    bgAlt:        'rgba(255,255,255,0.015)',
-    card:         'rgba(255,255,255,0.045)',
-    border:       'rgba(255,255,255,0.09)',
-    text:         '#ffffff',
-    soft:         'rgba(255,255,255,0.78)',
-    muted:        'rgba(255,255,255,0.48)',
-    dim:          'rgba(255,255,255,0.36)',
-    faint:        'rgba(255,255,255,0.22)',
-    navBg:        'rgba(7,8,15,0.9)',
-    navBorder:    'rgba(255,255,255,0.07)',
-    priceSep:     'rgba(255,255,255,0.08)',
-    stepNum:      'rgba(255,255,255,0.06)',
-    gridLine:     'rgba(255,255,255,0.025)',
-    scroll:       '#374151',
-    outlineBtn:   'rgba(255,255,255,0.06)',
-    outlineBdr:   'rgba(255,255,255,0.14)',
-    outlineHover: 'rgba(255,255,255,0.11)',
-    devBanner:    'rgba(92,31,34,0.07)',
-    heroBg:       'radial-gradient(ellipse at bottom,#1b2735 0%,#090a0f 100%)',
-    sectionAlt:   'rgba(255,255,255,0.015)',
-    cardShadow:   'none',
-    footerText:   'rgba(255,255,255,0.28)',
-    footerBrand:  'rgba(255,255,255,0.5)',
-    mockBg:       'rgba(15,17,26,0.95)',
-    mockField:    'rgba(255,255,255,0.06)',
-    mockFieldBdr: 'rgba(255,255,255,0.1)',
-    mockCol:      'rgba(255,255,255,0.04)',
-    mockColBdr:   'rgba(255,255,255,0.09)',
-    mockHr:       'rgba(255,255,255,0.07)',
-    mockLabel:    'rgba(255,255,255,0.38)',
-    mockVal:      'rgba(255,255,255,0.88)',
-    mockColHead:  'rgba(255,255,255,0.32)',
-    mockRowLabel: 'rgba(255,255,255,0.38)',
-    mockNotesTxt: 'rgba(255,255,255,0.6)',
-    mockRecMeta:  'rgba(255,255,255,0.38)',
-    mockRecDate:  'rgba(255,255,255,0.25)',
-    mockRecHead:  'rgba(255,255,255,0.22)',
-    mockTabInact: 'rgba(255,255,255,0.3)',
-    mockSubtitle: 'rgba(255,255,255,0.35)',
-    pillInact:    'rgba(255,255,255,0.05)',
-    pillInactBdr: 'rgba(255,255,255,0.1)',
-    pillInactTxt: 'rgba(255,255,255,0.5)',
-    priceLbl:     'rgba(255,255,255,0.42)',
-    priceSub:     'rgba(255,255,255,0.38)',
+  const ex = EXAMPLES[activeExample];
+  const ExIcon = ex.icon;
+  const priceSuffix = `per business · ${PLAN_DAYS} days`;
+
+  const FAQS = [
+    { q: 'How does the free trial work?',
+      a: `Start a ${TRIAL_DAYS}-day free trial for your business with every feature unlocked — no card needed. When it ends, pay ₹${PLAN_PRICE} to continue for ${PLAN_DAYS} days.` },
+    { q: 'How much does BillDheko cost?',
+      a: `₹${PLAN_PRICE}${gstNote ? ` ${gstNote}` : ''} per business for every ${PLAN_DAYS} days. Each business has its own subscription — three businesses cost ₹${PLAN_PRICE} × 3.` },
+    { q: 'Does my plan renew automatically?',
+      a: `No. There is no auto-renewal. Your plan stays active until the ${PLAN_DAYS} days end; pay again whenever you want to continue. Paying early adds the new days on top of the days you have left.` },
+    { q: 'What happens to my data if I don’t renew?',
+      a: 'Nothing is deleted. Your records stay saved, and renewing picks up exactly where you left off.' },
+    { q: 'Can my staff and my accountant use it?',
+      a: 'Yes. Add staff with fine-grained permissions, and give your CA a separate auditor login to view reports and export what they need.' },
+    { q: 'Which devices does it work on?',
+      a: 'Any phone, tablet, laptop or desktop with a modern browser. You can also install it like an app — nothing to download from a store.' },
+  ];
+
+  const vars = isDark ? {
+    '--bg': '#0f0b0a', '--bg-alt': '#151010', '--paper': '#1b1413', '--ink': '#f4ece4',
+    '--ink-soft': 'rgba(244,236,228,.78)', '--muted': 'rgba(244,236,228,.56)', '--line': 'rgba(244,236,228,.10)',
+    '--line-strong': 'rgba(244,236,228,.18)', '--shadow': '0 30px 80px rgba(0,0,0,.45)', '--accent': '#d9b98a',
+    '--chip': 'rgba(244,236,228,.06)', '--nav': 'rgba(15,11,10,.82)',
   } : {
-    bg:           '#f6efe9',
-    bgAlt:        '#ffffff',
-    card:         '#ffffff',
-    border:       '#e8ddd6',
-    text:         '#3f1417',
-    soft:         '#5c1f22',
-    muted:        '#57433e',
-    dim:          '#5f4f47',
-    faint:        '#ddd0c9',
-    navBg:        'rgba(255,255,255,0.92)',
-    navBorder:    '#e8ddd6',
-    priceSep:     '#e8ddd6',
-    stepNum:      'rgba(63,20,23,0.05)',
-    gridLine:     'rgba(92,31,34,0.05)',
-    scroll:       '#ddd0c9',
-    outlineBtn:   'rgba(92,31,34,0.06)',
-    outlineBdr:   'rgba(92,31,34,0.25)',
-    outlineHover: 'rgba(92,31,34,0.1)',
-    devBanner:    'rgba(92,31,34,0.06)',
-    heroBg:       'linear-gradient(135deg,#faf7f4 0%,#f6efe9 55%,#f3ece4 100%)',
-    sectionAlt:   '#ffffff',
-    cardShadow:   '0 2px 12px rgba(63,20,23,0.07)',
-    footerText:   '#5f4f47',
-    footerBrand:  '#57433e',
-    mockBg:       '#1e2130',
-    mockField:    'rgba(255,255,255,0.07)',
-    mockFieldBdr: 'rgba(255,255,255,0.12)',
-    mockCol:      'rgba(255,255,255,0.05)',
-    mockColBdr:   'rgba(255,255,255,0.1)',
-    mockHr:       'rgba(255,255,255,0.08)',
-    mockLabel:    'rgba(255,255,255,0.4)',
-    mockVal:      'rgba(255,255,255,0.9)',
-    mockColHead:  'rgba(255,255,255,0.35)',
-    mockRowLabel: 'rgba(255,255,255,0.4)',
-    mockNotesTxt: 'rgba(255,255,255,0.62)',
-    mockRecMeta:  'rgba(255,255,255,0.4)',
-    mockRecDate:  'rgba(255,255,255,0.28)',
-    mockRecHead:  'rgba(255,255,255,0.25)',
-    mockTabInact: 'rgba(255,255,255,0.32)',
-    mockSubtitle: 'rgba(255,255,255,0.38)',
-    pillInact:    'rgba(63,20,23,0.05)',
-    pillInactBdr: '#e8ddd6',
-    pillInactTxt: '#57433e',
-    priceLbl:     '#57433e',
-    priceSub:     '#5f4f47',
+    '--bg': '#fbf8f4', '--bg-alt': '#f4ede5', '--paper': '#ffffff', '--ink': '#24130f',
+    '--ink-soft': '#4a3631', '--muted': '#7a6760', '--line': '#e9dfd5', '--line-strong': '#d9cabd',
+    '--shadow': '0 30px 80px rgba(63,20,23,.12)', '--accent': P, '--chip': 'rgba(92,31,34,.05)', '--nav': 'rgba(251,248,244,.84)',
   };
 
   return (
-    <div style={{ background: C.bg, color: C.text, fontFamily: "'Inter','Segoe UI',system-ui,sans-serif", overflowX: 'hidden', transition:'background .3s,color .3s' }}>
-
-      {/* ── Global styles + responsive overrides ── */}
+    <div className="lp" style={vars}>
       <style>{`
-        *, *::before, *::after { box-sizing: border-box; }
+        .lp { background: var(--bg); color: var(--ink); font-family: 'Inter','Segoe UI',system-ui,sans-serif; overflow-x: hidden;
+              -webkit-font-smoothing: antialiased; font-feature-settings: "cv11","ss01"; }
+        .lp *, .lp *::before, .lp *::after { box-sizing: border-box; }
+        .lp a { color: inherit; }
+        .lp .serif { font-family: 'Fraunces', Georgia, 'Times New Roman', serif; font-optical-sizing: auto; letter-spacing: -0.02em; }
+        .lp .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+        .lp section { position: relative; }
 
-        /* animations */
-        @keyframes floatA     { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-60px,70px)} }
-        @keyframes floatB     { 0%,100%{transform:translate(0,0)} 50%{transform:translate(70px,-60px)} }
-        @keyframes floatC     { 0%,100%{transform:translate(0,0)} 50%{transform:translate(-40px,-50px)} }
-        @keyframes pulse      { 0%,100%{opacity:.45} 50%{opacity:.85} }
-        @keyframes fadeUp     { from{opacity:0;transform:translateY(28px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes shimmer    { from{background-position:200% center} to{background-position:-200% center} }
-        @keyframes mockFade   { from{opacity:0;transform:translateY(10px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes slideUp    { from{opacity:0;transform:translateY(44px)} to{opacity:1;transform:translateY(0)} }
-        @keyframes slideLeft  { from{opacity:0;transform:translateX(36px)} to{opacity:1;transform:translateX(0)} }
-        @keyframes slideRight { from{opacity:0;transform:translateX(-36px)} to{opacity:1;transform:translateX(0)} }
-        @keyframes scaleIn    { from{opacity:0;transform:scale(.92)} to{opacity:1;transform:scale(1)} }
-        @keyframes popIn      { 0%{opacity:0;transform:scale(.7)} 70%{transform:scale(1.06)} 100%{opacity:1;transform:scale(1)} }
-        @keyframes floatChip  { 0%,100%{transform:translateY(0) rotate(-1deg)} 50%{transform:translateY(-14px) rotate(1.5deg)} }
-        @keyframes floatChip2 { 0%,100%{transform:translateY(0) rotate(2deg)} 50%{transform:translateY(-10px) rotate(-2deg)} }
-        @keyframes floatChip3 { 0%,100%{transform:translateY(0) rotate(0deg)} 50%{transform:translateY(-18px) rotate(1deg)} }
-        @keyframes twinkle    { 0%,100%{opacity:.15;transform:scale(.7)} 50%{opacity:.6;transform:scale(1.1)} }
-        @keyframes marquee    { from{transform:translateX(0)} to{transform:translateX(-50%)} }
-        @keyframes drawLine   { from{width:0} to{width:100%} }
-        @keyframes glowPulse  { 0%,100%{box-shadow:0 0 0 0 rgba(92,31,34,.4)} 50%{box-shadow:0 0 0 12px rgba(92,31,34,0)} }
+        /* reveal */
+        .lp-reveal { opacity: 0; transform: translateY(22px); transition: opacity .9s cubic-bezier(.2,.7,.2,1), transform .9s cubic-bezier(.2,.7,.2,1); }
+        .lp-reveal.in { opacity: 1; transform: none; }
+        @media (prefers-reduced-motion: reduce) { .lp-reveal { opacity: 1; transform: none; transition: none; } .lp-float { animation: none !important; } }
 
-        .fade-up   { animation: fadeUp .7s ease both; }
-        .fade-up-2 { animation: fadeUp .7s .15s ease both; }
-        .fade-up-3 { animation: fadeUp .7s .30s ease both; }
-        .mock-fade { animation: mockFade .35s ease both; }
+        /* eyebrow */
+        .lp-eyebrow { display: inline-flex; align-items: center; gap: 12px; font-size: .72rem; font-weight: 600; letter-spacing: .22em;
+                      text-transform: uppercase; color: ${GOLD}; margin-bottom: 22px; }
+        .lp-eyebrow.light { color: #d9b98a; }
+        .lp-eyebrow-rule { width: 28px; height: 1px; background: currentColor; opacity: .7; }
 
-        /* scroll-reveal base — transitions kick in when .in-view is added */
-        .reveal       { opacity:0; transform:translateY(40px); transition:opacity .75s cubic-bezier(.22,1,.36,1),transform .75s cubic-bezier(.22,1,.36,1); }
-        .reveal.in-view{ opacity:1; transform:translateY(0); }
-        .reveal-l     { opacity:0; transform:translateX(-36px); transition:opacity .75s cubic-bezier(.22,1,.36,1),transform .75s cubic-bezier(.22,1,.36,1); }
-        .reveal-l.in-view{ opacity:1; transform:translateX(0); }
-        .reveal-r     { opacity:0; transform:translateX(36px); transition:opacity .75s cubic-bezier(.22,1,.36,1),transform .75s cubic-bezier(.22,1,.36,1); }
-        .reveal-r.in-view{ opacity:1; transform:translateX(0); }
-        .reveal-scale { opacity:0; transform:scale(.93); transition:opacity .7s cubic-bezier(.22,1,.36,1),transform .7s cubic-bezier(.22,1,.36,1); }
-        .reveal-scale.in-view{ opacity:1; transform:scale(1); }
+        /* brand */
+        .lp-brand { display: inline-flex; align-items: center; gap: 10px; text-decoration: none; }
+        .lp-brand-name { font-weight: 700; font-size: 1.12rem; letter-spacing: -0.02em; color: var(--ink); line-height: 1; }
+        .lp-brand-name > span:first-of-type { color: ${isDark ? '#d9b98a' : P}; font-weight: 800; }
 
-        /* stagger helpers */
-        .d1{transition-delay:.05s!important} .d2{transition-delay:.15s!important}
-        .d3{transition-delay:.25s!important} .d4{transition-delay:.38s!important}
-        .d5{transition-delay:.52s!important} .d6{transition-delay:.68s!important}
+        /* buttons */
+        .lp-btn { display: inline-flex; align-items: center; justify-content: center; gap: 9px; border: none; cursor: pointer;
+                  font: 600 .93rem/1 'Inter',sans-serif; padding: 15px 26px; border-radius: 999px; text-decoration: none;
+                  transition: transform .25s ease, box-shadow .25s ease, background .25s ease, color .25s ease; white-space: nowrap; }
+        .lp-btn-primary { background: ${isDark ? '#d9b98a' : P}; color: ${isDark ? '#1b1210' : '#fff'};
+                          box-shadow: 0 10px 30px ${isDark ? 'rgba(217,185,138,.18)' : 'rgba(92,31,34,.28)'}; }
+        .lp-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 16px 40px ${isDark ? 'rgba(217,185,138,.28)' : 'rgba(92,31,34,.36)'}; }
+        .lp-btn-ghost { background: transparent; color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-strong); }
+        .lp-btn-ghost:hover { box-shadow: inset 0 0 0 1px var(--ink); }
+        .lp-btn-light { background: #f6ecdf; color: ${P2}; }
+        .lp-btn-light:hover { transform: translateY(-2px); background: #fff; }
+        .lp-btn svg { transition: transform .25s ease; }
+        .lp-btn:hover svg { transform: translateX(3px); }
 
-        /* interactive states */
-        .login-btn { transition: transform .25s, box-shadow .25s; }
-        .login-btn:hover { transform:translateY(-2px); box-shadow:0 10px 30px rgba(92,31,34,.55)!important; }
+        /* nav */
+        .lp-nav { position: fixed; inset: 0 0 auto 0; z-index: 999; transition: background .35s ease, box-shadow .35s ease, height .35s ease; }
+        .lp-nav.scrolled { background: var(--nav); backdrop-filter: saturate(160%) blur(18px); -webkit-backdrop-filter: saturate(160%) blur(18px);
+                           box-shadow: 0 1px 0 var(--line); }
+        .lp-nav-inner { height: 76px; display: flex; align-items: center; justify-content: space-between; gap: 20px; transition: height .35s ease; }
+        .lp-nav.scrolled .lp-nav-inner { height: 64px; }
+        .lp-nav-links { display: flex; gap: 34px; }
+        .lp-nav-links a { font-size: .9rem; font-weight: 500; color: var(--ink-soft); text-decoration: none; position: relative; padding: 4px 0; }
+        .lp-nav-links a::after { content: ''; position: absolute; left: 0; right: 100%; bottom: -2px; height: 1px; background: ${GOLD}; transition: right .3s ease; }
+        .lp-nav-links a:hover { color: var(--ink); }
+        .lp-nav-links a:hover::after { right: 0; }
+        .lp-nav-actions { display: flex; align-items: center; gap: 18px; }
+        .lp-signin { background: none; border: none; cursor: pointer; font: 600 .9rem 'Inter',sans-serif; color: var(--ink); padding: 8px 4px; }
+        .lp-nav .lp-btn { padding: 11px 20px; font-size: .86rem; }
 
-        .feat-card { transition: transform .3s, box-shadow .3s, border-color .3s; }
-        .feat-card:hover { transform:translateY(-5px); border-color:rgba(92,31,34,.45)!important; box-shadow:0 8px 28px rgba(92,31,34,.14)!important; }
-        .feat-header  { display:flex; align-items:center; gap:14px; }
-        .feat-chevron { display:none; margin-left:auto; flex-shrink:0; transition:transform .22s; }
-        .feat-desc    { margin-top:12px; }
+        /* hero */
+        .lp-hero { padding: 168px 0 110px; overflow: hidden;
+                   background:
+                     radial-gradient(1100px 600px at 85% -10%, ${isDark ? 'rgba(217,185,138,.08)' : 'rgba(176,141,87,.13)'} 0%, transparent 60%),
+                     radial-gradient(900px 600px at -10% 110%, ${isDark ? 'rgba(92,31,34,.35)' : 'rgba(92,31,34,.07)'} 0%, transparent 60%); }
+        .lp-hero-grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: 64px; align-items: center; }
+        .lp-h1 { font-size: clamp(2.7rem, 5.6vw, 4.6rem); line-height: 1.02; font-weight: 500; margin: 0 0 26px; color: var(--ink); }
+        .lp-h1 em { font-style: italic; font-weight: 400; color: ${isDark ? '#d9b98a' : P}; }
+        .lp-lead { font-size: 1.12rem; line-height: 1.75; color: var(--ink-soft); max-width: 540px; margin: 0 0 38px; }
+        .lp-cta-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 34px; }
+        .lp-assure { display: flex; flex-wrap: wrap; gap: 10px 26px; font-size: .86rem; color: var(--muted); }
+        .lp-assure span { display: inline-flex; align-items: center; gap: 8px; }
+        .lp-assure svg { color: ${GOLD}; }
 
-        /* shimmer headline */
-        .grad-text {
-          background: linear-gradient(90deg,#c8a04e,#e6d3a8,#5f4f47,#c8a04e);
-          background-size: 300% auto;
-          -webkit-background-clip: text;
-          -webkit-text-fill-color: transparent;
-          animation: shimmer 6s linear infinite;
+        /* hero art */
+        .lp-art { position: relative; height: 600px; }
+        .lp-doc { position: absolute; top: 0; right: 40px; width: 410px; background: var(--paper); border-radius: 18px;
+                  box-shadow: var(--shadow), 0 0 0 1px var(--line); padding: 30px 30px 26px; }
+        .lp-doc-head { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 18px; border-bottom: 1px solid var(--line); }
+        .lp-doc-title { font-size: 1.35rem; font-weight: 500; color: var(--ink); }
+        .lp-doc-small { font-size: .7rem; color: var(--muted); letter-spacing: .04em; }
+        .lp-doc-rows { margin: 16px 0 6px; }
+        .lp-doc-row { display: grid; grid-template-columns: 1fr 40px 80px; gap: 10px; font-size: .8rem; padding: 9px 0; border-bottom: 1px dashed var(--line); color: var(--ink-soft); }
+        .lp-doc-row.head { font-size: .64rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); border-bottom: 1px solid var(--line); padding-top: 0; }
+        .lp-doc-row span:nth-child(2), .lp-doc-row span:nth-child(3) { text-align: right; }
+        .lp-doc-tax { display: flex; justify-content: space-between; font-size: .78rem; color: var(--muted); padding: 5px 0; }
+        .lp-doc-total { display: flex; justify-content: space-between; align-items: baseline; margin-top: 12px; padding-top: 14px; border-top: 1px solid var(--line-strong); }
+        .lp-doc-total b { font-family: 'Fraunces',Georgia,serif; font-size: 1.7rem; font-weight: 500; color: var(--ink); letter-spacing: -0.02em; }
+        .lp-stamp { position: absolute; bottom: 24px; left: 44%; transform: rotate(-10deg); border: 2px solid #2f7d4f; color: #2f7d4f;
+                    font: 700 .74rem/1 'Inter',sans-serif; letter-spacing: .2em; padding: 7px 12px; border-radius: 6px; opacity: .85; }
+        .lp-chip { position: absolute; background: var(--paper); border-radius: 14px; box-shadow: var(--shadow), 0 0 0 1px var(--line);
+                   padding: 14px 18px; display: flex; align-items: center; gap: 12px; }
+        .lp-chip-ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; flex-shrink: 0; }
+        .lp-chip small { display: block; font-size: .66rem; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-bottom: 3px; }
+        .lp-chip b { font-size: .95rem; color: var(--ink); font-weight: 600; }
+        .lp-float { animation: lpFloat 7s ease-in-out infinite; }
+        .lp-float.b { animation-duration: 8.5s; animation-delay: -2s; }
+        @keyframes lpFloat { 0%,100% { transform: translateY(0) } 50% { transform: translateY(-10px) } }
+
+        /* stats */
+        .lp-stats { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+        .lp-stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); }
+        .lp-stat { padding: 40px 28px; text-align: center; }
+        .lp-stat + .lp-stat { border-left: 1px solid var(--line); }
+        .lp-stat b { display: block; font-family: 'Fraunces',Georgia,serif; font-weight: 500; font-size: 2.6rem; letter-spacing: -0.02em; color: var(--ink); line-height: 1; margin-bottom: 10px; }
+        .lp-stat span { font-size: .82rem; color: var(--muted); letter-spacing: .02em; }
+
+        /* industries ribbon */
+        .lp-ribbon { padding: 34px 0; text-align: center; }
+        .lp-ribbon-label { font-size: .7rem; letter-spacing: .24em; text-transform: uppercase; color: var(--muted); margin-bottom: 16px; }
+        .lp-ribbon-list { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px 0; font-family: 'Fraunces',Georgia,serif; font-style: italic; font-size: 1.22rem; color: var(--ink-soft); }
+        .lp-ribbon-list span:not(:last-child)::after { content: '·'; color: ${GOLD}; margin: 0 16px; font-style: normal; }
+
+        /* section heads */
+        .lp-sec { padding: 130px 0; }
+        .lp-sec.alt { background: var(--bg-alt); }
+        .lp-h2 { font-size: clamp(2.1rem, 4vw, 3.3rem); line-height: 1.08; font-weight: 500; margin: 0 0 20px; color: var(--ink); }
+        .lp-h2 em { font-style: italic; font-weight: 400; color: ${isDark ? '#d9b98a' : P}; }
+        .lp-sub { font-size: 1.04rem; line-height: 1.75; color: var(--ink-soft); max-width: 560px; margin: 0; }
+        .lp-head { display: grid; grid-template-columns: 1fr 1fr; gap: 48px; align-items: end; margin-bottom: 72px; }
+        .lp-head.center { display: block; text-align: center; max-width: 720px; margin-left: auto; margin-right: auto; }
+        .lp-head.center .lp-sub { margin: 0 auto; }
+
+        /* features */
+        .lp-feat-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 0 40px; }
+        .lp-feat-col h3 { font-size: .72rem; font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: ${GOLD};
+                          margin: 0 0 8px; padding-bottom: 18px; border-bottom: 1px solid var(--line-strong); }
+        .lp-feat { padding: 24px 0; border-bottom: 1px solid var(--line); }
+        .lp-feat-top { display: flex; align-items: center; gap: 12px; margin-bottom: 9px; }
+        .lp-feat-ico { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0;
+                       border: 1px solid ${isDark ? 'rgba(217,185,138,.35)' : 'rgba(176,141,87,.45)'}; color: ${isDark ? '#d9b98a' : P}; }
+        .lp-feat h4 { margin: 0; font-size: 1rem; font-weight: 600; color: var(--ink); }
+        .lp-feat p { margin: 0; font-size: .89rem; line-height: 1.65; color: var(--muted); }
+
+        /* industry showcase */
+        .lp-tabs { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 44px; }
+        .lp-tab { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 999px; cursor: pointer;
+                  font: 500 .86rem 'Inter',sans-serif; color: var(--ink-soft); background: transparent; border: 1px solid var(--line-strong);
+                  transition: all .25s ease; }
+        .lp-tab:hover { border-color: var(--ink); color: var(--ink); }
+        .lp-tab.on { background: ${isDark ? '#d9b98a' : P}; border-color: transparent; color: ${isDark ? '#1b1210' : '#fff'}; }
+        .lp-show { display: grid; grid-template-columns: .9fr 1.1fr; gap: 64px; align-items: center; }
+        .lp-show-text h3 { font-size: 2rem; font-weight: 500; line-height: 1.15; margin: 0 0 16px; color: var(--ink); }
+        .lp-show-text p { font-size: 1rem; line-height: 1.75; color: var(--ink-soft); margin: 0 0 26px; }
+        .lp-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; }
+        .lp-list li { display: flex; gap: 12px; font-size: .93rem; color: var(--ink-soft); line-height: 1.5; }
+        .lp-list svg { color: ${GOLD}; flex-shrink: 0; margin-top: 3px; }
+        .lp-form { background: var(--paper); border-radius: 18px; box-shadow: var(--shadow), 0 0 0 1px var(--line); overflow: hidden; }
+        .lp-form-head { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid var(--line); }
+        .lp-form-tabs { display: flex; gap: 22px; padding: 0 22px; border-bottom: 1px solid var(--line); }
+        .lp-form-tabs span { font-size: .8rem; padding: 12px 0; color: var(--muted); }
+        .lp-form-tabs span.on { color: var(--ink); font-weight: 600; box-shadow: inset 0 -2px 0 ${GOLD}; }
+        .lp-form-body { padding: 20px 22px; display: grid; gap: 12px; }
+        .lp-fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .lp-field { border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; }
+        .lp-field small { display: block; font-size: .6rem; letter-spacing: .16em; text-transform: uppercase; color: var(--muted); margin-bottom: 4px; }
+        .lp-field b { font-size: .88rem; font-weight: 600; color: var(--ink); }
+        .lp-field.accent b { color: ${isDark ? '#d9b98a' : P}; }
+        .lp-kv { display: flex; justify-content: space-between; font-size: .8rem; padding: 3px 0; color: var(--muted); }
+        .lp-kv b { color: var(--ink); font-weight: 600; }
+        .lp-recent { border-top: 1px solid var(--line); padding: 14px 22px 18px; }
+        .lp-recent-row { display: grid; grid-template-columns: 28px 1fr auto; align-items: center; gap: 10px; padding: 6px 0; font-size: .8rem; }
+        .lp-avatar { width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; font-weight: 700;
+                     background: var(--chip); color: var(--ink-soft); }
+        .lp-fade { animation: lpFade .6s ease; }
+        @keyframes lpFade { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+
+        /* dark trust band */
+        .lp-band { background: ${isDark ? '#1a0e0d' : P2}; color: #f4ece4; padding: 130px 0; overflow: hidden;
+                   background-image: radial-gradient(900px 500px at 100% 0%, rgba(217,185,138,.12), transparent 60%),
+                                     radial-gradient(800px 500px at 0% 100%, rgba(255,255,255,.04), transparent 60%); }
+        .lp-band .lp-h2 { color: #f6ecdf; }
+        .lp-band .lp-h2 em { color: #d9b98a; }
+        .lp-band .lp-sub { color: rgba(246,236,223,.72); }
+        .lp-trust-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid rgba(246,236,223,.14); }
+        .lp-trust { padding: 40px 36px 8px 0; }
+        .lp-trust + .lp-trust { padding-left: 36px; border-left: 1px solid rgba(246,236,223,.14); }
+        .lp-trust-ico { width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center; border: 1px solid rgba(217,185,138,.45); color: #d9b98a; margin-bottom: 22px; }
+        .lp-trust h3 { font-family: 'Fraunces',Georgia,serif; font-weight: 500; font-size: 1.5rem; margin: 0 0 12px; color: #f6ecdf; letter-spacing: -0.01em; }
+        .lp-trust p { font-size: .93rem; line-height: 1.7; color: rgba(246,236,223,.7); margin: 0 0 20px; }
+        .lp-trust ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; }
+        .lp-trust li { display: flex; gap: 10px; font-size: .88rem; color: rgba(246,236,223,.86); }
+        .lp-trust li svg { color: #d9b98a; flex-shrink: 0; margin-top: 2px; }
+
+        /* steps */
+        .lp-steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; }
+        .lp-step { padding: 8px 40px 0 0; }
+        .lp-step + .lp-step { padding-left: 40px; border-left: 1px solid var(--line); }
+        .lp-step b { display: block; font-family: 'Fraunces',Georgia,serif; font-weight: 400; font-style: italic; font-size: 3.4rem; line-height: 1; color: ${GOLD}; margin-bottom: 22px; }
+        .lp-step h4 { font-size: 1.15rem; font-weight: 600; margin: 0 0 10px; color: var(--ink); }
+        .lp-step p { font-size: .93rem; line-height: 1.7; color: var(--muted); margin: 0; }
+
+        /* devices */
+        .lp-devices { display: flex; gap: 14px; margin-top: 34px; flex-wrap: wrap; }
+        .lp-device { display: inline-flex; align-items: center; gap: 9px; font-size: .85rem; color: var(--ink-soft); padding: 9px 16px; border-radius: 999px; border: 1px solid var(--line-strong); }
+        .lp-device svg { color: ${GOLD}; }
+
+        /* pricing */
+        .lp-price-grid { display: grid; grid-template-columns: .95fr 1.05fr; gap: 72px; align-items: center; }
+        .lp-price-card { position: relative; background: var(--paper); border-radius: 26px; padding: 48px 46px 40px;
+                         box-shadow: var(--shadow), 0 0 0 1px var(--line); overflow: hidden; }
+        .lp-price-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, ${P}, ${GOLD}, ${P}); }
+        .lp-price-tag { display: inline-flex; align-items: center; gap: 8px; font-size: .74rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
+                        color: ${GOLD}; margin-bottom: 18px; }
+        .lp-price { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+        .lp-price b { font-family: 'Fraunces',Georgia,serif; font-weight: 500; font-size: 4.6rem; line-height: 1; letter-spacing: -0.03em; color: var(--ink); }
+        .lp-price span { font-size: .95rem; color: var(--muted); }
+        .lp-price-trial { font-size: .92rem; color: var(--ink-soft); margin: 0 0 28px; }
+        .lp-price-trial strong { color: ${isDark ? '#d9b98a' : P}; font-weight: 600; }
+        .lp-plan-list { list-style: none; padding: 26px 0 0; margin: 30px 0 0; border-top: 1px solid var(--line); display: grid; grid-template-columns: 1fr 1fr; gap: 12px 22px; }
+        .lp-plan-list li { display: flex; gap: 10px; font-size: .86rem; color: var(--ink-soft); line-height: 1.45; }
+        .lp-plan-list svg { color: ${GOLD}; flex-shrink: 0; margin-top: 2px; }
+        .lp-notes { margin-top: 34px; display: grid; gap: 16px; }
+        .lp-note { display: flex; gap: 14px; font-size: .92rem; line-height: 1.65; color: var(--ink-soft); }
+        .lp-note-ico { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; flex-shrink: 0; border: 1px solid var(--line-strong); color: ${GOLD}; }
+
+        /* faq */
+        .lp-faq { max-width: 820px; margin: 0 auto; border-top: 1px solid var(--line-strong); }
+        .lp-faq-item { border-bottom: 1px solid var(--line); }
+        .lp-faq-q { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 26px 0; background: none; border: none; cursor: pointer;
+                    text-align: left; font-family: 'Fraunces',Georgia,serif; font-size: 1.28rem; font-weight: 500; color: var(--ink); letter-spacing: -0.01em; }
+        .lp-faq-q svg { color: ${GOLD}; flex-shrink: 0; }
+        .lp-faq-a { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .35s ease; }
+        .lp-faq-a.open { grid-template-rows: 1fr; }
+        .lp-faq-a > div { overflow: hidden; }
+        .lp-faq-a p { margin: 0 0 26px; font-size: .98rem; line-height: 1.75; color: var(--ink-soft); max-width: 680px; }
+
+        /* final cta */
+        .lp-final { padding: 0 0 120px; }
+        .lp-final-card { border-radius: 30px; padding: 90px 48px; text-align: center; color: #f6ecdf; position: relative; overflow: hidden;
+                         background: ${isDark ? '#1a0e0d' : P2};
+                         background-image: radial-gradient(700px 360px at 50% -20%, rgba(217,185,138,.22), transparent 70%); }
+        .lp-final-card .lp-h2 { color: #f6ecdf; margin-bottom: 18px; }
+        .lp-final-card .lp-h2 em { color: #d9b98a; }
+        .lp-final-card p { color: rgba(246,236,223,.72); font-size: 1.04rem; margin: 0 auto 38px; max-width: 520px; line-height: 1.7; }
+        .lp-final-fine { margin-top: 22px !important; margin-bottom: 0 !important; font-size: .84rem !important; color: rgba(246,236,223,.55) !important; }
+
+        /* footer */
+        .lp-foot { border-top: 1px solid var(--line); padding: 64px 0 34px; }
+        .lp-foot-grid { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 40px; margin-bottom: 52px; }
+        .lp-foot p { font-size: .9rem; line-height: 1.7; color: var(--muted); max-width: 340px; margin: 18px 0 0; }
+        .lp-foot h5 { font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 6px 0 18px; }
+        .lp-foot-links { display: grid; gap: 12px; }
+        .lp-foot-links a, .lp-foot-links button { font: 500 .9rem 'Inter',sans-serif; color: var(--ink-soft); text-decoration: none; background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+        .lp-foot-links a:hover, .lp-foot-links button:hover { color: var(--ink); }
+        .lp-foot-bottom { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 26px; border-top: 1px solid var(--line); font-size: .82rem; color: var(--muted); }
+        .lp-foot-bottom span { display: inline-flex; align-items: center; gap: 7px; }
+
+        /* responsive */
+        @media (max-width: 1080px) {
+          .lp-hero-grid, .lp-show, .lp-price-grid { grid-template-columns: 1fr; gap: 56px; }
+          .lp-art { height: 520px; max-width: 520px; width: 100%; margin: 0 auto; }
+          .lp-doc { left: 0; right: 0; margin: 0 auto; }
+          .lp-feat-grid { grid-template-columns: repeat(2, 1fr); gap: 0 40px; }
+          .lp-feat-col { margin-bottom: 40px; }
+          .lp-head { grid-template-columns: 1fr; gap: 20px; margin-bottom: 56px; }
         }
-
-        /* check-item */
-        .check-item { display:flex; align-items:flex-start; gap:10px; margin-bottom:10px; font-size:.92rem; color:${C.soft}; line-height:1.5; }
-
-        /* scrollbar */
-        ::-webkit-scrollbar { width:6px; }
-        ::-webkit-scrollbar-track { background:transparent; }
-        ::-webkit-scrollbar-thumb { background:${C.scroll}; border-radius:3px; }
-
-        /* ── hero ── */
-        .hero-section { padding: 128px 24px 80px; }
-        .hero-btns    { display:flex; gap:14px; justify-content:center; flex-wrap:wrap; }
-        .hero-btn-primary, .hero-btn-outline { width: auto; }
-        .stat-strip   { display:flex; gap:40px; justify-content:center; flex-wrap:wrap; margin-top:52px; }
-
-        /* ── navbar ── */
-        .nav-links { display:flex; gap:32px; align-items:center; }
-
-        /* ── device banner ── */
-        .device-banner-inner { display:flex; align-items:center; gap:28px; flex-wrap:wrap; justify-content:center; }
-        .device-divider { height:1px; flex:1; min-width:32px; background:${C.border}; }
-
-        /* ── features ── */
-        .feat-section { padding: 96px 24px; }
-        .feat-grid    { display:grid; grid-template-columns:repeat(auto-fit,minmax(280px,1fr)); gap:16px; }
-
-        /* ── steps ── */
-        .step-section { padding: 80px 24px; }
-        .step-grid    { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:20px; }
-
-        /* ── pricing ── */
-        .pricing-section { padding: 96px 24px; }
-        .pricing-card    { padding: 44px 40px; }
-        .price-blocks  { display:flex; gap:0; justify-content:center; flex-wrap:nowrap; margin-bottom:32px; }
-        .price-block-1 { flex:1; min-width:0; padding:0 24px; border-right:1px solid ${C.priceSep}; text-align:center; }
-        .price-block-2 { flex:1; min-width:0; padding:0 24px; text-align:center; }
-        .price-plus    { display:flex; align-items:center; padding:0 12px; font-size:1.6rem; color:${C.faint}; font-weight:300; flex-shrink:0; }
-        .price-amount  { font-size:3.2rem; font-weight:900; line-height:1; letter-spacing:-.03em; color:${C.text}; }
-        .includes-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(230px,1fr)); gap:2px 20px; text-align:left; margin-bottom:32px; }
-
-        /* ── custom sections ── */
-        .custom-split      { display:flex; gap:56px; align-items:flex-start; flex-wrap:wrap; }
-        .custom-split-text { flex:1 1 280px; }
-        .custom-split-mock { flex:1 1 360px; min-width:0; }
-        .mock-field-row  { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
-        .mock-field      { background:${C.mockField}; border:1px solid ${C.mockFieldBdr}; border-radius:8px; padding:7px 10px; }
-        .mock-field-label{ font-size:.62rem; color:${C.mockLabel}; font-weight:700; letter-spacing:.06em; text-transform:uppercase; margin-bottom:2px; }
-        .mock-field-val  { font-size:.82rem; color:${C.mockVal}; font-weight:600; }
-        .mock-eye-grid   { display:grid; grid-template-columns:1fr 1fr; gap:8px; margin-bottom:8px; }
-        .mock-eye-col    { background:${C.mockCol}; border:1px solid ${C.mockColBdr}; border-radius:10px; padding:10px 12px; }
-        .mock-record-row { display:flex; align-items:center; justify-content:space-between; padding:7px 10px; border-radius:8px; }
-        .mock-record-row:hover { background:rgba(92,31,34,.1); }
-
-        /* carousel */
-        .carousel-nav-btn { background:${C.card}; border:1px solid ${C.border}; border-radius:50%; width:36px; height:36px; display:flex; align-items:center; justify-content:center; cursor:pointer; transition:background .2s,border-color .2s; flex-shrink:0; box-shadow:${C.cardShadow}; }
-        .carousel-nav-btn:hover { border-color:${P}; }
-
-        /* desktop-only / mobile-only visibility */
-        .carousel-desktop { display:flex; }
-        .carousel-mobile  { display:none; }
-
-        /* ── footer ── */
-        .site-footer { display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:14px; }
-
-        /* hide floating chips on any screen too narrow to show them cleanly */
-        @media (max-width:899px) {
-          .hero-chip { display:none !important; }
+        @media (max-width: 860px) {
+          .lp-nav-links { display: none; }
+          .lp-stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .lp-stat:nth-child(3) { border-left: none; }
+          .lp-stat:nth-child(n+3) { border-top: 1px solid var(--line); }
+          .lp-trust-grid, .lp-steps { grid-template-columns: 1fr; }
+          .lp-trust, .lp-trust + .lp-trust { padding: 34px 0; border-left: none; }
+          .lp-trust + .lp-trust { border-top: 1px solid rgba(246,236,223,.14); }
+          .lp-step, .lp-step + .lp-step { padding: 28px 0; border-left: none; }
+          .lp-step + .lp-step { border-top: 1px solid var(--line); }
+          .lp-foot-grid { grid-template-columns: 1fr 1fr; }
+          .lp-foot-grid > div:first-child { grid-column: 1 / -1; }
         }
-
-        /* ════════════ MOBILE (≤639px) ════════════ */
-        @media (max-width:639px) {
-          .nav-links { display:none !important; }
-          .hero-section { padding:96px 18px 60px !important; }
-          .hero-btns    { flex-direction:column !important; gap:12px !important; }
-          .hero-btn-primary,.hero-btn-outline { width:100% !important; justify-content:center !important; }
-          .stat-strip   { gap:20px !important; margin-top:36px !important; }
-          .device-banner-inner { flex-direction:column !important; gap:20px !important; text-align:center !important; }
-          .device-divider { display:none !important; }
-          .feat-section { padding:60px 16px !important; }
-          .feat-grid       { grid-template-columns:1fr 1fr !important; gap:8px !important; }
-          .feat-card       { padding:16px 12px !important; cursor:pointer; text-align:center; }
-          .feat-card:hover { transform:none !important; }
-          .feat-header     { flex-direction:column !important; align-items:center !important; gap:8px !important; }
-          .feat-icon       { width:36px !important; height:36px !important; border-radius:9px !important; }
-          .feat-title      { font-size:.8rem !important; line-height:1.3 !important; }
-          .feat-chevron    { display:none !important; }
-          .feat-desc       { display:none; text-align:left; }
-          .feat-desc--open { display:block !important; margin-top:10px; padding-top:10px; border-top:1px solid ${C.border}; }
-          .step-section { padding:56px 16px !important; }
-          .step-grid    { grid-template-columns:1fr !important; gap:12px !important; }
-          .pricing-section { padding:60px 16px !important; }
-          .pricing-card    { padding:28px 18px !important; }
-          .price-blocks  { flex-direction:column !important; align-items:center !important; gap:0 !important; }
-          .price-block-1 { border-right:none !important; border-bottom:1px solid ${C.priceSep} !important; padding:0 0 20px !important; width:100% !important; }
-          .price-block-2 { padding:20px 0 0 !important; width:100% !important; }
-          .price-plus    { display:none !important; }
-          .price-amount  { font-size:2.8rem !important; }
-          .includes-grid { grid-template-columns:1fr !important; }
-          /* pill nav: horizontal scroll */
-          .pill-nav { overflow-x:auto !important; flex-wrap:nowrap !important; justify-content:flex-start !important; padding:0 16px 8px !important; margin:0 -24px 36px !important; scrollbar-width:none; gap:6px !important; }
-          .pill-nav::-webkit-scrollbar { display:none; }
-          /* show mobile card, hide desktop split */
-          .carousel-desktop { display:none !important; }
-          .carousel-mobile  { display:block !important; }
-          /* desktop-specific helpers still needed for mock-field-row */
-          .mock-field-row { grid-template-columns:1fr !important; }
-          .mock-eye-grid  { grid-template-columns:1fr !important; }
-          .cta-section { padding:60px 18px !important; }
-          .cta-btn     { width:100% !important; justify-content:center !important; }
-          .site-footer { flex-direction:column !important; align-items:center !important; text-align:center !important; gap:10px !important; }
-        }
-
-        /* ════════════ SMALL TABLET (640–767px) ════════════ */
-        @media (min-width:640px) and (max-width:767px) {
-          .feat-grid    { grid-template-columns:repeat(2,1fr) !important; }
-          .step-grid    { grid-template-columns:1fr !important; }
-          .price-amount { font-size:2.8rem !important; }
+        @media (max-width: 600px) {
+          .lp .wrap { padding: 0 20px; }
+          .lp-hero { padding: 128px 0 72px; }
+          .lp-sec, .lp-band { padding: 88px 0; }
+          .lp-signin { display: none; }
+          .lp-feat-grid { grid-template-columns: 1fr; }
+          .lp-art { height: 640px; }
+          .lp-doc { width: calc(100% - 12px); padding: 24px 22px 22px; top: 0; }
+          .lp-chip.c1 { left: 0 !important; bottom: 0 !important; }
+          .lp-chip.c2 { right: 0 !important; bottom: 72px !important; }
+          .lp-fields { grid-template-columns: 1fr 1fr; }
+          .lp-plan-list { grid-template-columns: 1fr; }
+          .lp-price-card { padding: 40px 26px 32px; }
+          .lp-price b { font-size: 3.8rem; }
+          .lp-final-card { padding: 64px 24px; border-radius: 22px; }
+          .lp-stat { padding: 30px 12px; }
+          .lp-stat b { font-size: 2rem; }
+          .lp-cta-row .lp-btn { flex: 1 1 100%; }
         }
       `}</style>
 
-      {/* ══════════════ NAVBAR ══════════════ */}
-      <nav style={{
-        position:'fixed', top:0, left:0, right:0, zIndex:999,
-        padding:'0 20px', height:60,
-        display:'flex', alignItems:'center', justifyContent:'space-between',
-        background: scrolled ? C.navBg : 'transparent',
-        backdropFilter: scrolled ? 'blur(16px)' : 'none',
-        borderBottom: scrolled ? `1px solid ${C.navBorder}` : 'none',
-        transition:'all .35s ease',
-      }}>
-        <div style={{ display:'flex', alignItems:'center', gap:9, flexShrink:0 }}>
-          <TallyKraftLogo size={48} />
-          <span style={{ fontWeight:800, fontSize:'1.05rem', letterSpacing:'.04em', color:C.text }}>TALLYKRAFT</span>
+      {/* ══════════════ NAV ══════════════ */}
+      <nav className={`lp-nav ${scrolled ? 'scrolled' : ''}`}>
+        <div className="wrap lp-nav-inner">
+          <a href="#" className="lp-brand-link" onClick={(e) => { e.preventDefault(); window.scrollTo({ top: 0, behavior: 'smooth' }); }} style={{ textDecoration: 'none' }}>
+            <Brand size={36} />
+          </a>
+          <div className="lp-nav-links">
+            {[['Features', 'features'], ['Industries', 'industries'], ['Pricing', 'pricing'], ['FAQ', 'faq']].map(([label, id]) => (
+              <a key={id} href={`#${id}`} onClick={(e) => { e.preventDefault(); go(id); }}>{label}</a>
+            ))}
+          </div>
+          <div className="lp-nav-actions">
+            <button className="lp-signin" onClick={onLoginClick}>Sign in</button>
+            <button className="lp-btn lp-btn-primary" onClick={onLoginClick}>Start free trial</button>
+          </div>
         </div>
-
-        <div className="nav-links">
-          {[['Features', () => scrollTo(featRef)], ['Pricing', () => document.getElementById('pricing')?.scrollIntoView({ behavior:'smooth' })]].map(([label, fn]) => (
-            <a key={label} href="#" onClick={e => { e.preventDefault(); fn(); }}
-              style={{ color:C.muted, fontSize:'.88rem', textDecoration:'none', fontWeight:500 }}>{label}</a>
-          ))}
-        </div>
-
-        <button className="login-btn" onClick={onLoginClick} style={{
-          background:GRAD, border:'none', borderRadius:10,
-          color:'#fff', fontWeight:700, fontSize:'.88rem',
-          padding:'8px 20px', cursor:'pointer',
-          boxShadow:'0 4px 14px rgba(92,31,34,.35)', flexShrink:0,
-        }}>Login →</button>
       </nav>
 
       {/* ══════════════ HERO ══════════════ */}
-      <section className="hero-section" style={{ position:'relative', minHeight:'100vh', display:'flex', alignItems:'center', justifyContent:'center', textAlign:'center', overflow:'hidden', background:C.heroBg }}>
-
-        {/* Animated orbs */}
-        <div style={{ position:'absolute', top:'15%', left:'8%', width:'42vw', height:'42vw', maxWidth:500, maxHeight:500, background:'radial-gradient(circle,rgba(92,31,34,.18) 0%,transparent 70%)', borderRadius:'50%', filter:'blur(70px)', animation:'floatA 18s ease-in-out infinite', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', bottom:'8%', right:'6%', width:'46vw', height:'46vw', maxWidth:560, maxHeight:560, background:'radial-gradient(circle,rgba(92,31,34,.15) 0%,transparent 70%)', borderRadius:'50%', filter:'blur(88px)', animation:'floatB 22s ease-in-out infinite', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', top:'52%', left:'45%', width:'30vw', height:'30vw', maxWidth:360, maxHeight:360, background:'radial-gradient(circle,rgba(200,160,78,.1) 0%,transparent 70%)', borderRadius:'50%', filter:'blur(60px)', animation:'floatC 16s ease-in-out infinite', pointerEvents:'none' }} />
-        <div style={{ position:'absolute', inset:0, backgroundImage:`linear-gradient(${C.gridLine} 1px,transparent 1px),linear-gradient(90deg,${C.gridLine} 1px,transparent 1px)`, backgroundSize:'48px 48px', opacity:.7, pointerEvents:'none' }} />
-
-        {/* floating particle dots */}
-        {[[12,22,6,'#5c1f22',7],[88,14,4,'#5c1f22',11],[6,68,5,'#c8a04e',9],[92,72,4,'#c8a04e',8],[50,88,3,'#5c1f22',13],[78,42,5,'#5c1f22',6],[20,48,3,'#c8a04e',10]].map(([x,y,r,c,d],i)=>(
-          <div key={i} style={{ position:'absolute', left:`${x}%`, top:`${y}%`, width:r*2, height:r*2, borderRadius:'50%', background:c, opacity:.25, animation:`twinkle ${d}s ease-in-out ${i*.7}s infinite`, pointerEvents:'none' }} />
-        ))}
-
-        {/* floating data chips — hidden below 900px where they clash with hero text */}
-        <div className="hero-chip" style={{ position:'absolute', top:'18%', right:'7%', background:isDark?'rgba(15,17,26,.85)':'rgba(255,255,255,.88)', backdropFilter:'blur(12px)', border:'1px solid rgba(92,31,34,.3)', borderRadius:14, padding:'10px 16px', boxShadow:'0 8px 28px rgba(92,31,34,.18)', animation:'floatChip 7s ease-in-out infinite', pointerEvents:'none', zIndex:1 }}>
-          <div style={{ fontSize:'.62rem', color:P, fontWeight:700, letterSpacing:'.07em', marginBottom:3 }}>INVOICE CREATED</div>
-          <div style={{ fontSize:'.88rem', fontWeight:800, color:isDark?'#fff':'#3f1417' }}>₹1,24,500</div>
-          <div style={{ fontSize:'.65rem', color:isDark?'rgba(255,255,255,.4)':'#5f4f47', marginTop:2 }}>INV-2025-0042 · GST 18%</div>
-        </div>
-
-        <div className="hero-chip" style={{ position:'absolute', bottom:'24%', left:'5%', background:isDark?'rgba(15,17,26,.85)':'rgba(255,255,255,.88)', backdropFilter:'blur(12px)', border:'1px solid rgba(37,211,102,.35)', borderRadius:14, padding:'10px 16px', boxShadow:'0 8px 28px rgba(37,211,102,.15)', animation:'floatChip2 9s ease-in-out 1.2s infinite', pointerEvents:'none', zIndex:1 }}>
-          <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-            <div style={{ width:8, height:8, borderRadius:'50%', background:'#25D366', animation:'pulse 2s infinite' }} />
-            <span style={{ fontSize:'.65rem', fontWeight:700, color:'#16a34a' }}>SENT VIA WHATSAPP</span>
-          </div>
-          <div style={{ fontSize:'.82rem', fontWeight:700, color:isDark?'#fff':'#3f1417', marginTop:4 }}>Ravi Kumar Enterprises</div>
-        </div>
-
-        <div className="hero-chip" style={{ position:'absolute', top:'60%', right:'4%', background:isDark?'rgba(15,17,26,.85)':'rgba(255,255,255,.88)', backdropFilter:'blur(12px)', border:'1px solid rgba(92,31,34,.3)', borderRadius:14, padding:'10px 16px', boxShadow:'0 8px 28px rgba(92,31,34,.15)', animation:'floatChip3 8s ease-in-out 2s infinite', pointerEvents:'none', zIndex:1 }}>
-          <div style={{ fontSize:'.62rem', color:P2, fontWeight:700, letterSpacing:'.07em', marginBottom:3 }}>STOCK UPDATED</div>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <div style={{ fontSize:'.85rem', fontWeight:800, color:isDark?'#fff':'#3f1417' }}>234 units</div>
-            <div style={{ fontSize:'.68rem', color:'#16a34a', fontWeight:700, background:'rgba(22,163,74,.1)', borderRadius:100, padding:'1px 7px' }}>↑ In stock</div>
-          </div>
-        </div>
-
-        <div style={{ position:'relative', zIndex:2, maxWidth:820, width:'100%' }}>
-          <div className="fade-up" style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(92,31,34,.12)', border:'1px solid rgba(92,31,34,.25)', borderRadius:100, padding:'5px 15px', marginBottom:24 }}>
-            <Zap size={12} color={P} />
-            <span style={{ fontSize:'.75rem', fontWeight:700, color:P, letterSpacing:'.06em' }}>PREMIUM BUSINESS ACCOUNTING</span>
-          </div>
-
-          <h1 className="fade-up-2" style={{ fontSize:'clamp(2.1rem,6vw,4rem)', fontWeight:900, lineHeight:1.1, margin:'0 0 20px', letterSpacing:'-.025em', color:C.text }}>
-            Run Your Business<br />
-            <span className="grad-text">Smarter. Faster. Anywhere.</span>
-          </h1>
-
-          <p className="fade-up-3" style={{ fontSize:'clamp(.95rem,2.5vw,1.18rem)', color:C.muted, lineHeight:1.72, maxWidth:580, margin:'0 auto 40px' }}>
-            TallyKraft is an all-in-one accounting platform for Indian businesses — invoicing, inventory, GST reports, staff management and more. Works on <strong style={{ color:C.text }}>any device with a browser</strong>, no installs ever.
-          </p>
-
-          <div className="fade-up-3 hero-btns">
-            <button className="login-btn hero-btn-primary" onClick={onLoginClick} style={{
-              background:GRAD, border:'none', borderRadius:13,
-              color:'#fff', fontWeight:800, fontSize:'1rem',
-              padding:'14px 32px', cursor:'pointer',
-              boxShadow:'0 6px 22px rgba(92,31,34,.4)',
-              display:'flex', alignItems:'center', gap:8,
-            }}>
-              Get Started Free <ArrowRight size={17} />
-            </button>
-            <button onClick={() => scrollTo(featRef)} style={{
-              background:C.outlineBtn, border:`1px solid ${C.outlineBdr}`,
-              borderRadius:13, color:C.text, fontWeight:700, fontSize:'1rem',
-              padding:'14px 28px', cursor:'pointer',
-              display:'flex', alignItems:'center', gap:8, transition:'background .2s',
-            }}
-              onMouseEnter={e => e.currentTarget.style.background = C.outlineHover}
-              onMouseLeave={e => e.currentTarget.style.background = C.outlineBtn}
-            >
-              See Features <ChevronDown size={16} />
-            </button>
-          </div>
-
-          <div className="stat-strip" ref={statsRef}>
-            {[
-              { val: `${cInvoices.toLocaleString('en-IN')}+`, label:'Invoices Generated' },
-              { val: `${cBiz.toLocaleString('en-IN')}+`,     label:'Businesses Onboarded' },
-              { val: '100%', label:'Web-based, no install' },
-              { val: '∞',    label:'Unlimited Records' },
-            ].map((s,i) => (
-              <div key={s.label} className={`reveal d${i+1}${statsIn?' in-view':''}`} style={{ textAlign:'center' }}>
-                <div style={{ fontSize:'1.8rem', fontWeight:900, background:GRAD, WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', letterSpacing:'-.02em' }}>{s.val}</div>
-                <div style={{ fontSize:'.75rem', color:C.dim, marginTop:3, fontWeight:500 }}>{s.label}</div>
+      <header className="lp-hero">
+        <div className="wrap lp-hero-grid">
+          <div>
+            <Reveal><Eyebrow>GST billing &amp; accounting · Made for India</Eyebrow></Reveal>
+            <Reveal delay={80}>
+              <h1 className="lp-h1 serif">Billing and books,<br /><em>elegantly</em> simple.</h1>
+            </Reveal>
+            <Reveal delay={160}>
+              <p className="lp-lead">
+                BillDheko brings invoicing, inventory, payments, GST reports and staff together in one
+                refined workspace — on any device, with nothing to install.
+              </p>
+            </Reveal>
+            <Reveal delay={240}>
+              <div className="lp-cta-row">
+                <button className="lp-btn lp-btn-primary" onClick={onLoginClick}>
+                  Start your {TRIAL_DAYS}-day free trial <ArrowRight size={17} />
+                </button>
+                <button className="lp-btn lp-btn-ghost" onClick={() => go('features')}>Explore features</button>
               </div>
-            ))}
-          </div>
-        </div>
-
-        <div onClick={() => scrollTo(featRef)} style={{ position:'absolute', bottom:24, left:'50%', transform:'translateX(-50%)', cursor:'pointer', animation:'pulse 2s infinite', color:C.dim }}>
-          <ChevronDown size={22} />
-        </div>
-      </section>
-
-      {/* ══════════════ DEVICE ACCESS BANNER ══════════════ */}
-      <section style={{ padding:'48px 20px', background:C.devBanner, borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}` }}>
-        <div ref={deviceRef} className="device-banner-inner" style={{ maxWidth:900, margin:'0 auto' }}>
-
-          <div className={`reveal-l${deviceIn?' in-view':''}`} style={{ display:'flex', alignItems:'center', gap:12, flexShrink:0 }}>
-            <Wifi size={26} color={P} />
-            <div>
-              <div style={{ fontWeight:800, fontSize:'1rem', lineHeight:1.3, color:C.text }}>Access on Any Device</div>
-              <div style={{ color:C.dim, fontSize:'.82rem', marginTop:2 }}>Phone · Tablet · Laptop · Desktop</div>
-            </div>
+            </Reveal>
+            <Reveal delay={320}>
+              <div className="lp-assure">
+                <span><Check size={15} /> No credit card</span>
+                <span><Check size={15} /> ₹{PLAN_PRICE} per business / {PLAN_DAYS} days</span>
+                <span><Check size={15} /> Cancel anytime</span>
+              </div>
+            </Reveal>
           </div>
 
-          <div className="device-divider" />
-
-          <div className={`reveal d2${deviceIn?' in-view':''}`} style={{ display:'flex', gap:20, alignItems:'center', justifyContent:'center', flexWrap:'wrap' }}>
-            {[{ Icon:Smartphone, label:'Mobile' }, { Icon:Tablet, label:'Tablet' }, { Icon:Monitor, label:'Desktop' }].map(({ Icon, label }) => (
-              <div key={label} style={{ display:'flex', flexDirection:'column', alignItems:'center', gap:6 }}>
-                <div style={{ width:44, height:44, borderRadius:11, background:'rgba(92,31,34,.12)', border:'1px solid rgba(92,31,34,.22)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-                  <Icon size={20} color={P} />
+          {/* invoice composition */}
+          <Reveal delay={200} className="lp-art" aria-hidden="true">
+            <div className="lp-doc lp-float">
+              <div className="lp-doc-head">
+                <div>
+                  <div className="lp-doc-title serif">Tax Invoice</div>
+                  <div className="lp-doc-small" style={{ marginTop: 4 }}>INV-2026-0142 · 18 Oct 2026</div>
                 </div>
-                <span style={{ fontSize:'.72rem', color:C.dim, fontWeight:600 }}>{label}</span>
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontWeight: 600, fontSize: '.86rem', color: 'var(--ink)' }}>Kumar Traders</div>
+                  <div className="lp-doc-small" style={{ marginTop: 4 }}>GSTIN 33ABCDE1234F1Z5</div>
+                </div>
               </div>
-            ))}
-          </div>
-
-          <div className="device-divider" />
-
-          <div className={`reveal-r${deviceIn?' in-view':''}`} style={{ display:'flex', alignItems:'center', gap:8, flexShrink:0 }}>
-            <Globe size={19} color='#c8a04e' />
-            <span style={{ color:C.soft, fontSize:'.88rem', fontWeight:600 }}>Just a browser + internet. That's it.</span>
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════ MARQUEE TICKER ══════════════ */}
-      <div style={{ overflow:'hidden', borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}`, background:isDark?'rgba(92,31,34,.04)':'rgba(92,31,34,.04)', padding:'13px 0', userSelect:'none' }}>
-        <div style={{ display:'flex', animation:'marquee 28s linear infinite', width:'max-content', gap:0 }}>
-          {[...Array(2)].map((_,pass) => (
-            <div key={pass} style={{ display:'flex', alignItems:'center', gap:0 }}>
-              {['GST Invoice Ready','WhatsApp Sharing','Stock Management','Multi-Business','PDF & Print','Tally XML Export','Offline Mode','Auditor Login','Barcode Support','Custom Sections','Party Ledger','Financial Reports'].map(item => (
-                <span key={item} style={{ display:'inline-flex', alignItems:'center', gap:28, whiteSpace:'nowrap', padding:'0 28px' }}>
-                  <span style={{ width:5, height:5, borderRadius:'50%', background:GRAD, display:'inline-block', flexShrink:0 }} />
-                  <span style={{ fontSize:'.78rem', fontWeight:600, color:C.muted, letterSpacing:'.03em' }}>{item}</span>
-                </span>
-              ))}
+              <div className="lp-doc-rows">
+                <div className="lp-doc-row head"><span>Item</span><span>Qty</span><span>Amount</span></div>
+                {[['Basmati Rice · 25 kg', 4, '6,800'], ['Sunflower Oil · 15 L', 6, '12,900'], ['Toor Dal · 30 kg', 3, '9,150'], ['Sugar · 50 kg', 2, '4,200']].map(([n, q, a]) => (
+                  <div key={n} className="lp-doc-row"><span>{n}</span><span>{q}</span><span>₹{a}</span></div>
+                ))}
+              </div>
+              <div className="lp-doc-tax"><span>CGST 2.5%</span><span>₹826.25</span></div>
+              <div className="lp-doc-tax"><span>SGST 2.5%</span><span>₹826.25</span></div>
+              <div className="lp-doc-total"><span className="lp-doc-small" style={{ letterSpacing: '.16em', textTransform: 'uppercase' }}>Total</span><b>₹34,702</b></div>
+              <div className="lp-stamp">PAID</div>
             </div>
+
+            <div className="lp-chip c1 lp-float b" style={{ left: 0, bottom: 0 }}>
+              <div className="lp-chip-ico" style={{ background: 'rgba(37,140,85,.12)', color: '#2f7d4f' }}><Send size={17} /></div>
+              <div><small>Sent on WhatsApp</small><b>Ravi Kumar Enterprises</b></div>
+            </div>
+            <div className="lp-chip c2 lp-float" style={{ right: 0, bottom: 74 }}>
+              <div className="lp-chip-ico" style={{ background: 'rgba(176,141,87,.14)', color: GOLD }}><TrendingUp size={17} /></div>
+              <div><small>Today’s sales</small><b>₹48,250 <span style={{ color: '#2f7d4f', fontSize: '.78rem', fontWeight: 600 }}>↑ 12%</span></b></div>
+            </div>
+          </Reveal>
+        </div>
+      </header>
+
+      {/* ══════════════ STATS ══════════════ */}
+      <section className="lp-stats" ref={statsRef}>
+        <div className="wrap lp-stats-grid">
+          {[[`${cInvoices.toLocaleString('en-IN')}+`, 'Invoices generated'], [`${cBiz.toLocaleString('en-IN')}+`, 'Businesses onboarded'], ['100%', 'Browser-based, no installs'], ['∞', 'Unlimited records']].map(([v, l]) => (
+            <div key={l} className="lp-stat"><b>{v}</b><span>{l}</span></div>
           ))}
         </div>
-      </div>
+      </section>
+
+      {/* ══════════════ INDUSTRIES RIBBON ══════════════ */}
+      <section className="lp-ribbon">
+        <div className="wrap">
+          <div className="lp-ribbon-label">Trusted across trades</div>
+          <div className="lp-ribbon-list">{INDUSTRIES.map(i => <span key={i}>{i}</span>)}</div>
+        </div>
+      </section>
 
       {/* ══════════════ FEATURES ══════════════ */}
-      <section id="features" ref={featRef} className="feat-section" style={{ background:C.bgAlt }}>
-        <div style={{ maxWidth:1100, margin:'0 auto' }}>
-          <div ref={featHdRef} style={{ textAlign:'center', marginBottom:52 }}>
-            <div className={`reveal${featHdIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(92,31,34,.1)', border:'1px solid rgba(92,31,34,.22)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
-              <Star size={11} color={P} />
-              <span style={{ fontSize:'.72rem', fontWeight:700, color:P, letterSpacing:'.07em' }}>EVERYTHING YOU NEED</span>
+      <section id="features" className="lp-sec alt">
+        <div className="wrap">
+          <Reveal className="lp-head">
+            <div>
+              <Eyebrow>Everything in one place</Eyebrow>
+              <h2 className="lp-h2 serif">One ledger for the<br />whole <em>business</em>.</h2>
             </div>
-            <h2 className={`reveal d2${featHdIn?' in-view':''}`} style={{ fontSize:'clamp(1.6rem,4vw,2.6rem)', fontWeight:900, margin:'0 0 12px', letterSpacing:'-.02em', color:C.text }}>All Features. One Platform.</h2>
-            <p className={`reveal d3${featHdIn?' in-view':''}`} style={{ color:C.muted, fontSize:'.95rem', maxWidth:480, margin:'0 auto', lineHeight:1.65 }}>
-              No juggling between apps. TallyKraft covers your entire business workflow from day one.
+            <p className="lp-sub">
+              No juggling between apps. From the first quotation to the final GST return,
+              BillDheko covers your entire workflow from day one.
             </p>
-          </div>
-
-          <div className="feat-grid">
-            {FEATURES.map(({ icon: Icon, title, desc }, idx) => {
-              const open = expandedFeat === idx;
-              return (
-                <div
-                  key={title}
-                  className={`feat-card reveal d${(idx % 6) + 1}${featHdIn?' in-view':''}`}
-                  onClick={() => setExpandedFeat(open ? null : idx)}
-                  style={{ background:C.card, border:`1px solid ${open ? 'rgba(92,31,34,.4)' : C.border}`, borderRadius:15, padding:'22px', boxShadow:C.cardShadow }}
-                >
-                  {/* Header row — icon + title (+ chevron on mobile) */}
-                  <div className="feat-header">
-                    <div className="feat-icon" style={{ width:42, height:42, borderRadius:11, background:'rgba(92,31,34,.1)', border:'1px solid rgba(92,31,34,.18)', display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                      <Icon size={19} color={P} />
-                    </div>
-                    <div className="feat-title" style={{ fontWeight:700, fontSize:'.97rem', color:C.text, lineHeight:1.3 }}>{title}</div>
-                    <div className="feat-chevron" style={{ transform: open ? 'rotate(180deg)' : 'rotate(0deg)' }}>
-                      <ChevronDown size={16} color={C.muted} />
-                    </div>
+          </Reveal>
+          <div className="lp-feat-grid">
+            {FEATURE_GROUPS.map((g, gi) => (
+              <Reveal key={g.title} className="lp-feat-col" delay={gi * 90}>
+                <h3>{g.title}</h3>
+                {g.items.map((it) => (
+                  <div key={it.title} className="lp-feat">
+                    <div className="lp-feat-top"><span className="lp-feat-ico"><it.icon size={16} strokeWidth={1.7} /></span><h4>{it.title}</h4></div>
+                    <p>{it.desc}</p>
                   </div>
-
-                  {/* Description — always visible on desktop, accordion on mobile */}
-                  <div className={`feat-desc${open ? ' feat-desc--open' : ''}`}>
-                    <div style={{ fontSize:'.84rem', color:C.muted, lineHeight:1.65 }}>{desc}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════ FEATURE DEMOS ══════════════ */}
-      <section style={{ padding:'96px 24px', background:C.bgAlt, borderTop:`1px solid ${C.border}`, overflow:'hidden' }}>
-        <div style={{ maxWidth:1100, margin:'0 auto' }}>
-
-          {/* heading */}
-          <div ref={featDemoRef} style={{ textAlign:'center', marginBottom:60 }}>
-            <div className={`reveal${featDemoIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(92,31,34,.1)', border:'1px solid rgba(92,31,34,.22)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
-              <Zap size={11} color={P} />
-              <span style={{ fontSize:'.72rem', fontWeight:700, color:P, letterSpacing:'.07em' }}>SEE IT IN ACTION</span>
-            </div>
-            <h2 className={`reveal d2${featDemoIn?' in-view':''}`} style={{ fontSize:'clamp(1.6rem,4vw,2.6rem)', fontWeight:900, margin:'0 0 14px', letterSpacing:'-.02em', color:C.text }}>
-              Designed for Real Business<br />Challenges
-            </h2>
-            <p className={`reveal d3${featDemoIn?' in-view':''}`} style={{ color:C.muted, fontSize:'.95rem', maxWidth:520, margin:'0 auto', lineHeight:1.7 }}>
-              Every feature is built around a real problem. Watch live demos of the tools your business will actually use every day.
-            </p>
-          </div>
-
-          <div className={`reveal d4${featDemoIn?' in-view':''}`}>
-            <FeatureDemos isDark={isDark} C={C} />
-          </div>
-        </div>
-      </section>
-
-      {/* ══════════════ CUSTOM SECTIONS SHOWCASE ══════════════ */}
-      {(() => {
-        const ex = EXAMPLES[activeExample];
-        const ExIcon = ex.icon;
-        const accent = ex.color;
-        const accentBg = `${accent}22`;
-        const accentBorder = `${accent}44`;
-        return (
-          <section style={{ padding:'96px 24px', borderTop:`1px solid ${C.border}`, background:C.bg, overflow:'hidden' }}>
-            <div style={{ maxWidth:1100, margin:'0 auto' }}>
-
-              <div style={{ textAlign:'center', marginBottom:56 }}>
-                <div style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(245,158,11,.1)', border:'1px solid rgba(245,158,11,.25)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
-                  <Layers size={11} color='#fbbf24' />
-                  <span style={{ fontSize:'.72rem', fontWeight:700, color:'#fbbf24', letterSpacing:'.07em' }}>CUSTOM SECTIONS</span>
-                </div>
-                <h2 style={{ fontSize:'clamp(1.6rem,4vw,2.6rem)', fontWeight:900, margin:'0 0 12px', letterSpacing:'-.02em', color:C.text }}>Build Any Form Your Business Needs</h2>
-                <p style={{ color:C.muted, fontSize:'.95rem', maxWidth:520, margin:'0 auto', lineHeight:1.65 }}>
-                  Not just invoicing — create fully custom data-entry sections for your specific workflow. Linked to customers, printable, and searchable.
-                </p>
-              </div>
-
-              {/* Industry pill nav */}
-              <div className="pill-nav" style={{ display:'flex', justifyContent:'center', flexWrap:'wrap', gap:8, marginBottom:52 }}>
-                {EXAMPLES.map((e, i) => {
-                  const PillIcon = e.icon;
-                  const active = i === activeExample;
-                  return (
-                    <button key={e.badge} onClick={() => goToExample(i)} style={{
-                      display:'flex', alignItems:'center', gap:6,
-                      background: active ? e.color : C.pillInact,
-                      border: `1px solid ${active ? e.color : C.pillInactBdr}`,
-                      borderRadius:100, padding:'6px 14px', cursor:'pointer',
-                      color: active ? '#fff' : C.pillInactTxt,
-                      fontSize:'.76rem', fontWeight:700, letterSpacing:'.04em',
-                      transition:'all .2s',
-                    }}>
-                      <PillIcon size={12} />
-                      {e.badge}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="custom-split carousel-desktop" key={activeExample}>
-
-                {/* Left */}
-                <div className="custom-split-text mock-fade">
-                  <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:accentBg, border:`1px solid ${accentBorder}`, borderRadius:8, padding:'4px 10px', marginBottom:20, fontSize:'.72rem', fontWeight:700, color:accent, letterSpacing:'.06em' }}>
-                    {ex.badge}
-                  </div>
-                  <h3 style={{ fontSize:'clamp(1.1rem,2.5vw,1.5rem)', fontWeight:900, margin:'0 0 10px', letterSpacing:'-.015em', color:C.text }}>{ex.heading}</h3>
-                  <p style={{ color:C.muted, fontSize:'.88rem', lineHeight:1.75, marginBottom:24 }}>{ex.desc}</p>
-
-                  {[
-                    { icon:AlignLeft,   text:'Text, number, date, dropdown, and long-text field types' },
-                    { icon:ExIcon,      text:'Link every record to a customer from your party list' },
-                    { icon:Layers,      text:`Multiple tabs per section — e.g. ${ex.tabs[0]} + ${ex.tabs[1]}` },
-                    { icon:CheckCircle, text:'Print or share any record as a formatted PDF' },
-                  ].map(({ icon:Icon, text }) => (
-                    <div key={text} style={{ display:'flex', alignItems:'flex-start', gap:10, marginBottom:14 }}>
-                      <div style={{ width:28, height:28, borderRadius:8, background:accentBg, border:`1px solid ${accentBorder}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0, marginTop:1 }}>
-                        <Icon size={13} color={accent} />
-                      </div>
-                      <span style={{ fontSize:'.88rem', color:C.soft, lineHeight:1.65 }}>{text}</span>
-                    </div>
-                  ))}
-
-                  <div style={{ marginTop:28, padding:'14px 16px', background:C.card, border:`1px solid ${C.border}`, borderRadius:10, boxShadow:C.cardShadow }}>
-                    <div style={{ fontSize:'.72rem', fontWeight:700, color:C.dim, letterSpacing:'.07em', marginBottom:8 }}>WORKS FOR ANY INDUSTRY</div>
-                    <div style={{ display:'flex', flexWrap:'wrap', gap:8 }}>
-                      {['Opticals','Tailoring','Clinics','Gyms','Service Centres','Salons','Coaching'].map(tag => (
-                        <span key={tag} style={{ background:C.pillInact, border:`1px solid ${C.border}`, borderRadius:100, padding:'3px 10px', fontSize:'.74rem', color:C.muted }}>{tag}</span>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right — always-dark mockup card */}
-                <div className="custom-split-mock">
-                  <div className="mock-fade" style={{ background:C.mockBg, border:`1px solid ${accentBorder}`, borderRadius:16, overflow:'hidden', boxShadow:'0 24px 64px rgba(0,0,0,.35)' }}>
-
-                    <div style={{ padding:'12px 16px', background:accentBg, borderBottom:`1px solid ${accentBorder}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                      <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                        <div style={{ width:32, height:32, borderRadius:9, background:`${accent}33`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                          <ExIcon size={15} color={accent} />
-                        </div>
-                        <div>
-                          <div style={{ fontSize:'.88rem', fontWeight:800, color:'#fff' }}>{ex.sectionTitle}</div>
-                          <div style={{ fontSize:'.65rem', color:C.mockSubtitle }}>Custom Section</div>
-                        </div>
-                      </div>
-                      <div style={{ display:'flex', alignItems:'center', gap:6, background:accent, borderRadius:7, padding:'5px 10px', fontSize:'.72rem', fontWeight:700, cursor:'pointer', color:'#fff' }}>
-                        <Plus size={11} />New
-                      </div>
-                    </div>
-
-                    <div style={{ display:'flex', borderBottom:`1px solid ${C.mockHr}`, padding:'0 16px' }}>
-                      {ex.tabs.map((t, i) => (
-                        <div key={t} style={{ padding:'9px 14px', fontSize:'.78rem', fontWeight:i===0?700:500, color:i===0?accent:C.mockTabInact, borderBottom:i===0?`2px solid ${accent}`:'2px solid transparent', marginBottom:-1, cursor:'pointer' }}>{t}</div>
-                      ))}
-                    </div>
-
-                    <div style={{ padding:'14px' }}>
-                      <div className="mock-field-row">
-                        {ex.topFields.map(f => (
-                          <div key={f.label} className="mock-field">
-                            <div className="mock-field-label">{f.label}</div>
-                            <div className="mock-field-val" style={{ color: f.accent ? accent : undefined }}>{f.value}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mock-eye-grid" style={{ marginBottom:8 }}>
-                        {[{ label:ex.detailGroup.leftLabel, rows:ex.detailGroup.leftRows }, { label:ex.detailGroup.rightLabel, rows:ex.detailGroup.rightRows }].map(col => (
-                          <div key={col.label} className="mock-eye-col">
-                            <div style={{ fontSize:'.66rem', fontWeight:800, color:C.mockColHead, letterSpacing:'.08em', marginBottom:7 }}>{col.label}</div>
-                            {col.rows.map(([l, v]) => (
-                              <div key={l} style={{ display:'flex', justifyContent:'space-between', marginBottom:5 }}>
-                                <span style={{ fontSize:'.75rem', color:C.mockRowLabel }}>{l}</span>
-                                <span style={{ fontSize:'.8rem', fontWeight:700, color:C.mockVal }}>{v}</span>
-                              </div>
-                            ))}
-                          </div>
-                        ))}
-                      </div>
-
-                      <div className="mock-field-row">
-                        {ex.midFields.map(f => (
-                          <div key={f.label} className="mock-field">
-                            <div className="mock-field-label">{f.label}</div>
-                            <div className="mock-field-val">{f.value}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div style={{ background:C.mockField, border:`1px solid ${C.mockFieldBdr}`, borderRadius:8, padding:'7px 10px', marginBottom:12 }}>
-                        <div className="mock-field-label">Notes</div>
-                        <div style={{ fontSize:'.81rem', color:C.mockNotesTxt }}>{ex.notes}</div>
-                      </div>
-
-                      <div style={{ display:'flex', justifyContent:'flex-end' }}>
-                        <div style={{ background:accent, borderRadius:8, padding:'7px 20px', fontSize:'.8rem', fontWeight:700, cursor:'pointer', color:'#fff' }}>
-                          Save Record
-                        </div>
-                      </div>
-                    </div>
-
-                    <div style={{ borderTop:`1px solid ${C.mockHr}`, padding:'10px 14px' }}>
-                      <div style={{ fontSize:'.63rem', fontWeight:700, color:C.mockRecHead, letterSpacing:'.08em', marginBottom:7 }}>RECENT RECORDS</div>
-                      {ex.records.map(r => (
-                        <div key={r.name} className="mock-record-row">
-                          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-                            <div style={{ width:24, height:24, borderRadius:'50%', background:`${accent}33`, display:'flex', alignItems:'center', justifyContent:'center', fontSize:'.65rem', fontWeight:800, color:accent }}>{r.name[0]}</div>
-                            <span style={{ fontSize:'.8rem', fontWeight:600, color:'#fff' }}>{r.name}</span>
-                          </div>
-                          <span style={{ fontSize:'.72rem', color:C.mockRecMeta }}>{r.meta}</span>
-                          <span style={{ fontSize:'.7rem', color:C.mockRecDate }}>{r.date}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
-                </div>
-
-              </div>
-
-              {/* ── MOBILE CARD (hidden on desktop) ── */}
-              <div className="carousel-mobile" key={`mob-${activeExample}`}>
-
-                {/* Compact app-style mockup */}
-                <div style={{ background:C.mockBg, border:`1px solid ${accentBorder}`, borderRadius:16, overflow:'hidden', boxShadow:'0 16px 48px rgba(0,0,0,.3)', marginBottom:20 }}>
-
-                  {/* Header */}
-                  <div style={{ padding:'12px 14px', background:accentBg, borderBottom:`1px solid ${accentBorder}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                    <div style={{ display:'flex', alignItems:'center', gap:9 }}>
-                      <div style={{ width:34, height:34, borderRadius:10, background:`${accent}33`, display:'flex', alignItems:'center', justifyContent:'center' }}>
-                        <ExIcon size={16} color={accent} />
-                      </div>
-                      <div>
-                        <div style={{ fontSize:'.85rem', fontWeight:800, color:'#fff', lineHeight:1.2 }}>{ex.sectionTitle}</div>
-                        <div style={{ fontSize:'.62rem', color:C.mockSubtitle }}>Custom Section</div>
-                      </div>
-                    </div>
-                    <div style={{ background:accent, borderRadius:7, padding:'5px 11px', fontSize:'.72rem', fontWeight:700, color:'#fff', display:'flex', alignItems:'center', gap:4 }}>
-                      <Plus size={11} />New
-                    </div>
-                  </div>
-
-                  {/* Tabs row */}
-                  <div style={{ display:'flex', borderBottom:`1px solid ${C.mockHr}`, padding:'0 14px' }}>
-                    {ex.tabs.map((t, ti) => (
-                      <div key={t} style={{ padding:'8px 12px', fontSize:'.76rem', fontWeight:ti===0?700:500, color:ti===0?accent:C.mockTabInact, borderBottom:ti===0?`2px solid ${accent}`:'2px solid transparent', marginBottom:-1, cursor:'pointer' }}>{t}</div>
-                    ))}
-                  </div>
-
-                  {/* Fields — label:value rows, easy to scan */}
-                  <div style={{ padding:'12px 14px', display:'flex', flexDirection:'column', gap:7 }}>
-                    {[...ex.topFields, ...ex.midFields].map(f => (
-                      <div key={f.label} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:C.mockField, border:`1px solid ${C.mockFieldBdr}`, borderRadius:9, padding:'8px 12px' }}>
-                        <span style={{ fontSize:'.7rem', fontWeight:700, color:C.mockLabel, textTransform:'uppercase', letterSpacing:'.06em' }}>{f.label}</span>
-                        <span style={{ fontSize:'.84rem', fontWeight:600, color:f.accent?accent:C.mockVal }}>{f.value}</span>
-                      </div>
-                    ))}
-                    {/* Key detail rows (first 3 from left+right) */}
-                    {[...ex.detailGroup.leftRows.slice(0,2), ...ex.detailGroup.rightRows.slice(0,1)].map(([l,v]) => (
-                      <div key={l} style={{ display:'flex', justifyContent:'space-between', alignItems:'center', background:C.mockField, border:`1px solid ${C.mockFieldBdr}`, borderRadius:9, padding:'8px 12px' }}>
-                        <span style={{ fontSize:'.7rem', fontWeight:700, color:C.mockLabel, textTransform:'uppercase', letterSpacing:'.06em' }}>{l}</span>
-                        <span style={{ fontSize:'.84rem', fontWeight:600, color:C.mockVal }}>{v}</span>
-                      </div>
-                    ))}
-                    {/* Notes */}
-                    <div style={{ background:C.mockField, border:`1px solid ${C.mockFieldBdr}`, borderRadius:9, padding:'8px 12px' }}>
-                      <div style={{ fontSize:'.62rem', fontWeight:700, color:C.mockLabel, letterSpacing:'.06em', textTransform:'uppercase', marginBottom:4 }}>NOTES</div>
-                      <div style={{ fontSize:'.8rem', color:C.mockNotesTxt, lineHeight:1.5 }}>{ex.notes}</div>
-                    </div>
-                    {/* Save */}
-                    <div style={{ display:'flex', justifyContent:'flex-end', paddingTop:2 }}>
-                      <div style={{ background:accent, borderRadius:8, padding:'7px 20px', fontSize:'.8rem', fontWeight:700, color:'#fff', cursor:'pointer' }}>Save Record</div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Info below mockup */}
-                <div style={{ padding:'0 2px' }}>
-                  <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:accentBg, border:`1px solid ${accentBorder}`, borderRadius:7, padding:'3px 10px', marginBottom:10, fontSize:'.7rem', fontWeight:700, color:accent, letterSpacing:'.05em' }}>
-                    {ex.badge}
-                  </div>
-                  <h3 style={{ fontSize:'1.15rem', fontWeight:900, margin:'0 0 8px', color:C.text, lineHeight:1.3, letterSpacing:'-.01em' }}>{ex.heading}</h3>
-                  <p style={{ color:C.muted, fontSize:'.875rem', lineHeight:1.7, margin:'0 0 16px' }}>{ex.desc}</p>
-                  {[
-                    { icon:Layers,      text:`Multiple tabs — ${ex.tabs[0]} + ${ex.tabs[1]}` },
-                    { icon:CheckCircle, text:'Print or share any record as a formatted PDF' },
-                  ].map(({ icon:Icon, text }) => (
-                    <div key={text} style={{ display:'flex', alignItems:'center', gap:9, marginBottom:9 }}>
-                      <div style={{ width:24, height:24, borderRadius:7, background:accentBg, border:`1px solid ${accentBorder}`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                        <Icon size={12} color={accent} />
-                      </div>
-                      <span style={{ fontSize:'.84rem', color:C.soft, lineHeight:1.5 }}>{text}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* ── SHARED CAROUSEL NAV ── */}
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'center', gap:14, marginTop:28 }}>
-                <button className="carousel-nav-btn" onClick={() => goToExample(i => (i - 1 + EXAMPLES.length) % EXAMPLES.length)}>
-                  <ChevronLeft size={16} color={C.muted} />
-                </button>
-                <div style={{ display:'flex', gap:6 }}>
-                  {EXAMPLES.map((_, i) => (
-                    <button key={i} onClick={() => goToExample(i)} style={{ width:i===activeExample?20:7, height:7, borderRadius:4, background:i===activeExample?accent:C.faint, border:'none', cursor:'pointer', transition:'all .25s', padding:0 }} />
-                  ))}
-                </div>
-                <button className="carousel-nav-btn" onClick={() => goToExample(i => (i + 1) % EXAMPLES.length)}>
-                  <ChevronRight size={16} color={C.muted} />
-                </button>
-              </div>
-
-            </div>
-          </section>
-        );
-      })()}
-
-      {/* ══════════════ OFFLINE MODE CALLOUT ══════════════ */}
-      <section style={{ padding:'72px 24px', borderTop:`1px solid ${C.border}`, background:C.bgAlt }}>
-        <div ref={offlineRef} style={{ maxWidth:860, margin:'0 auto', display:'flex', alignItems:'center', gap:40, flexWrap:'wrap' }}>
-          <div className={`reveal-l${offlineIn?' in-view':''}`} style={{ flex:'0 0 auto', width:72, height:72, borderRadius:20, background:'linear-gradient(135deg,rgba(56,142,60,.2),rgba(56,142,60,.08))', border:'1px solid rgba(56,142,60,.28)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <Lock size={32} color='#16a34a' />
-          </div>
-          <div className={`reveal d2${offlineIn?' in-view':''}`} style={{ flex:1, minWidth:240 }}>
-            <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(56,142,60,.1)', border:'1px solid rgba(56,142,60,.22)', borderRadius:100, padding:'4px 12px', marginBottom:10 }}>
-              <span style={{ fontSize:'.7rem', fontWeight:700, color:'#16a34a', letterSpacing:'.07em' }}>COMPLETE OFFLINE MODE (IF NEEDED)</span>
-            </div>
-            <h3 style={{ fontSize:'clamp(1.2rem,3vw,1.7rem)', fontWeight:900, margin:'0 0 8px', letterSpacing:'-.02em', color:C.text }}>Your Data, Your Device — Always Private</h3>
-            <p style={{ color:C.muted, fontSize:'.9rem', lineHeight:1.7, margin:0, maxWidth:540 }}>
-              Prefer maximum privacy? Enable <strong style={{ color:'#16a34a' }}>Complete Offline Mode</strong> and all your business data stays exclusively on your device. No cloud uploads, no external servers. Works without internet — full control in your hands.
-            </p>
-          </div>
-          <div className={`reveal-r d3${offlineIn?' in-view':''}`} style={{ flex:'0 0 auto', display:'flex', flexDirection:'column', gap:10 }}>
-            {['No data leaves your device', 'Works without internet', 'Switch modes anytime'].map(pt => (
-              <div key={pt} style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <CheckCircle size={14} color='#16a34a' />
-                <span style={{ fontSize:'.84rem', color:C.soft }}>{pt}</span>
-              </div>
+                ))}
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
-      {/* ══════════════ AUDITOR LOGIN CALLOUT ══════════════ */}
-      <section style={{ padding:'72px 24px', borderTop:`1px solid ${C.border}`, background:C.bg }}>
-        <div ref={auditorRef} style={{ maxWidth:860, margin:'0 auto', display:'flex', alignItems:'center', gap:40, flexWrap:'wrap' }}>
-          <div className={`reveal-l${auditorIn?' in-view':''}`} style={{ flex:'0 0 auto', width:72, height:72, borderRadius:20, background:'linear-gradient(135deg,rgba(92,31,34,.18),rgba(92,31,34,.07))', border:'1px solid rgba(92,31,34,.28)', display:'flex', alignItems:'center', justifyContent:'center' }}>
-            <ClipboardList size={32} color='#5c1f22' />
-          </div>
-          <div className={`reveal d2${auditorIn?' in-view':''}`} style={{ flex:1, minWidth:240 }}>
-            <div style={{ display:'inline-flex', alignItems:'center', gap:6, background:'rgba(92,31,34,.1)', border:'1px solid rgba(92,31,34,.22)', borderRadius:100, padding:'4px 12px', marginBottom:10 }}>
-              <span style={{ fontSize:'.7rem', fontWeight:700, color:'#5c1f22', letterSpacing:'.07em' }}>AUDITOR ACCESS</span>
+      {/* ══════════════ LIVE DEMOS ══════════════ */}
+      <section className="lp-sec">
+        <div className="wrap">
+          <Reveal className="lp-head center">
+            <Eyebrow>See it in action</Eyebrow>
+            <h2 className="lp-h2 serif">Designed around <em>real</em> counters.</h2>
+            <p className="lp-sub">Every tool is built around a real problem. These live previews are the screens your team will actually use every day.</p>
+          </Reveal>
+          <Reveal delay={120}>
+            <FeatureDemos isDark={isDark} C={{ muted: isDark ? 'rgba(244,236,223,.56)' : '#7a6760' }} />
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ══════════════ INDUSTRY SHOWCASE ══════════════ */}
+      <section id="industries" className="lp-sec alt">
+        <div className="wrap">
+          <Reveal className="lp-head">
+            <div>
+              <Eyebrow>Custom sections</Eyebrow>
+              <h2 className="lp-h2 serif">Shaped to the way<br /><em>your</em> trade works.</h2>
             </div>
-            <h3 style={{ fontSize:'clamp(1.2rem,3vw,1.7rem)', fontWeight:900, margin:'0 0 8px', letterSpacing:'-.02em', color:C.text }}>Your CA Can Log In — On Their Own</h3>
-            <p style={{ color:C.muted, fontSize:'.9rem', lineHeight:1.7, margin:0, maxWidth:560 }}>
-              Generate a secure <strong style={{ color:'#5c1f22' }}>Auditor PIN</strong> from Settings and share it with your chartered accountant. They sign in using a dedicated Auditor Login, view all financial reports and ledgers, and download whatever they need — completely independently.
+            <p className="lp-sub">
+              Beyond invoicing, build your own record forms — linked to customers, printable and searchable.
+              Here is how a few businesses use them.
             </p>
-          </div>
-          <div className={`reveal-r d3${auditorIn?' in-view':''}`} style={{ flex:'0 0 auto', display:'flex', flexDirection:'column', gap:10 }}>
-            {[
-              { label:'Read-only — nothing can be edited',  Icon:CheckCircle },
-              { label:'View ledgers, P&L, and GST reports', Icon:CheckCircle },
-              { label:'Download & export data directly',     Icon:Download    },
-              { label:'No owner account sharing needed',     Icon:CheckCircle },
-            ].map(({ label, Icon }) => (
-              <div key={label} style={{ display:'flex', alignItems:'center', gap:8 }}>
-                <Icon size={14} color='#5c1f22' />
-                <span style={{ fontSize:'.84rem', color:C.soft }}>{label}</span>
+          </Reveal>
+
+          <Reveal>
+            <div className="lp-tabs" role="tablist">
+              {EXAMPLES.map((e, i) => {
+                const Ic = e.icon;
+                return (
+                  <button key={e.badge} role="tab" aria-selected={i === activeExample} className={`lp-tab ${i === activeExample ? 'on' : ''}`} onClick={() => goToExample(i)}>
+                    <Ic size={14} /> {e.badge.charAt(0) + e.badge.slice(1).toLowerCase()}
+                  </button>
+                );
+              })}
+            </div>
+          </Reveal>
+
+          <div className="lp-show" onMouseEnter={() => { pausedRef.current = true; }} onMouseLeave={() => { pausedRef.current = false; }}>
+            <div key={`t${activeExample}`} className="lp-show-text lp-fade">
+              <h3 className="serif">{ex.heading}</h3>
+              <p>{ex.desc}</p>
+              <ul className="lp-list">
+                {['Text, number, date, dropdown and long-text fields', 'Every record linked to a customer in your party list', 'Multiple tabs per section — e.g. ' + ex.tabs.join(' + '), 'Print or share any record as a formatted PDF'].map(t => (
+                  <li key={t}><Check size={16} />{t}</li>
+                ))}
+              </ul>
+            </div>
+
+            <div key={`f${activeExample}`} className="lp-form lp-fade" aria-hidden="true">
+              <div className="lp-form-head">
+                <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                  <span className="lp-feat-ico" style={{ width: 34, height: 34 }}><ExIcon size={15} /></span>
+                  <div>
+                    <div style={{ fontWeight: 600, fontSize: '.92rem', color: 'var(--ink)' }}>{ex.sectionTitle}</div>
+                    <div style={{ fontSize: '.7rem', color: 'var(--muted)' }}>Custom section</div>
+                  </div>
+                </div>
+                <span style={{ fontSize: '.74rem', fontWeight: 600, color: isDark ? '#1b1210' : '#fff', background: isDark ? '#d9b98a' : P, padding: '7px 14px', borderRadius: 999 }}>+ New</span>
               </div>
+              <div className="lp-form-tabs">{ex.tabs.map((t, i) => <span key={t} className={i === 0 ? 'on' : ''}>{t}</span>)}</div>
+              <div className="lp-form-body">
+                <div className="lp-fields">
+                  {ex.topFields.map(f => <div key={f.label} className={`lp-field ${f.accent ? 'accent' : ''}`}><small>{f.label}</small><b>{f.value}</b></div>)}
+                </div>
+                <div className="lp-fields">
+                  {[[ex.detailGroup.leftLabel, ex.detailGroup.leftRows], [ex.detailGroup.rightLabel, ex.detailGroup.rightRows]].map(([label, rows]) => (
+                    <div key={label} className="lp-field">
+                      <small>{label}</small>
+                      {rows.map(([k, v]) => <div key={k} className="lp-kv"><span>{k}</span><b>{v}</b></div>)}
+                    </div>
+                  ))}
+                </div>
+                <div className="lp-fields">
+                  {ex.midFields.map(f => <div key={f.label} className="lp-field"><small>{f.label}</small><b>{f.value}</b></div>)}
+                </div>
+                <div className="lp-field"><small>Notes</small><b style={{ fontWeight: 500, fontSize: '.84rem', color: 'var(--ink-soft)' }}>{ex.notes}</b></div>
+              </div>
+              <div className="lp-recent">
+                <div className="lp-field" style={{ border: 'none', padding: 0, marginBottom: 6 }}><small>Recent records</small></div>
+                {ex.records.map(r => (
+                  <div key={r.name} className="lp-recent-row">
+                    <span className="lp-avatar">{r.name.charAt(0)}</span>
+                    <span style={{ color: 'var(--ink)', fontWeight: 600 }}>{r.name} <span style={{ color: 'var(--muted)', fontWeight: 400 }}>· {r.meta}</span></span>
+                    <span style={{ color: 'var(--muted)' }}>{r.date}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ══════════════ TRUST BAND ══════════════ */}
+      <section className="lp-band">
+        <div className="wrap">
+          <Reveal className="lp-head">
+            <div>
+              <Eyebrow light>Your data, your rules</Eyebrow>
+              <h2 className="lp-h2 serif">Private by design.<br /><em>Safe</em> by default.</h2>
+            </div>
+            <p className="lp-sub">Choose cloud sync for peace of mind, keep everything offline for full privacy, and give your accountant exactly the access they need — nothing more.</p>
+          </Reveal>
+          <div className="lp-trust-grid">
+            {TRUST.map((t, i) => (
+              <Reveal key={t.title} className="lp-trust" delay={i * 100}>
+                <div className="lp-trust-ico"><t.icon size={19} strokeWidth={1.6} /></div>
+                <h3>{t.title}</h3>
+                <p>{t.desc}</p>
+                <ul>{t.points.map(p => <li key={p}><Check size={15} />{p}</li>)}</ul>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* ══════════════ HOW IT WORKS ══════════════ */}
-      <section className="step-section" style={{ background:C.bgAlt, borderTop:`1px solid ${C.border}`, borderBottom:`1px solid ${C.border}` }}>
-        <div ref={stepsRef} style={{ maxWidth:880, margin:'0 auto', textAlign:'center' }}>
-          <div className={`reveal${stepsIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(200,160,78,.1)', border:'1px solid rgba(200,160,78,.22)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
-            <TrendingUp size={11} color='#c8a04e' />
-            <span style={{ fontSize:'.72rem', fontWeight:700, color:'#c8a04e', letterSpacing:'.07em' }}>SIMPLE ONBOARDING</span>
-          </div>
-          <h2 className={`reveal d2${stepsIn?' in-view':''}`} style={{ fontSize:'clamp(1.6rem,4vw,2.4rem)', fontWeight:900, marginBottom:12, letterSpacing:'-.02em', color:C.text }}>Up and Running in Minutes</h2>
-          <p className={`reveal d3${stepsIn?' in-view':''}`} style={{ color:C.muted, fontSize:'.9rem', marginBottom:44, lineHeight:1.65 }}>No technical expertise. No downloads. No complicated setup.</p>
-
-          <div className="step-grid">
-            {STEPS.map(({ n, title, desc }, si) => (
-              <div key={n} className={`reveal d${si + 4}${stepsIn?' in-view':''}`} style={{ background:C.card, border:`1px solid ${C.border}`, borderRadius:16, padding:'28px 22px', textAlign:'left', boxShadow:C.cardShadow }}>
-                <div style={{ fontSize:'3.4rem', fontWeight:900, color:C.stepNum, lineHeight:1, marginBottom:14 }}>{n}</div>
-                <div style={{ fontWeight:800, fontSize:'1rem', marginBottom:6, color:C.text }}>{title}</div>
-                <div style={{ fontSize:'.84rem', color:C.muted, lineHeight:1.65 }}>{desc}</div>
+      <section className="lp-sec">
+        <div className="wrap">
+          <Reveal className="lp-head">
+            <div>
+              <Eyebrow>Simple onboarding</Eyebrow>
+              <h2 className="lp-h2 serif">Up and running<br />in <em>minutes</em>.</h2>
+            </div>
+            <div>
+              <p className="lp-sub">No technical expertise, no downloads, no complicated setup. Open it in your browser and start billing.</p>
+              <div className="lp-devices">
+                {[{ icon: Smartphone, l: 'Phone' }, { icon: Tablet, l: 'Tablet' }, { icon: Monitor, l: 'Desktop' }].map((d) => <span key={d.l} className="lp-device"><d.icon size={15} />{d.l}</span>)}
               </div>
+            </div>
+          </Reveal>
+          <div className="lp-steps">
+            {STEPS.map((s, i) => (
+              <Reveal key={s.n} className="lp-step" delay={i * 100}>
+                <b>{s.n}</b>
+                <h4>{s.title}</h4>
+                <p>{s.desc}</p>
+              </Reveal>
             ))}
           </div>
         </div>
       </section>
 
       {/* ══════════════ PRICING ══════════════ */}
-      <section id="pricing" className="pricing-section" style={{ background:C.bg }}>
-        <div ref={pricingRef} style={{ maxWidth:860, margin:'0 auto', textAlign:'center' }}>
-
-          {/* Header */}
-          <div className={`reveal${pricingIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(92,31,34,.1)', border:'1px solid rgba(92,31,34,.22)', borderRadius:100, padding:'5px 14px', marginBottom:14 }}>
-            <CreditCard size={11} color={P} />
-            <span style={{ fontSize:'.72rem', fontWeight:700, color:P, letterSpacing:'.07em' }}>SIMPLE PRICING · PER BUSINESS</span>
-          </div>
-          <h2 className={`reveal d2${pricingIn?' in-view':''}`} style={{ fontSize:'clamp(1.6rem,4vw,2.4rem)', fontWeight:900, marginBottom:10, letterSpacing:'-.02em', color:C.text }}>Transparent. No Surprises.</h2>
-          <p className={`reveal d3${pricingIn?' in-view':''}`} style={{ color:C.muted, fontSize:'.9rem', marginBottom:12, lineHeight:1.65 }}>
-            One simple plan — every feature, cloud backup, multi-device sync. No auto-renewal; pay only when you want to continue.
-          </p>
-
-          {/* Trial pill */}
-          <div className={`reveal d3${pricingIn?' in-view':''}`} style={{ display:'inline-flex', alignItems:'center', gap:7, background:'rgba(245,158,11,.1)', border:'1px solid rgba(245,158,11,.28)', borderRadius:100, padding:'5px 16px', marginBottom:36 }}>
-            <Zap size={11} color='#f59e0b' />
-            <span style={{ fontSize:'.78rem', fontWeight:700, color:'#b45309' }}>3-day free trial · No credit card required</span>
-          </div>
-
-          {/* Single plan card */}
-          <div className={`reveal-scale d4${pricingIn?' in-view':''}`} style={{ display:'flex', gap:20, justifyContent:'center', flexWrap:'wrap', marginBottom:20, textAlign:'left' }}>
-
-            <div style={{
-              flex:'1 1 360px', maxWidth:440,
-              background: isDark ? 'linear-gradient(145deg,rgba(92,31,34,.15) 0%,rgba(92,31,34,.12) 100%)' : '#fff',
-              border:`2px solid ${P}`, borderRadius:22, padding:'32px 28px',
-              boxShadow: isDark ? 'none' : '0 10px 48px rgba(92,31,34,.18)',
-              position:'relative', overflow:'visible', textAlign:'left',
-            }}>
-              {/* Plan name */}
-              <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-                <div style={{ width:34, height:34, borderRadius:10, background:`rgba(92,31,34,.12)`, border:`1px solid rgba(92,31,34,.22)`, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 }}>
-                  <CloudUpload size={16} color={P} />
-                </div>
-                <div>
-                  <div style={{ fontWeight:800, fontSize:'1.05rem', color:C.text, lineHeight:1.2 }}>TallyKraft</div>
-                  <div style={{ fontSize:'.72rem', color:P, fontWeight:700 }}>All features + cloud backup · 1 business</div>
-                </div>
-              </div>
-
-              <div style={{ display:'inline-flex', alignItems:'center', gap:5, background:`rgba(92,31,34,.1)`, border:`1px solid rgba(92,31,34,.22)`, borderRadius:100, padding:'3px 10px', marginBottom:20 }}>
-                <Globe size={11} color={P} />
-                <span style={{ fontSize:'.68rem', fontWeight:700, color:P, letterSpacing:'.04em' }}>EVERYTHING INCLUDED</span>
-              </div>
-
-              {/* Pricing rows */}
-              <div style={{ display:'flex', flexDirection:'column', gap:8, marginBottom:22 }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background: isDark ? 'rgba(255,255,255,.05)' : 'rgba(92,31,34,.05)', borderRadius:12, border:`1px solid rgba(92,31,34,.15)` }}>
-                  <div style={{ fontSize:'.82rem', color:C.muted, fontWeight:600 }}>Monthly</div>
-                  <div style={{ display:'flex', alignItems:'baseline', gap:3 }}>
-                    <span style={{ fontSize:'1.5rem', fontWeight:900, color:C.text, lineHeight:1 }}>₹299</span>
-                    <span style={{ fontSize:'.72rem', color:C.muted }}>/month</span>
-                  </div>
-                </div>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', padding:'10px 14px', background: isDark ? 'rgba(255,255,255,.05)' : 'rgba(92,31,34,.05)', borderRadius:12, border:`1px solid rgba(92,31,34,.15)` }}>
-                  <div style={{ display:'flex', alignItems:'center', gap:6 }}>
-                    <span style={{ fontSize:'.82rem', color:C.muted, fontWeight:600 }}>Yearly</span>
-                    <span style={{ fontSize:'.65rem', fontWeight:700, color:'#16a34a', background:'rgba(22,163,74,.1)', borderRadius:100, padding:'2px 8px' }}>Save ₹589</span>
-                  </div>
-                  <div style={{ display:'flex', alignItems:'baseline', gap:3 }}>
-                    <span style={{ fontSize:'1.5rem', fontWeight:900, color:C.text, lineHeight:1 }}>₹2,999</span>
-                    <span style={{ fontSize:'.72rem', color:C.muted }}>/year</span>
-                  </div>
-                </div>
-              </div>
-
-              <button className="login-btn" onClick={onLoginClick} style={{
-                background:GRAD, border:'none', borderRadius:11, color:'#fff',
-                fontWeight:800, fontSize:'.88rem', padding:'11px 24px', cursor:'pointer',
-                width:'100%', marginBottom:22, boxShadow:'0 5px 16px rgba(92,31,34,.35)',
-                display:'flex', alignItems:'center', justifyContent:'center', gap:7,
-              }}>
-                Start Free Trial <ArrowRight size={15} />
-              </button>
-
-              {/* Features */}
-              <div style={{ display:'flex', flexDirection:'column', gap:7 }}>
-                {PLAN_FEATURES.map(f => (
-                  <div key={f} style={{ display:'flex', alignItems:'flex-start', gap:8 }}>
-                    <CheckCircle size={13} color={P} style={{ flexShrink:0, marginTop:2 }} />
-                    <span style={{ fontSize:'.8rem', color:C.muted, lineHeight:1.4 }}>{f}</span>
-                  </div>
-                ))}
-              </div>
+      <section id="pricing" className="lp-sec alt">
+        <div className="wrap lp-price-grid">
+          <Reveal>
+            <Eyebrow>Simple pricing</Eyebrow>
+            <h2 className="lp-h2 serif">One plan.<br /><em>Every</em> feature.</h2>
+            <p className="lp-sub">Transparent, per-business pricing with no tiers, add-ons or surprises.</p>
+            <div className="lp-notes">
+              <div className="lp-note"><span className="lp-note-ico"><Building2 size={15} /></span>
+                <span><strong style={{ color: 'var(--ink)' }}>Running more than one business?</strong> Each plan covers one business — three businesses are ₹{PLAN_PRICE} × 3 every {PLAN_DAYS} days.</span></div>
+              <div className="lp-note"><span className="lp-note-ico"><ShieldCheck size={15} /></span>
+                <span><strong style={{ color: 'var(--ink)' }}>No auto-renewal.</strong> Pay only when you want to continue — paying early adds days on top of what’s left.</span></div>
             </div>
-          </div>
-
-          {/* Multi-business note */}
-          <div className={`reveal d5${pricingIn?' in-view':''}`} style={{ display:'flex', alignItems:'flex-start', gap:8, background:C.card, border:`1px solid ${C.border}`, borderRadius:14, padding:'14px 18px', maxWidth:640, margin:'0 auto 16px', textAlign:'left' }}>
-            <ArrowRight size={14} color={P} style={{ flexShrink:0, marginTop:2 }} />
-            <span style={{ fontSize:'.78rem', color:C.muted, lineHeight:1.55 }}>
-              <strong style={{ color:C.text }}>Running more than one business?</strong> Each plan covers one business — subscribe each extra business separately (e.g. 3 businesses = ₹299 × 3).
-            </span>
-          </div>
-
-          {/* No auto-renewal note */}
-          <div className={`reveal d5${pricingIn?' in-view':''}`} style={{ display:'flex', alignItems:'center', gap:7, justifyContent:'center' }}>
-            <Shield size={13} color='#16a34a' />
-            <span style={{ fontSize:'.78rem', color:C.muted }}>
-              No auto-renewal. Plan stays active until the period ends — renew only when you're ready, or stop anytime.
-            </span>
-          </div>
-
+          </Reveal>
+          <Reveal delay={120}>
+            <div className="lp-price-card">
+              <div className="lp-price-tag"><Star size={13} /><span>BillDheko<TM /> plan</span></div>
+              <div className="lp-price"><b>₹{PLAN_PRICE}</b><span>{priceSuffix}{gstNote ? ` · ${gstNote}` : ''}</span></div>
+              <p className="lp-price-trial">Begin with a <strong>{TRIAL_DAYS}-day free trial</strong> — no credit card required.</p>
+              <button className="lp-btn lp-btn-primary" style={{ width: '100%' }} onClick={onLoginClick}>
+                Start free trial <ArrowRight size={17} />
+              </button>
+              <ul className="lp-plan-list">
+                {PLAN_FEATURES.map(f => <li key={f}><Check size={15} />{f}</li>)}
+              </ul>
+            </div>
+          </Reveal>
         </div>
       </section>
 
-      {/* ══════════════ BOTTOM CTA ══════════════ */}
-      <section className="cta-section" style={{ padding:'80px 24px', background:`linear-gradient(135deg,rgba(92,31,34,.1) 0%,rgba(92,31,34,.08) 100%)`, borderTop:`1px solid ${C.border}` }}>
-        <div style={{ maxWidth:640, margin:'0 auto', textAlign:'center' }}>
-          <div style={{ width:56, height:56, borderRadius:15, background:GRAD, display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px', boxShadow:'0 8px 28px rgba(92,31,34,.35)' }}>
-            <TallyKraftLogo size={42} variant="wordmark-light" />
-          </div>
-          <h2 style={{ fontSize:'clamp(1.6rem,4vw,2.4rem)', fontWeight:900, marginBottom:14, letterSpacing:'-.02em', color:C.text }}>
-            Ready to Transform<br />Your Business?
-          </h2>
-          <p style={{ color:C.muted, fontSize:'.95rem', marginBottom:36, lineHeight:1.7 }}>
-            Get started today — no installs, no hassle, just great accounting on any device.
-          </p>
-          <button className="login-btn cta-btn" onClick={onLoginClick} style={{
-            background:GRAD, border:'none', borderRadius:13,
-            color:'#fff', fontWeight:800, fontSize:'1rem',
-            padding:'15px 40px', cursor:'pointer',
-            boxShadow:'0 6px 22px rgba(92,31,34,.38)',
-            display:'inline-flex', alignItems:'center', gap:8,
-          }}>
-            Open TallyKraft <ArrowUpRight size={17} />
-          </button>
+      {/* ══════════════ FAQ ══════════════ */}
+      <section id="faq" className="lp-sec">
+        <div className="wrap">
+          <Reveal className="lp-head center">
+            <Eyebrow>Questions</Eyebrow>
+            <h2 className="lp-h2 serif">Frequently <em>asked</em>.</h2>
+          </Reveal>
+          <Reveal className="lp-faq">
+            {FAQS.map((f, i) => {
+              const open = openFaq === i;
+              return (
+                <div key={f.q} className="lp-faq-item">
+                  <button className="lp-faq-q" aria-expanded={open} onClick={() => setOpenFaq(open ? -1 : i)}>
+                    {f.q}{open ? <Minus size={20} /> : <Plus size={20} />}
+                  </button>
+                  <div className={`lp-faq-a ${open ? 'open' : ''}`}><div><p>{f.a}</p></div></div>
+                </div>
+              );
+            })}
+          </Reveal>
+        </div>
+      </section>
+
+      {/* ══════════════ FINAL CTA ══════════════ */}
+      <section className="lp-final">
+        <div className="wrap">
+          <Reveal className="lp-final-card">
+            <Eyebrow light>Begin today</Eyebrow>
+            <h2 className="lp-h2 serif">Keep better books,<br /><em>beautifully</em>.</h2>
+            <p>Join businesses across India who run their billing, stock and accounts on BillDheko.</p>
+            <button className="lp-btn lp-btn-light" onClick={onLoginClick}>Open BillDheko <ArrowUpRight size={17} /></button>
+            <p className="lp-final-fine">{TRIAL_DAYS}-day free trial · ₹{PLAN_PRICE} per business / {PLAN_DAYS} days · No credit card</p>
+          </Reveal>
         </div>
       </section>
 
       {/* ══════════════ FOOTER ══════════════ */}
-      <footer className="site-footer" style={{ padding:'28px 20px', borderTop:`1px solid ${C.border}`, background:C.bgAlt }}>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          <TallyKraftLogo size={36} />
-          <span style={{ fontWeight:700, fontSize:'.85rem', color:C.footerBrand, letterSpacing:'.04em' }}>TALLYKRAFT</span>
-        </div>
-        <div style={{ color:C.footerText, fontSize:'.78rem' }}>
-          © {new Date().getFullYear()} TallyKraft · Premium Business Accounting
-        </div>
-        <div style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
-          <a href="/privacy" style={{ color:C.footerText, fontSize:'.78rem', textDecoration:'none', fontWeight:600 }}>
-            Privacy Policy
-          </a>
-          <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-            <Shield size={12} color={C.footerText} />
-            <span style={{ color:C.footerText, fontSize:'.78rem' }}>Secure Cloud Platform</span>
+      <footer className="lp-foot">
+        <div className="wrap">
+          <div className="lp-foot-grid">
+            <div>
+              <Brand size={34} />
+              <p>Premium GST billing and accounting for Indian businesses — invoicing, inventory, payments and reports in one place.</p>
+            </div>
+            <div>
+              <h5>Product</h5>
+              <div className="lp-foot-links">
+                {[['Features', 'features'], ['Industries', 'industries'], ['Pricing', 'pricing'], ['FAQ', 'faq']].map(([l, id]) => (
+                  <button key={id} onClick={() => go(id)}>{l}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <h5>Company</h5>
+              <div className="lp-foot-links">
+                <button onClick={onLoginClick}>Sign in</button>
+                <a href="/privacy">Privacy Policy</a>
+              </div>
+            </div>
+          </div>
+          <div className="lp-foot-bottom">
+            <span style={{ display: 'inline' }}>© {new Date().getFullYear()} BillDheko<TM />. All rights reserved.</span>
+            <span><ShieldCheck size={14} /> Secure cloud platform · Payments by Razorpay</span>
           </div>
         </div>
       </footer>
-
     </div>
   );
 }

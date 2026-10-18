@@ -2,7 +2,7 @@ import { createTheme } from '@mui/material/styles';
 
 const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
   const colorPalettes = {
-    // TallyKraft — "Oxblood": deep burgundy primary, warm-stone accent, ivory ground.
+    // BillDheko — "Oxblood": deep burgundy primary, warm-stone accent, ivory ground.
     indigo: {
       primary: { main: '#5c1f22', light: '#8a3a3d', dark: '#3f1417' },
       secondary: { main: '#a9803f' }, // warm stone — used sparingly for highlights / CTAs
@@ -570,10 +570,10 @@ const createAppTheme = (mode = 'light', primaryColor = 'indigo') => {
 // sibling app (Layout, POS, Dashboard, CustomerPreviewPanel, App, …). Those
 // files reference BRAND.teal / .tealDark / .tealLight / .emerald / .gradient —
 // the KEY names are kept for import compatibility, but the VALUES are
-// TallyKraft's "Midnight & Gold" brand (slate-navy primary + gold accent) so
+// BillDheko's "Midnight & Gold" brand (slate-navy primary + gold accent) so
 // the shared components render in this app's palette without per-file edits.
 // Do not rename the keys.
-// TallyKraft — "Oxblood". Deep burgundy primary, warm-stone accent.
+// BillDheko — "Oxblood". Deep burgundy primary, warm-stone accent.
 // Key names (teal/emerald) kept for merged-component import compatibility.
 const TK_PRIMARY = '#5c1f22';       // oxblood-900 — main brand / interactive
 const TK_PRIMARY_DARK = '#3f1417';  // oxblood-950 — hover / deepest chrome

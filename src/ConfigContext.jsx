@@ -1,13 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo } from 'react';
 import { firestore } from './db';
-import { doc, onSnapshot, setDoc, getDoc, collection, query, where, getDocs } from 'firebase/firestore';
+import { doc, onSnapshot, setDoc, updateDoc, FieldPath, collection, query, where, getDocs } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 import { isAlwaysAdmin } from './alwaysAdmin';
+import { STAFF_FEATURE_KEYS } from './staffPermissions';
 
 const ConfigContext = createContext();
 
 const defaultConfig = {
-  businessType: 'general',
   features: {
     dashboard: true,
     parties: true,
@@ -38,6 +38,13 @@ const defaultConfig = {
     investors: false,
     loyalty: false,
     customerPreview: true,
+    // Multiple simultaneous tabs for Sales/Purchases and POS (Settings →
+    // Features → Sales & POS options). Off = one tab per section.
+    multiTabSales: true,
+    multiTabPOS: true,
+    multiTabEstimates: true,
+    // Compact stock/price/margin line under each Sales/Purchases item row.
+    itemRowSummary: true,
     unitColumn: true,
     // Off by default — switching businesses is unrestricted unless the user
     // explicitly turns this on in Settings → Access Control. Independent of
@@ -79,6 +86,15 @@ const defaultConfig = {
     taxRate: 18,
     useCustomRate: false,
     taxInclusive: false,
+    // Off by default — when on, saving a Sales/POS invoice whose item row
+    // price differs from that item's own master salePrice silently updates
+    // the item master to match (so the next bill picks up the latest price).
+    // If the row price was left equal to the master (unchanged), nothing is
+    // written back. Purchase price has its own independent flag below.
+    autoUpdateSalePrice: false,
+    // Off by default — same behavior as autoUpdateSalePrice, but for
+    // purchasePrice, driven by Purchases invoice rows.
+    autoUpdatePurchasePrice: false,
   },
   multiBusiness: true,
   maxBusinesses: 0,
@@ -138,6 +154,7 @@ const defaultConfig = {
     codeScale: 1.0,
     fieldStyles: {},
     fieldLabels: {},
+    autoPrintAfterPurchase: false,
   },
   defaultSaleTypeSales: 'credit',
   defaultSaleTypePOS: 'paid',
@@ -156,6 +173,7 @@ const defaultConfig = {
     invoiceTheme: 'classic',
     themeColor: '#5c1f22',
     termsText: '',
+    estimateTermsText: '',
   },
 };
 
@@ -182,7 +200,10 @@ const stripUndefined = (obj) => {
 const deepMerge = (target, source) => {
   if (!source) return target;
   for (const key in source) {
-    if (source[key] instanceof Object && key in target) {
+    // Arrays are replaced wholesale, never merged index-by-index — merging a
+    // shorter saved list (e.g. after deleting a category) over a longer default
+    // would leave the default's trailing items behind.
+    if (source[key] instanceof Object && !Array.isArray(source[key]) && key in target && target[key] instanceof Object && !Array.isArray(target[key])) {
       Object.assign(source[key], deepMerge(target[key], source[key]));
     }
   }
@@ -208,6 +229,11 @@ const deepMerge = (target, source) => {
 // effective default — nothing changes — until the user explicitly edits
 // Settings while that business is selected, which then saves ONLY into that
 // business's own config_{bizId} and no longer affects the others.
+// Defaults for business settings that have no entry in defaultConfig.
+const RESET_FALLBACKS = {
+  itemCategories: { product: [], service: [], membership: [] },
+};
+
 const USER_LEVEL_KEYS = new Set([
   'multiBusiness', 'maxBusinesses', 'useIndexedDB', 'completeOffline',
   'backupOnlineEnabled', 'theme', 'businessType',
@@ -223,13 +249,7 @@ const USER_LEVEL_KEYS = new Set([
 // used to have every non-whitelisted feature key zeroed out below, silently
 // hiding things like Packing/Shipping Charges that were never meant to be
 // staff-permission-gated at all.
-const STAFF_GRANTABLE_KEYS = new Set([
-  'dashboard', 'pos', 'sales', 'purchases', 'expenses', 'payments',
-  'parties', 'items', 'estimates', 'creditNotes', 'deliveryNotes', 'membership', 'opticals',
-  'reports', 'journal', 'ledger', 'cash', 'calculator',
-  'barcode', 'loyalty', 'settings', 'viewPurchasePrice',
-  'backup', 'backupExportFile', 'backupRestoreFile', 'backupOnline', 'backupRestoreOnline',
-]);
+const STAFF_GRANTABLE_KEYS = new Set(STAFF_FEATURE_KEYS);
 
 const applyBusinessOverride = (baseCfg, bizCfg) => {
   if (!bizCfg || typeof bizCfg !== 'object') return baseCfg;
@@ -246,40 +266,54 @@ const applyBusinessOverride = (baseCfg, bizCfg) => {
   return out;
 };
 
+// Firestore `businesses/{id}` doc id for a LOCAL business key ("1", "2", …).
+// Business "1" uses the legacy `biz_${uid}` id, every later business
+// `biz_${uid}_${key}` (see businessCode.js). A staff/admin session knows its own
+// business's exact doc id, so that wins when the keys match.
+const bizDocIdFor = (localKey, ownerUid, staffSession) => {
+  if (staffSession?.businessId && localKey != null
+    && String(staffSession.localBusinessId ?? '') === String(localKey)) return staffSession.businessId;
+  if (!localKey || !ownerUid) return staffSession?.businessId || null;
+  return String(localKey) === '1' ? `biz_${ownerUid}` : `biz_${ownerUid}_${localKey}`;
+};
+
+// Fired (same tab) whenever the current business key in localStorage changes —
+// the `storage` event only reaches OTHER tabs.
+const BIZ_CHANGE_EVENT = 'app-business-changed';
+const BIZ_STORAGE_KEY = 'tallykraft_currentBusinessId';
+const NO_APP_CFG = {};
+
 export const ConfigProvider = ({ children }) => {
   const { currentUser, staffSession } = useAuth();
-  const [config, setConfig] = useState(defaultConfig);
-  const [loading, setLoading] = useState(false);
-  // Super-admin-controlled Payment Reminder / Freeze status for this account
-  // (see the onSnapshot handler below for how these are derived).
-  const [paymentStatus, setPaymentStatus] = useState({ reminderEnabled: false, frozen: false });
-  // Track current business ID so we can react when it changes (business switch).
-  // Read directly from localStorage since BusinessContext is a child of ConfigProvider.
+  // Current LOCAL business key. BusinessContext/DataContext are children of
+  // this provider, so it's read from localStorage and kept fresh via events.
   const [currentBizId, setCurrentBizId] = useState(
-    () => localStorage.getItem('tallykraft_currentBusinessId') || null
+    () => localStorage.getItem(BIZ_STORAGE_KEY) || null
   );
-  // Raw Firestore doc data — reused when business switches without a Firestore re-read
+  // Raw userConfig/{ownerEmail} doc, tagged with the email it belongs to so a
+  // stale doc from a previous login is never used. The ref mirrors it for
+  // saveConfig (which merges into the latest copy).
+  const [owner, setOwner] = useState({ email: null, data: null, error: false });
   const firestoreDataRef = React.useRef(null);
-  // Extra biz-level config saved by staff/admin sessions (from businesses/{bizId}/appConfig/settings)
-  const bizAppConfigRef = useRef({});
+  // Business-level settings saved from a business-code (staff/admin) login,
+  // which has no Firebase Auth and so can't write userConfig — they live at
+  // businesses/{bizDocId}/appConfig/settings. Loaded live for EVERY session
+  // (owner and staff) so both see the same, newest settings.
+  const [appCfg, setAppCfg] = useState({ id: null, data: NO_APP_CFG });
 
-  // Listen for business switches that happen inside BusinessContext (child)
   useEffect(() => {
-    const onStorage = (e) => {
-      if (e.key === 'tallykraft_currentBusinessId') {
-        setCurrentBizId(e.newValue);
-      }
+    const sync = () => {
+      const id = localStorage.getItem(BIZ_STORAGE_KEY) || null;
+      setCurrentBizId(prev => (prev !== id ? id : prev));
     };
-    // Also poll on focus (same-tab switches don't fire storage event)
-    const onFocus = () => {
-      const id = localStorage.getItem('tallykraft_currentBusinessId') || null;
-      setCurrentBizId(prev => prev !== id ? id : prev);
-    };
+    const onStorage = (e) => { if (e.key === BIZ_STORAGE_KEY) sync(); };
     window.addEventListener('storage', onStorage);
-    window.addEventListener('focus', onFocus);
+    window.addEventListener('focus', sync);
+    window.addEventListener(BIZ_CHANGE_EVENT, sync);
     return () => {
       window.removeEventListener('storage', onStorage);
-      window.removeEventListener('focus', onFocus);
+      window.removeEventListener('focus', sync);
+      window.removeEventListener(BIZ_CHANGE_EVENT, sync);
     };
   }, []);
 
@@ -291,12 +325,38 @@ export const ConfigProvider = ({ children }) => {
     const merged = deepMerge(JSON.parse(JSON.stringify(defaultConfig)), userCfg);
     if (Array.isArray(userCfg.customSections)) merged.customSections = userCfg.customSections;
 
-    // Apply business-specific overrides (invoice settings, barcode, loyalty config, etc.)
+    // Owner-saved business settings (invoice, barcode, loyalty, features…)
     let withBiz = applyBusinessOverride(merged, bizCfg);
-    // Apply extra biz config (saved by staff/admin sessions to businesses/{bizId}/appConfig/settings)
+    // Newest business-level copy of `features` (owner or business-code save).
+    let bizFeaturesAt = bizCfg.features ? (Number(bizCfg._savedAt) || 0) : -1;
+    // Settings saved from a business-code login. Newest save wins: this layer
+    // used to be applied unconditionally on top, so one old save from a staff/
+    // admin login froze those settings forever — any later change made in the
+    // owner account (terms, GST column, …) never reached the staff login.
+    // Both writers now stamp `_savedAt`; unstamped legacy data only applies
+    // while the owner's copy is unstamped too (same result as before).
     if (extraBizCfg && Object.keys(extraBizCfg).length > 0) {
-      withBiz = applyBusinessOverride(withBiz, extraBizCfg);
+      const ownerAt = Number(bizCfg._savedAt) || 0;
+      const extraAt = Number(extraBizCfg._savedAt) || 0;
+      if (extraAt ? extraAt >= ownerAt : !ownerAt) {
+        withBiz = applyBusinessOverride(withBiz, extraBizCfg);
+        if (extraBizCfg.features) bizFeaturesAt = Math.max(bizFeaturesAt, extraAt);
+      }
     }
+    delete withBiz._savedAt;
+
+    // Super-admin feature toggles (Admin → Users → Features) are written to
+    // the account-level `config.features` with `adminFeaturesAt`. Every
+    // business keeps its own `features` copy once the owner saves any
+    // setting, and that copy used to always win — so admin changes silently
+    // never reached those customers. Admin's toggles now win over any
+    // business copy saved BEFORE the admin change; a later Settings save by
+    // the user (which carries the admin values forward) wins after that.
+    const adminAt = Number(data?.adminFeaturesAt) || 0;
+    if (adminAt && userCfg.features && typeof userCfg.features === 'object' && adminAt > bizFeaturesAt) {
+      withBiz.features = { ...withBiz.features, ...userCfg.features };
+    }
+    delete withBiz._savedAt;
 
     const backupOnlineEnabled = userCfg.backupOnlineEnabled;
     let forceOffline;
@@ -321,164 +381,139 @@ export const ConfigProvider = ({ children }) => {
     return withBiz;
   }, []);
 
-  // Re-derive config when business switches (without a Firestore round-trip)
-  useEffect(() => {
-    if (!firestoreDataRef.current) return;
-    const email = currentUser?.email || resolvedOwnerEmailRef.current || null;
-    if (!email) return;
-    setConfig(buildConfig(firestoreDataRef.current, currentBizId, email, bizAppConfigRef.current));
-  }, [currentBizId]); // eslint-disable-line
-
-  // Resolved owner email for staff/admin sessions (populated async when ownerEmail missing from session)
-  const resolvedOwnerEmailRef = useRef(null);
-  const [resolvedOwnerEmail, setResolvedOwnerEmail] = useState(null);
-
-  // When a staff session has no ownerEmail, look it up via ownerUid → userConfig
-  useEffect(() => {
-    if (!staffSession) { setResolvedOwnerEmail(null); resolvedOwnerEmailRef.current = null; return; }
-    if (staffSession.ownerEmail) {
-      resolvedOwnerEmailRef.current = staffSession.ownerEmail;
-      setResolvedOwnerEmail(staffSession.ownerEmail);
-      return;
+  // Staff permission restrictions. Applied on EVERY rebuild — previously only
+  // the initial load applied them, so switching business or saving a setting
+  // from a staff login silently handed back the owner's unrestricted features.
+  const finalizeForSession = useCallback((built) => {
+    if (!staffSession || staffSession.role === 'admin') return built;
+    const staffFeatures = staffSession.features && typeof staffSession.features === 'object'
+      ? staffSession.features : {};
+    const restrictedFeatures = { ...built.features };
+    // `ownBillsOnly` is a restriction, not a grant — ignore it here.
+    const hasExplicitGrants = Object.entries(staffFeatures).some(([k, v]) => v === true && k !== 'ownBillsOnly');
+    for (const key of Object.keys(restrictedFeatures)) {
+      if (!STAFF_GRANTABLE_KEYS.has(key)) continue;
+      if (hasExplicitGrants ? staffFeatures[key] !== true : staffFeatures[key] === false) {
+        restrictedFeatures[key] = false;
+      }
     }
-    // ownerEmail missing — resolve via uid query on userConfig collection
-    if (!staffSession.ownerUid) { setResolvedOwnerEmail(null); return; }
-    getDocs(query(collection(firestore, 'userConfig'), where('uid', '==', staffSession.ownerUid)))
+    return { ...built, features: restrictedFeatures };
+  }, [staffSession]);
+
+  // Owner email for staff/admin sessions. Normally on the session itself;
+  // older sessions without it look it up once via ownerUid → userConfig.
+  const [lookedUpEmail, setLookedUpEmail] = useState({ uid: null, email: null });
+  useEffect(() => {
+    if (!staffSession || staffSession.ownerEmail || !staffSession.ownerUid) return;
+    const uid = staffSession.ownerUid;
+    getDocs(query(collection(firestore, 'userConfig'), where('uid', '==', uid)))
       .then(snap => {
-        if (!snap.empty) {
-          const email = snap.docs[0].id; // userConfig doc ID is the email
-          resolvedOwnerEmailRef.current = email;
-          setResolvedOwnerEmail(email);
-        }
+        // userConfig doc ID is the email
+        if (!snap.empty) setLookedUpEmail({ uid, email: snap.docs[0].id });
       })
       .catch(() => {});
   }, [staffSession]);
+  const resolvedOwnerEmail = staffSession
+    ? (staffSession.ownerEmail || (lookedUpEmail.uid === staffSession.ownerUid ? lookedUpEmail.email : null))
+    : null;
+  const email = currentUser?.email || resolvedOwnerEmail || null;
+
+  const ownerUid = currentUser?.uid || staffSession?.ownerUid || null;
+  const firestoreBizId = bizDocIdFor(currentBizId, ownerUid, staffSession);
+
+  // Live business-code settings for the CURRENT business (re-subscribes on
+  // business switch — it used to keep the first business's copy forever).
+  useEffect(() => {
+    if (!firestoreBizId) return undefined;
+    const unsub = onSnapshot(
+      doc(firestore, 'businesses', firestoreBizId, 'appConfig', 'settings'),
+      (snap) => setAppCfg({ id: firestoreBizId, data: snap.exists() ? (snap.data() || {}) : {} }),
+      () => setAppCfg({ id: firestoreBizId, data: {} }),
+    );
+    return () => unsub();
+  }, [firestoreBizId]);
+  const bizAppConfig = appCfg.id === firestoreBizId ? appCfg.data : NO_APP_CFG;
 
   useEffect(() => {
-    // Determine which email to use for loading config
-    const email = currentUser?.email || resolvedOwnerEmail || null;
-
-    if (!email) {
-      if (staffSession && !resolvedOwnerEmail) return undefined; // still resolving
-      setConfig(defaultConfig);
-      setPaymentStatus({ reminderEnabled: false, frozen: false });
-      return undefined;
-    }
-
-    setLoading(true);
-    const ref = doc(firestore, 'userConfig', email);
-
+    if (!email) { firestoreDataRef.current = null; return undefined; }
     const unsubscribe = onSnapshot(
-      ref,
-      async (snapshot) => {
+      doc(firestore, 'userConfig', email),
+      (snapshot) => {
         const data = snapshot.data() || {};
         firestoreDataRef.current = data;
-        const bizId = localStorage.getItem('tallykraft_currentBusinessId') || null;
-        setCurrentBizId(bizId);
-
-        // Super-admin-controlled Payment Reminder / Freeze — top-level fields
-        // on this same userConfig/{email} doc (sibling to allowed/isAdmin),
-        // read live via this same onSnapshot so Freeze can lock an already-
-        // open session without waiting for a reload. Never applies to the
-        // always-admin super-admin account itself (would be a lockout bug —
-        // that's the account that controls these toggles for everyone else).
-        setPaymentStatus(isAlwaysAdmin(email) ? { reminderEnabled: false, frozen: false } : {
-          reminderEnabled: !!data.paymentReminderEnabled,
-          frozen: !!data.freezeAccount,
-        });
-
-        // For staff/admin sessions, also load biz-level config they saved to
-        // businesses/{firestoreBizId}/appConfig/settings — must use the Firestore
-        // doc id (staffSession.businessId, e.g. "biz_abc_2"), not the local
-        // allBusinessData key (bizId, e.g. "2") used elsewhere in this file.
-        const firestoreBizId = staffSession?.businessId || null;
-        if (staffSession && firestoreBizId) {
-          try {
-            const bizCfgSnap = await getDoc(doc(firestore, 'businesses', firestoreBizId, 'appConfig', 'settings'));
-            bizAppConfigRef.current = bizCfgSnap.exists() ? bizCfgSnap.data() : {};
-          } catch (_) {
-            bizAppConfigRef.current = {};
-          }
-        }
-
-        const built = buildConfig(data, bizId, email, bizAppConfigRef.current);
-
-        // For staff sessions: apply feature restrictions on top
-        if (staffSession) {
-          const staffFeatures = staffSession.features && typeof staffSession.features === 'object'
-            ? staffSession.features : {};
-          // Admin role gets full owner config; staff role gets feature-restricted view
-          if (staffSession.role === 'admin') {
-            setConfig(built);
-          } else {
-            const restrictedFeatures = { ...built.features };
-            const hasExplicitGrants = Object.values(staffFeatures).some(v => v === true);
-            if (hasExplicitGrants) {
-              for (const key of Object.keys(restrictedFeatures)) {
-                if (!STAFF_GRANTABLE_KEYS.has(key)) continue;
-                if (staffFeatures[key] !== true) restrictedFeatures[key] = false;
-              }
-            } else {
-              for (const key of Object.keys(restrictedFeatures)) {
-                if (!STAFF_GRANTABLE_KEYS.has(key)) continue;
-                if (staffFeatures[key] === false) restrictedFeatures[key] = false;
-              }
-            }
-            setConfig({ ...built, features: restrictedFeatures });
-          }
-        } else {
-          setConfig(built);
-        }
-        setLoading(false);
+        // Pick up the business key DataContext may have just written.
+        const bizId = localStorage.getItem(BIZ_STORAGE_KEY) || null;
+        setCurrentBizId(prev => (prev !== bizId ? bizId : prev));
+        setOwner({ email, data, error: false });
       },
       (error) => {
         console.error('Error loading user config:', error);
-        if (staffSession) {
-          const staffFeatures = staffSession.features && typeof staffSession.features === 'object'
-            ? staffSession.features : {};
-          setConfig(deepMerge(JSON.parse(JSON.stringify(defaultConfig)), { features: staffFeatures }));
-        } else {
-          setConfig(defaultConfig);
-        }
-        setLoading(false);
+        setOwner({ email, data: null, error: true });
       }
     );
-
     return () => unsubscribe();
-  }, [currentUser, staffSession, resolvedOwnerEmail, buildConfig]);
+  }, [email]);
+
+  const ownerData = owner.email === email ? owner.data : null;
+  const ownerError = owner.email === email && owner.error;
+  const loading = !!email && !ownerData && !ownerError;
+
+  // Super-admin-controlled Payment Reminder / Freeze — top-level fields on the
+  // same userConfig/{email} doc, read live so Freeze can lock an already-open
+  // session. Never applies to the always-admin super-admin account itself.
+  const paymentStatus = useMemo(() => (
+    !ownerData || isAlwaysAdmin(email)
+      ? { reminderEnabled: false, frozen: false }
+      : { reminderEnabled: !!ownerData.paymentReminderEnabled, frozen: !!ownerData.freezeAccount }
+  ), [ownerData, email]);
+
+  // The one place config is built — owner data, current business,
+  // business-code settings and staff restrictions all flow through here.
+  const config = useMemo(() => {
+    if (ownerError) {
+      if (!staffSession) return defaultConfig;
+      const staffFeatures = staffSession.features && typeof staffSession.features === 'object'
+        ? staffSession.features : {};
+      return deepMerge(JSON.parse(JSON.stringify(defaultConfig)), { features: staffFeatures });
+    }
+    if (!email || !ownerData) return defaultConfig;
+    return finalizeForSession(buildConfig(ownerData, currentBizId, email, bizAppConfig));
+  }, [ownerError, staffSession, email, ownerData, currentBizId, bizAppConfig, finalizeForSession, buildConfig]);
 
   const saveConfig = useCallback(
     async (newConfig) => {
       const cleanConfig = deepMerge(JSON.parse(JSON.stringify(defaultConfig)), newConfig || {});
-      const bizId = localStorage.getItem('tallykraft_currentBusinessId') || null;
+      const bizId = localStorage.getItem(BIZ_STORAGE_KEY) || null;
+      const savedAt = Date.now();
 
-      // Staff/admin sessions (no Firebase Auth) — save all settings to
-      // businesses/{firestoreBizId}/appConfig/settings. Must use the Firestore
-      // doc id (staffSession.businessId, e.g. "biz_abc_2") — bizId above is the
-      // local allBusinessData key (e.g. "2") and is NOT a valid businesses/ doc id.
+      // Staff/admin sessions (no Firebase Auth) — save business settings to
+      // businesses/{bizDocId}/appConfig/settings for the CURRENT business.
       if (staffSession) {
-        const firestoreBizId = staffSession.businessId || null;
-        if (!firestoreBizId) { console.error('[saveConfig] no businessId on staff session'); return; }
-        const bizLevelConfig = {};
+        const targetBizDocId = bizDocIdFor(bizId, staffSession.ownerUid, staffSession);
+        if (!targetBizDocId) { console.error('[saveConfig] no businessId on staff session'); return; }
+        const bizLevelConfig = { _savedAt: savedAt };
         for (const key of Object.keys(cleanConfig)) {
           if (!USER_LEVEL_KEYS.has(key)) {
             bizLevelConfig[key] = cleanConfig[key];
           }
         }
-        bizAppConfigRef.current = { ...bizAppConfigRef.current, ...bizLevelConfig };
+        // A regular staff login's `features` is ITS OWN permission-restricted
+        // view, not the business's module switches. Saving it would turn
+        // modules off for everyone (e.g. when a staff member adds an item
+        // category). Only owners / business-code admins may change modules.
+        if (staffSession.role !== 'admin') delete bizLevelConfig.features;
         try {
           await setDoc(
-            doc(firestore, 'businesses', firestoreBizId, 'appConfig', 'settings'),
+            doc(firestore, 'businesses', targetBizDocId, 'appConfig', 'settings'),
             stripUndefined(bizLevelConfig),
             { merge: true }
           );
         } catch (err) {
-          console.error('[saveConfig] setDoc failed for staff session:', err, 'businessId:', firestoreBizId);
+          console.error('[saveConfig] setDoc failed for staff session:', err, 'businessId:', targetBizDocId);
           throw err;
         }
-        // Re-apply so UI reflects immediately
-        const built = buildConfig(firestoreDataRef.current || {}, bizId, resolvedOwnerEmailRef.current, bizAppConfigRef.current);
-        setConfig(built);
+        // Reflect immediately (the live listener will confirm it).
+        setAppCfg(prev => ({ id: targetBizDocId, data: { ...(prev.id === targetBizDocId ? prev.data : {}), ...bizLevelConfig } }));
         return;
       }
 
@@ -506,6 +541,8 @@ export const ConfigProvider = ({ children }) => {
         payload[`config_${bizId}`] = {
           ...(firestoreDataRef.current?.[`config_${bizId}`] || {}),
           ...bizLevelConfig,
+          // Newer than any earlier business-code save → wins for every login.
+          _savedAt: savedAt,
         };
       } else {
         payload.config = cleanConfig;
@@ -518,11 +555,45 @@ export const ConfigProvider = ({ children }) => {
         throw err;
       }
     },
-    [currentUser, staffSession, buildConfig]
+    [currentUser, staffSession]
+  );
+
+  // Reset some business-level settings back to their defaults for the CURRENT
+  // business only (Settings → Data → Delete Data). Each key is REPLACED, not
+  // merged (setDoc merge would keep stale nested fields), and stamped newer
+  // so it wins over any older copy from the other login type.
+  const resetConfigKeys = useCallback(
+    async (keys = []) => {
+      const list = keys.filter(k => !USER_LEVEL_KEYS.has(k));
+      if (!list.length) return;
+      const bizId = localStorage.getItem(BIZ_STORAGE_KEY) || null;
+      const savedAt = Date.now();
+      const defaultFor = (k) => (k in defaultConfig
+        ? JSON.parse(JSON.stringify(defaultConfig[k]))
+        : (RESET_FALLBACKS[k] ?? null));
+
+      let ref; let prefix = [];
+      if (staffSession) {
+        const bizDocId = bizDocIdFor(bizId, staffSession.ownerUid, staffSession);
+        if (!bizDocId) throw new Error('No business selected');
+        ref = doc(firestore, 'businesses', bizDocId, 'appConfig', 'settings');
+        await setDoc(ref, { _savedAt: savedAt }, { merge: true });
+      } else {
+        const email = currentUser?.email;
+        if (!email || !bizId) throw new Error('No business selected');
+        ref = doc(firestore, 'userConfig', email);
+        prefix = [`config_${bizId}`];
+        await setDoc(ref, { [`config_${bizId}`]: { _savedAt: savedAt } }, { merge: true });
+      }
+      const args = [];
+      list.forEach((k) => { args.push(new FieldPath(...prefix, k), stripUndefined(defaultFor(k))); });
+      await updateDoc(ref, ...args);
+    },
+    [currentUser, staffSession]
   );
 
   return (
-    <ConfigContext.Provider value={{ config, loading, saveConfig, paymentStatus }}>
+    <ConfigContext.Provider value={{ config, loading, saveConfig, resetConfigKeys, paymentStatus }}>
       {children}
     </ConfigContext.Provider>
   );

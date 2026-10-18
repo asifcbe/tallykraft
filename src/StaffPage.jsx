@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useReactToPrint } from 'react-to-print';
 import {
   Box, Typography, Button, Card, CardContent, Grid, Chip, Avatar,
   IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
@@ -11,6 +12,7 @@ import {
   Plus, Edit2, Trash2, Users, Clock, DollarSign, ChevronLeft,
   ChevronRight, Check, X, Phone, Mail, Calendar, Briefcase,
   TrendingUp, UserCheck, UserX, AlertCircle, Search, MoreVertical,
+  RotateCcw, Printer,
 } from 'lucide-react';
 import { useData } from './DataContext';
 import { useBusiness } from './BusinessContext';
@@ -18,8 +20,10 @@ import { useAuth } from './AuthContext';
 import { useTheme as useMuiTheme } from '@mui/material/styles';
 import { firestore } from './db';
 import { doc, setDoc, deleteDoc } from 'firebase/firestore';
-import { useBusinessAuthDoc } from './businessCode';
+import { useBusinessAuthDoc, resolveBizDocId } from './businessCode';
 import { resolveMaxStaff, DEFAULT_MAX_STAFF } from './businessLimits';
+import { STAFF_FEATURE_GROUPS, STAFF_FEATURE_KEYS, STAFF_FEATURE_LABELS, defaultStaffFeatures, isModuleOffForBusiness } from './staffPermissions';
+import { useConfig } from './ConfigContext';
 
 const DAYS_IN_WEEK = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
@@ -45,6 +49,172 @@ const initials = (name = '') => name.split(' ').map(w => w[0]).join('').toUpperC
 
 const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
 
+// ── Salary rules ─────────────────────────────────────────────────────────────
+// Per staff member (all optional — blank keeps the default):
+//   halfDayRate     ₹ paid for a half day          (default: half the full-day rate)
+//   leaveDeduction  ₹ deducted per leave day       (default: 0)
+//   absentDeduction ₹ deducted per absent day      (default: 0 — absent days are
+//                                                   already unpaid; this is extra)
+// Full-day rate = the salary itself for a daily wage, or salary ÷ days in the
+// month for a monthly salary. Leave days are paid as a full day for monthly
+// staff (paid leave) and unpaid for daily-wage staff, before any deduction.
+const optNum = (v) => (v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v));
+const salaryBreakdown = (member, att, dim) => {
+  const type = member?.salaryType || 'monthly';
+  const base = Number(member?.salary) || 0;
+  if (type === 'hourly') return { total: base, lines: [{ label: 'Wage', amount: base }], fullRate: base, halfRate: null };
+  const a = { present: 0, halfDay: 0, leave: 0, absent: 0, ...(att || {}) };
+  const fullRate = type === 'daily' ? base : (dim ? base / dim : 0);
+  const halfRate = optNum(member?.halfDayRate) ?? fullRate / 2;
+  const leavePay = type === 'monthly' ? fullRate : 0;
+  const leaveDed = optNum(member?.leaveDeduction) ?? 0;
+  const absentDed = optNum(member?.absentDeduction) ?? 0;
+  // A month with no worked/paid-leave entries earns nothing (no auto "due").
+  if (a.present + a.halfDay + a.leave <= 0) return { total: 0, lines: [], fullRate, halfRate };
+  const r = (n) => Math.round(n * 100) / 100;
+  const lines = [];
+  if (a.present) lines.push({ label: `Full days — ${a.present} × ₹${fmt(r(fullRate))}`, amount: a.present * fullRate });
+  if (a.halfDay) lines.push({ label: `Half days — ${a.halfDay} × ₹${fmt(r(halfRate))}`, amount: a.halfDay * halfRate });
+  if (a.leave && leavePay) lines.push({ label: `Paid leave — ${a.leave} × ₹${fmt(r(leavePay))}`, amount: a.leave * leavePay });
+  if (a.leave && leaveDed) lines.push({ label: `Leave deduction — ${a.leave} × ₹${fmt(leaveDed)}`, amount: -a.leave * leaveDed });
+  if (a.absent && absentDed) lines.push({ label: `Absent deduction — ${a.absent} × ₹${fmt(absentDed)}`, amount: -a.absent * absentDed });
+  const total = Math.max(0, Math.round(lines.reduce((s2, l) => s2 + l.amount, 0)));
+  return { total, lines, fullRate, halfRate };
+};
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+// ── Printable payslip ───────────────────────────────────────────────────────
+// Plain inline-styled markup so it prints cleanly via react-to-print with no
+// MUI/theme dependency.
+const PayslipTemplate = React.forwardRef(({ data }, ref) => {
+  if (!data) return <div ref={ref} />;
+  const { business, member, year, month, att, dim, earned, paidTotal, balance, payments, dues } = data;
+  const label = { fontSize: 12, color: '#555' };
+  const val = { fontSize: 12, fontWeight: 700, color: '#111', textAlign: 'right' };
+  const th = { fontSize: 11, textAlign: 'left', padding: '6px 8px', borderBottom: '1px solid #333', textTransform: 'uppercase', letterSpacing: '0.04em', color: '#444' };
+  const td = { fontSize: 12, padding: '6px 8px', borderBottom: '1px solid #eee' };
+  const workedDays = att.present + att.halfDay * 0.5 + att.leave;
+  return (
+    <div ref={ref} style={{ width: '190mm', padding: '14mm', boxSizing: 'border-box', fontFamily: 'Arial, Helvetica, sans-serif', color: '#111' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #111', paddingBottom: 10, marginBottom: 14 }}>
+        <div>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>{business?.name || 'Business'}</div>
+          {business?.address && <div style={{ fontSize: 11, color: '#555', marginTop: 2 }}>{business.address}</div>}
+          {business?.phone && <div style={{ fontSize: 11, color: '#555' }}>Ph: {business.phone}</div>}
+          {business?.gstNumber && <div style={{ fontSize: 11, color: '#555' }}>GSTIN: {business.gstNumber}</div>}
+        </div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ fontSize: 16, fontWeight: 800, letterSpacing: '0.06em' }}>PAYSLIP</div>
+          <div style={{ fontSize: 12, color: '#555', marginTop: 2 }}>{MONTH_NAMES[month]} {year}</div>
+        </div>
+      </div>
+
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 14 }}>
+        <tbody>
+          <tr>
+            <td style={{ ...label, padding: '3px 0', width: '25%' }}>Employee</td>
+            <td style={{ ...val, textAlign: 'left', padding: '3px 0', width: '25%' }}>{member.name}</td>
+            <td style={{ ...label, padding: '3px 0', width: '25%' }}>Role</td>
+            <td style={{ ...val, textAlign: 'left', padding: '3px 0', width: '25%' }}>{member.role || '—'}</td>
+          </tr>
+          <tr>
+            <td style={{ ...label, padding: '3px 0' }}>Wage type</td>
+            <td style={{ ...val, textAlign: 'left', padding: '3px 0', textTransform: 'capitalize' }}>{member.salaryType || 'monthly'}</td>
+            <td style={{ ...label, padding: '3px 0' }}>
+              {member.salaryType === 'daily' ? 'Rate / day' : member.salaryType === 'hourly' ? 'Rate / hr' : 'Monthly salary'}
+            </td>
+            <td style={{ ...val, textAlign: 'left', padding: '3px 0' }}>₹{fmt(member.salary)}</td>
+          </tr>
+          {member.phone && (
+            <tr>
+              <td style={{ ...label, padding: '3px 0' }}>Phone</td>
+              <td style={{ ...val, textAlign: 'left', padding: '3px 0' }}>{member.phone}</td>
+              <td style={{ ...label, padding: '3px 0' }}>Joining date</td>
+              <td style={{ ...val, textAlign: 'left', padding: '3px 0' }}>{member.joiningDate || '—'}</td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+
+      <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#444', marginBottom: 6 }}>Attendance ({MONTH_NAMES[month]} {year})</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 14 }}>
+        <thead><tr><th style={th}>Present</th><th style={th}>Half day</th><th style={th}>Paid leave</th><th style={th}>Absent</th><th style={th}>Paid days</th><th style={th}>Days in month</th></tr></thead>
+        <tbody><tr>
+          <td style={td}>{att.present}</td>
+          <td style={td}>{att.halfDay}</td>
+          <td style={td}>{att.leave}</td>
+          <td style={td}>{att.absent}</td>
+          <td style={{ ...td, fontWeight: 700 }}>{workedDays}</td>
+          <td style={td}>{dim}</td>
+        </tr></tbody>
+      </table>
+
+      <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#444', marginBottom: 6 }}>Earnings</div>
+      <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+        <tbody>
+          {salaryBreakdown(member, att, dim).lines.map((l) => (
+            <tr key={l.label}><td style={label}>{l.label}</td><td style={{ ...val, color: l.amount < 0 ? '#b91c1c' : val.color }}>{l.amount < 0 ? '− ' : ''}₹{fmt(Math.abs(l.amount))}</td></tr>
+          ))}
+          <tr><td style={{ ...label, fontWeight: 700, color: '#111', borderTop: '1px solid #333', paddingTop: 6 }}>Net earned this month</td><td style={{ ...val, borderTop: '1px solid #333', paddingTop: 6 }}>₹{fmt(earned)}</td></tr>
+          <tr><td style={label}>Paid so far{Array.isArray(payments) && payments.length ? ` (${payments.length} payment${payments.length > 1 ? 's' : ''})` : ''}</td><td style={val}>− ₹{fmt(paidTotal)}</td></tr>
+          <tr><td style={{ ...label, fontWeight: 800, color: balance > 0 ? '#b91c1c' : '#15803d', fontSize: 13 }}>Balance payable</td><td style={{ ...val, color: balance > 0 ? '#b91c1c' : '#15803d', fontSize: 13 }}>₹{fmt(balance)}</td></tr>
+        </tbody>
+      </table>
+
+      {Array.isArray(payments) && payments.length > 0 && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#444', margin: '14px 0 6px' }}>Payments this month</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+            <thead><tr><th style={th}>Date</th><th style={th}>Mode</th><th style={{ ...th, textAlign: 'right' }}>Amount</th></tr></thead>
+            <tbody>
+              {payments.map((p, i) => (
+                <tr key={p.id || i}>
+                  <td style={td}>{p.date}</td>
+                  <td style={td}>{p.paymentMode}{p.paymentMode === 'Split' ? ` (Cash ₹${fmt(p.cashAmt)} + Bank ₹${fmt(p.bankAmt)})` : ''}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 700 }}>₹{fmt(p.amount)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+
+      {Array.isArray(dues) && dues.length > 0 && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#b91c1c', margin: '14px 0 6px' }}>Previous months — still payable</div>
+          <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: 8 }}>
+            <thead><tr><th style={th}>Month</th><th style={{ ...th, textAlign: 'right' }}>Earned</th><th style={{ ...th, textAlign: 'right' }}>Paid</th><th style={{ ...th, textAlign: 'right' }}>Due</th></tr></thead>
+            <tbody>
+              {dues.map((d) => (
+                <tr key={`${d.year}-${d.month}`}>
+                  <td style={td}>{MONTH_NAMES[d.month]} {d.year}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>₹{fmt(d.earned)}</td>
+                  <td style={{ ...td, textAlign: 'right' }}>₹{fmt(d.paid)}</td>
+                  <td style={{ ...td, textAlign: 'right', fontWeight: 700, color: '#b91c1c' }}>₹{fmt(d.due)}</td>
+                </tr>
+              ))}
+              <tr>
+                <td style={{ ...td, fontWeight: 800 }}>Total previous dues</td>
+                <td style={td} /><td style={td} />
+                <td style={{ ...td, textAlign: 'right', fontWeight: 800, color: '#b91c1c' }}>₹{fmt(dues.reduce((s, d) => s + d.due, 0))}</td>
+              </tr>
+            </tbody>
+          </table>
+        </>
+      )}
+
+      <div style={{ marginTop: 28, display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#555' }}>
+        <div>Generated {new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</div>
+        <div style={{ textAlign: 'right' }}>
+          <div style={{ borderTop: '1px solid #333', width: 160, marginTop: 30, paddingTop: 4 }}>Authorised signatory</div>
+        </div>
+      </div>
+    </div>
+  );
+});
+PayslipTemplate.displayName = 'PayslipTemplate';
+
 const today = () => {
   const d = new Date();
   return { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
@@ -57,9 +227,14 @@ export default function StaffPage() {
 
   const { currentBusiness } = useBusiness();
   const { currentBusiness: authBusiness, currentUser, staffSession } = useAuth();
+  const { config } = useConfig();
   const { addItem, updateItem, deleteItem, getItems } = useData();
   const bId = currentBusiness?.id;
-  const firestoreBizId = authBusiness?.id || bId;
+  // The businesses/{id} doc for the SELECTED business — same doc Settings →
+  // Access Control writes and business-code staff login reads. This used to
+  // be the account's first business (authBusiness) whatever was selected, so
+  // staff saved here for a 2nd/3rd business never reached their login.
+  const firestoreBizId = resolveBizDocId(currentBusiness, currentUser?.uid || staffSession?.ownerUid || null) || authBusiness?.id || bId;
 
   const syncToStaffAccounts = async (id, record, password = '') => {
     if (!firestoreBizId) return;
@@ -75,6 +250,9 @@ export default function StaffPage() {
         email: record.email || '',
         salary: record.salary || 0,
         salaryType: record.salaryType || 'monthly',
+        halfDayRate: record.halfDayRate ?? '',
+        leaveDeduction: record.leaveDeduction ?? '',
+        absentDeduction: record.absentDeduction ?? '',
         joiningDate: record.joiningDate || '',
         notes: record.notes || '',
         showInSalesSelector: !!record.showInSalesSelector,
@@ -133,9 +311,12 @@ export default function StaffPage() {
   // ─ Salary state ─
   const [salMonth, setSalMonth] = useState(t.month);
   const [salYear, setSalYear] = useState(t.year);
-  const [salPayDialog, setSalPayDialog] = useState(null); // { member, netSalary, existing }
-  const [salPayForm, setSalPayForm] = useState({ paymentMode: 'Cash', cashAmt: '', bankAmt: '', date: new Date().toISOString().split('T')[0], notes: '' });
+  const [salPayDialog, setSalPayDialog] = useState(null); // { member, netSalary, existing, paidSoFar, balance }
+  const [salPayForm, setSalPayForm] = useState({ amount: '', paymentMode: 'Cash', cashAmt: '', bankAmt: '', date: new Date().toISOString().split('T')[0], notes: '' });
   const [salPayError, setSalPayError] = useState('');
+  const [payslipData, setPayslipData] = useState(null);
+  const payslipRef = useRef(null);
+  const printPayslip = useReactToPrint({ contentRef: payslipRef });
 
   const activeMembers = rawMembers.filter(m => m.status !== 'inactive');
   const filteredMembers = rawMembers.filter(m =>
@@ -191,16 +372,14 @@ export default function StaffPage() {
   };
 
   // ─ Salary helpers ─
-  const calcNetSalary = (member, year, month) => {
-    if (member.salaryType === 'monthly') return member.salary || 0;
-    if (member.salaryType === 'daily') {
-      const days = getDaysInMonth(year, month);
-      const summary = getMonthAttendanceSummary_ym(member.id, year, month);
-      const worked = summary.present + summary.halfDay * 0.5;
-      return Math.round((member.salary || 0) * worked);
-    }
-    return member.salary || 0;
-  };
+  // Days that count as PAID for the month: present + half-days + marked leave
+  // (paid leave is standard payroll). "absent" is a marked day but unpaid.
+
+  // Earned for the month from attendance + this member's salary rules (see
+  // salaryBreakdown): a month with no entries earns ₹0 (never auto-charged as
+  // a "due"); monthly salary is pro-rated per day of the month.
+  const calcNetSalary = (member, year, month) =>
+    salaryBreakdown(member, getMonthAttendanceSummary_ym(member.id, year, month), getDaysInMonth(year, month)).total;
 
   const getMonthAttendanceSummary_ym = (staffId, year, month) => {
     const days = getDaysInMonth(year, month);
@@ -219,67 +398,221 @@ export default function StaffPage() {
   const getSalaryRecord = (staffId) =>
     rawSalary.find(s => String(s.staffId) === String(staffId) && s.month === salMonth && s.year === salYear);
 
-  const openSalaryPayDialog = (member) => {
-    const existing = getSalaryRecord(member.id);
-    const net = calcNetSalary(member, salYear, salMonth);
-    if (existing?.status === 'paid') {
-      // Already paid — toggle back to pending directly
-      updateItem('staffSalary', existing.id, { status: 'pending', paidDate: null });
-      return;
+  // Total already paid against a salary record. New records keep a `payments[]`
+  // array of individual (possibly partial) payouts; older records that were
+  // "Marked as Paid" in one shot before this change have no array — fall back
+  // to netSalary when they're flagged paid.
+  const salaryPaidTotal = (rec) => {
+    if (!rec) return 0;
+    if (Array.isArray(rec.payments) && rec.payments.length) {
+      return rec.payments.reduce((s, p) => s + (Number(p.amount) || 0), 0);
     }
-    setSalPayForm({ paymentMode: 'Cash', cashAmt: String(net), bankAmt: '', date: new Date().toISOString().split('T')[0], notes: '' });
+    return rec.status === 'paid' ? (Number(rec.netSalary) || 0) : 0;
+  };
+  // 'paid' once paid >= net, 'partial' while 0 < paid < net, else 'pending'.
+  const salaryStatus = (rec, net) => {
+    const paid = salaryPaidTotal(rec);
+    if (net > 0 && paid >= net - 0.5) return 'paid';
+    if (paid > 0) return 'partial';
+    return 'pending';
+  };
+
+  // Keep each partially/fully-paid salary record's stored netSalary / balance /
+  // status in sync with the CURRENT attendance for the month it belongs to.
+  // Net earned is attendance-driven for every wage type now (monthly is
+  // pro-rated too), so marking more days after a partial payment must re-open
+  // the balance — otherwise the extra earned days never show as owed in
+  // Reports or any stored-value read. The Salary tab card already recomputes
+  // on the fly; this makes the persisted figures match.
+  useEffect(() => {
+    if (!bId) return;
+    rawSalary.forEach((rec) => {
+      const member = rawMembers.find((m) => String(m.id) === String(rec.staffId));
+      if (!member) return;
+      if (!Array.isArray(rec.payments) || rec.payments.length === 0) return;
+      const freshNet = calcNetSalary(member, rec.year, rec.month);
+      const paid = salaryPaidTotal(rec);
+      const freshBalance = Math.max(0, freshNet - paid);
+      const freshStatus = freshNet > 0 && paid >= freshNet - 0.5 ? 'paid' : (paid > 0 ? 'partial' : 'pending');
+      if (
+        Math.round(Number(rec.netSalary) || 0) !== Math.round(freshNet) ||
+        Math.round(Number(rec.balance) || 0) !== Math.round(freshBalance) ||
+        rec.status !== freshStatus
+      ) {
+        updateItem('staffSalary', rec.id, {
+          netSalary: freshNet,
+          balance: freshBalance,
+          status: freshStatus,
+          paidDate: freshStatus === 'paid' ? (rec.paidDate || new Date().toISOString()) : null,
+        });
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attMap, rawSalary, rawMembers, bId]);
+
+  // Unpaid balances from months BEFORE the currently-selected salary month.
+  // Looks back up to 12 months. Net earned is attendance-driven for every wage
+  // type (a month with no attendance entries earns ₹0), so a month only shows
+  // as a "due" when it has genuinely-earned salary that isn't fully paid —
+  // months with no entries never appear.
+  const pastDuesFor = (member) => {
+    const rows = [];
+    let y = salYear, mo = salMonth;
+    for (let i = 0; i < 12; i++) {
+      mo -= 1;
+      if (mo < 0) { mo = 11; y -= 1; }
+      const rec = rawSalary.find(
+        s => String(s.staffId) === String(member.id) && s.month === mo && s.year === y,
+      );
+      const earned = calcNetSalary(member, y, mo);
+      if (earned <= 0) continue;
+      const paid = salaryPaidTotal(rec);
+      const due = Math.round(Math.max(0, earned - paid));
+      if (due > 0) rows.push({ year: y, month: mo, rec, earned, paid, due });
+    }
+    return rows.reverse(); // oldest first
+  };
+
+  const openSalaryPayDialog = (member, forMonth) => {
+    // forMonth (optional): { year, month } — settle a PAST due month instead of
+    // the currently-selected one.
+    const y = forMonth?.year ?? salYear;
+    const mo = forMonth?.month ?? salMonth;
+    const existing = rawSalary.find(
+      s => String(s.staffId) === String(member.id) && s.month === mo && s.year === y,
+    );
+    const net = calcNetSalary(member, y, mo);
+    const paidSoFar = salaryPaidTotal(existing);
+    const balance = Math.max(0, net - paidSoFar);
+    // Default the amount to whatever is still outstanding (a full settlement in
+    // one click), but the user can type less to make a partial payment / advance.
+    setSalPayForm({
+      amount: String(balance || net),
+      paymentMode: 'Cash',
+      cashAmt: String(balance || net), bankAmt: '',
+      date: new Date().toISOString().split('T')[0], notes: '',
+    });
     setSalPayError('');
-    setSalPayDialog({ member, netSalary: net, existing });
+    setSalPayDialog({ member, netSalary: net, existing, paidSoFar, balance, payYear: y, payMonth: mo });
+  };
+
+  // Build + print a payslip for the currently-selected salary month.
+  const openPayslip = (member) => {
+    const rec = getSalaryRecord(member.id);
+    const att = getMonthAttendanceSummary_ym(member.id, salYear, salMonth);
+    const earned = calcNetSalary(member, salYear, salMonth);
+    const paidTotal = salaryPaidTotal(rec);
+    setPayslipData({
+      business: currentBusiness || {},
+      member,
+      year: salYear,
+      month: salMonth,
+      att,
+      dim: getDaysInMonth(salYear, salMonth),
+      earned,
+      paidTotal,
+      balance: Math.max(0, earned - paidTotal),
+      payments: Array.isArray(rec?.payments) ? rec.payments : [],
+      dues: pastDuesFor(member),
+    });
+    setTimeout(() => printPayslip(), 60);
   };
 
   const confirmSalaryPayment = async () => {
     if (!salPayDialog) return;
-    const { member, netSalary, existing } = salPayDialog;
+    const { member } = salPayDialog;
+    // The month this payment settles — the currently-selected salary month, or
+    // a past due month when opened via "Pay dues".
+    const payYear = salPayDialog.payYear ?? salYear;
+    const payMonth = salPayDialog.payMonth ?? salMonth;
     const { paymentMode, cashAmt, bankAmt, date, notes } = salPayForm;
 
-    // DataContext.addItem silently rejects (returns false, no throw) any
-    // expenses record with amount <= 0 — a zero net salary (e.g. daily-wage
-    // staff with no attendance marked that month) would otherwise flip the
-    // salary to "paid" while the expense record never actually gets created.
-    if (!netSalary || netSalary <= 0) {
-      setSalPayError('Net salary is ₹0 — check attendance/salary amount before marking as paid.');
+    // Re-derive net salary + amount-already-paid from CURRENT data at confirm
+    // time, not the snapshot taken when the dialog opened. For a daily/hourly
+    // wage the net earned changes every time more attendance is marked, so a
+    // stale snapshot would let a partial payment record against the old (lower)
+    // figure and leave the freshly-earned days permanently un-owed.
+    const existing = rawSalary.find(
+      s => String(s.staffId) === String(member.id) && s.month === payMonth && s.year === payYear,
+    );
+    const netSalary = calcNetSalary(member, payYear, payMonth);
+    const paidSoFar = salaryPaidTotal(existing);
+
+    const payAmount = Math.round(Number(salPayForm.amount) || 0);
+    if (payAmount <= 0) {
+      setSalPayError('Enter an amount greater than ₹0 to record a payment.');
+      return;
+    }
+    const outstanding = Math.max(0, netSalary - paidSoFar);
+    if (netSalary > 0 && payAmount > outstanding + 0.5) {
+      setSalPayError(`That is more than the ₹${fmt(outstanding)} still due. Reduce the amount, or fix the net salary / attendance first.`);
       return;
     }
 
+    // Split-mode portions must add up to the amount being paid now.
     let cashPart = 0, bankPart = 0;
-    if (paymentMode === 'Cash') { cashPart = netSalary; }
-    else if (paymentMode === 'Bank') { bankPart = netSalary; }
-    else { cashPart = Number(cashAmt) || 0; bankPart = Number(bankAmt) || 0; }
+    if (paymentMode === 'Cash') { cashPart = payAmount; }
+    else if (paymentMode === 'Bank') { bankPart = payAmount; }
+    else {
+      cashPart = Number(cashAmt) || 0; bankPart = Number(bankAmt) || 0;
+      if (Math.round(cashPart + bankPart) !== payAmount) {
+        setSalPayError(`Split parts (₹${fmt(cashPart + bankPart)}) must equal the payment amount ₹${fmt(payAmount)}.`);
+        return;
+      }
+    }
 
-    const paidDate = new Date(date || undefined).toISOString();
-    const monthName_ = new Date(salYear, salMonth, 1).toLocaleString('en-IN', { month: 'long' });
+    const paidDateISO = new Date(date || undefined).toISOString();
+    const monthName_ = new Date(payYear, payMonth, 1).toLocaleString('en-IN', { month: 'long' });
+    const payment = {
+      id: crypto.randomUUID(),
+      date: date || new Date().toISOString().split('T')[0],
+      amount: payAmount, paymentMode,
+      cashAmt: cashPart, bankAmt: bankPart,
+      notes: notes || '',
+    };
+    const newPaidTotal = paidSoFar + payAmount;
+    const newStatus = (netSalary > 0 && newPaidTotal >= netSalary - 0.5) ? 'paid' : 'partial';
 
-    // Save/update salary record
+    // Upsert the salary record with the appended payment.
     if (existing) {
-      await updateItem('staffSalary', existing.id, { status: 'paid', paidDate, paymentMode, cashAmt: cashPart, bankAmt: bankPart });
+      const prevPayments = Array.isArray(existing.payments) ? existing.payments : [];
+      await updateItem('staffSalary', existing.id, {
+        netSalary,
+        payments: [...prevPayments, payment],
+        paidTotal: newPaidTotal,
+        balance: Math.max(0, netSalary - newPaidTotal),
+        status: newStatus,
+        paidDate: newStatus === 'paid' ? paidDateISO : (existing.paidDate || null),
+        lastPaidDate: paidDateISO,
+      });
     } else {
       const saved = await addItem('staffSalary', {
         id: crypto.randomUUID(), businessId: bId, staffId: member.id, staffName: member.name,
-        month: salMonth, year: salYear,
-        baseSalary: member.salary || 0, netSalary,
-        status: 'paid', paidDate, paymentMode, cashAmt: cashPart, bankAmt: bankPart,
+        month: payMonth, year: payYear,
+        baseSalary: member.salary || 0, salaryType: member.salaryType || 'monthly', netSalary,
+        payments: [payment],
+        paidTotal: newPaidTotal,
+        balance: Math.max(0, netSalary - newPaidTotal),
+        status: newStatus,
+        paidDate: newStatus === 'paid' ? paidDateISO : null,
+        lastPaidDate: paidDateISO,
       });
       if (!saved) { setSalPayError('Failed to save salary record. Please try again.'); return; }
     }
 
-    // Record as expense
+    // Each payout is recorded as its own expense so Cash/Bank books stay right.
     const expenseSaved = await addItem('expenses', {
       id: crypto.randomUUID(), businessId: bId,
       date: date || new Date().toISOString().split('T')[0],
       category: 'Staff Salary',
-      description: `Salary — ${member.name} (${monthName_} ${salYear})`,
-      amount: netSalary,
+      description: `Salary ${newStatus === 'paid' ? '(settled)' : '(part)'} — ${member.name} (${monthName_} ${payYear})`,
+      amount: payAmount,
       paymentMode,
       ...(paymentMode === 'Split' ? { paymentSplit: { cashAmt: cashPart, bankAmt: bankPart } } : {}),
       notes: notes || '',
     });
     if (!expenseSaved) {
-      setSalPayError('Salary marked as paid, but the expense record failed to save. Please add it manually from Expenses.');
+      setSalPayError('Payment saved, but the expense record failed. Please add it manually from Expenses.');
       return;
     }
 
@@ -287,12 +620,32 @@ export default function StaffPage() {
     setSalPayDialog(null);
   };
 
+  // Undo the most recent salary payment (removes the last entry from payments[]
+  // and re-derives the status). Does NOT delete the linked expense — remove that
+  // from the Expenses page if needed.
+  const undoLastSalaryPayment = async (member) => {
+    const rec = getSalaryRecord(member.id);
+    if (!rec || !Array.isArray(rec.payments) || rec.payments.length === 0) {
+      // Legacy one-shot "paid" record — just flip back to pending.
+      if (rec) await updateItem('staffSalary', rec.id, { status: 'pending', paidDate: null, paidTotal: 0, balance: rec.netSalary || 0 });
+      return;
+    }
+    const remaining = rec.payments.slice(0, -1);
+    const net = Number(rec.netSalary) || calcNetSalary(member, salYear, salMonth);
+    const paidTotal = remaining.reduce((s, p) => s + (Number(p.amount) || 0), 0);
+    const status = paidTotal <= 0 ? 'pending' : (paidTotal >= net - 0.5 ? 'paid' : 'partial');
+    await updateItem('staffSalary', rec.id, {
+      payments: remaining, paidTotal, balance: Math.max(0, net - paidTotal),
+      status, paidDate: status === 'paid' ? (rec.paidDate || new Date().toISOString()) : null,
+    });
+  };
+
   // ─ Member dialog ─
   const openAddMember = () => {
     if (atStaffCap) return;
     setMemberError('');
     setDlgTab(0);
-    setMemberForm({ name: '', username: '', password: '', role: 'Sales Staff', phone: '', email: '', salary: '', salaryType: 'monthly', joiningDate: '', notes: '', status: 'active', features: {}, showInSalesSelector: false });
+    setMemberForm({ name: '', username: '', password: '', role: 'Sales Staff', phone: '', email: '', salary: '', salaryType: 'monthly', halfDayRate: '', leaveDeduction: '', absentDeduction: '', joiningDate: '', notes: '', status: 'active', features: defaultStaffFeatures(), showInSalesSelector: false });
     setMemberDialog({ open: true, editing: null });
   };
   const openEditMember = (m) => {
@@ -317,6 +670,10 @@ export default function StaffPage() {
       email: memberForm.email || '',
       salary: Number(memberForm.salary) || 0,
       salaryType: memberForm.salaryType || 'monthly',
+      // '' = use the default rule (see salaryBreakdown)
+      halfDayRate: optNum(memberForm.halfDayRate) ?? '',
+      leaveDeduction: optNum(memberForm.leaveDeduction) ?? '',
+      absentDeduction: optNum(memberForm.absentDeduction) ?? '',
       joiningDate: memberForm.joiningDate || '',
       notes: memberForm.notes || '',
       status: memberForm.status || 'active',
@@ -535,9 +892,14 @@ export default function StaffPage() {
             </Box>
           ) : (
             <Box sx={{ overflowX: 'auto', borderRadius: 3, border: `1px solid ${theme.palette.divider}` }}>
-              <Box sx={{ minWidth: 700 }}>
+              {(() => {
+                const NAME_COL = 150;
+                const DAY_COL = 34;
+                const gridCols = `${NAME_COL}px repeat(${daysInMonth}, minmax(${DAY_COL}px, 1fr))`;
+                return (
+              <Box sx={{ minWidth: NAME_COL + daysInMonth * DAY_COL }}>
                 {/* Header row */}
-                <Box sx={{ display: 'grid', gridTemplateColumns: '160px repeat(' + daysInMonth + ', 1fr)', bgcolor: isDark ? alpha('#fff', 0.04) : '#f6efe9', borderBottom: `1px solid ${theme.palette.divider}` }}>
+                <Box sx={{ display: 'grid', gridTemplateColumns: gridCols, bgcolor: isDark ? alpha('#fff', 0.04) : '#f6efe9', borderBottom: `1px solid ${theme.palette.divider}` }}>
                   <Box sx={{ p: 1, pl: 2 }}>
                     <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary' }}>Staff</Typography>
                   </Box>
@@ -546,8 +908,8 @@ export default function StaffPage() {
                     const isSun = dayOfWeek === 0;
                     const isToday = attYear === t.year && attMonth === t.month && d === t.day;
                     return (
-                      <Box key={d} sx={{ p: 0.5, textAlign: 'center', borderLeft: `1px solid ${theme.palette.divider}` }}>
-                        <Typography variant="caption" sx={{ fontSize: '0.6rem', color: isSun ? '#ef4444' : 'text.secondary', fontWeight: isToday ? 800 : 500 }}>{d}</Typography>
+                      <Box key={d} sx={{ p: 0.5, textAlign: 'center', borderLeft: `1px solid ${theme.palette.divider}`, minWidth: 0 }}>
+                        <Typography variant="caption" sx={{ display: 'block', fontSize: '0.6rem', color: isSun ? '#ef4444' : 'text.secondary', fontWeight: isToday ? 800 : 500 }}>{d}</Typography>
                         <Typography sx={{ display: 'block', fontSize: '0.55rem', color: 'text.disabled' }}>{DAYS_IN_WEEK[dayOfWeek].slice(0, 1)}</Typography>
                       </Box>
                     );
@@ -556,9 +918,9 @@ export default function StaffPage() {
 
                 {/* Staff rows */}
                 {activeMembers.map((m, mi) => (
-                  <Box key={m.id} sx={{ display: 'grid', gridTemplateColumns: '160px repeat(' + daysInMonth + ', 1fr)', borderBottom: mi < activeMembers.length - 1 ? `1px solid ${theme.palette.divider}` : 'none', '&:hover': { bgcolor: isDark ? alpha('#fff', 0.02) : '#fafbfc' } }}>
-                    <Box sx={{ p: 1, pl: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Avatar sx={{ width: 24, height: 24, fontSize: '0.65rem', bgcolor: alpha(roleColor(m.role), 0.15), color: roleColor(m.role) }}>{initials(m.name)}</Avatar>
+                  <Box key={m.id} sx={{ display: 'grid', gridTemplateColumns: gridCols, borderBottom: mi < activeMembers.length - 1 ? `1px solid ${theme.palette.divider}` : 'none', '&:hover': { bgcolor: isDark ? alpha('#fff', 0.02) : '#fafbfc' } }}>
+                    <Box sx={{ p: 1, pl: 2, display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                      <Avatar sx={{ width: 24, height: 24, fontSize: '0.65rem', flexShrink: 0, bgcolor: alpha(roleColor(m.role), 0.15), color: roleColor(m.role) }}>{initials(m.name)}</Avatar>
                       <Typography variant="caption" sx={{ fontWeight: 600 }} noWrap>{m.name}</Typography>
                     </Box>
                     {Array.from({ length: daysInMonth }, (_, i) => i + 1).map(d => {
@@ -572,7 +934,7 @@ export default function StaffPage() {
                             sx={{
                               borderLeft: `1px solid ${theme.palette.divider}`,
                               display: 'flex', alignItems: 'center', justifyContent: 'center',
-                              height: 36, cursor: 'pointer',
+                              minWidth: 0, height: 36, cursor: 'pointer',
                               bgcolor: s ? s.bg : isToday ? alpha(primary, 0.05) : 'transparent',
                               '&:hover': { bgcolor: s ? alpha(s.color, 0.2) : alpha(primary, 0.08) },
                               transition: 'background 0.15s',
@@ -588,6 +950,8 @@ export default function StaffPage() {
                   </Box>
                 ))}
               </Box>
+                );
+              })()}
             </Box>
           )}
 
@@ -633,14 +997,24 @@ export default function StaffPage() {
               <Grid container spacing={2}>
                 {activeMembers.map(m => {
                   const salRec = getSalaryRecord(m.id);
-                  const isPaid = salRec?.status === 'paid';
                   const netSalary = calcNetSalary(m, salYear, salMonth);
+                  const paidTotal = salaryPaidTotal(salRec);
+                  const balance = Math.max(0, netSalary - paidTotal);
+                  const status = salaryStatus(salRec, netSalary); // paid | partial | pending
+                  const isPaid = status === 'paid';
+                  const isPartial = status === 'partial';
+                  const statusColor = isPaid ? '#22c55e' : isPartial ? '#0284c7' : '#f59e0b';
+                  const statusText = isPaid ? 'Paid' : isPartial ? 'Partial' : 'Pending';
+                  const payCount = Array.isArray(salRec?.payments) ? salRec.payments.length : 0;
                   const attSummary = getMonthAttendanceSummary_ym(m.id, salYear, salMonth);
+                  const dues = pastDuesFor(m);
+                  const totalDue = dues.reduce((s, d) => s + d.due, 0);
+                  const oldestDue = dues[0];
 
                   return (
                     <Grid item xs={12} sm={6} md={4} key={m.id}>
                       <Card elevation={0} sx={{ ...cardSx, position: 'relative', overflow: 'visible' }}>
-                        <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, borderRadius: '12px 12px 0 0', bgcolor: isPaid ? '#22c55e' : '#f59e0b' }} />
+                        <Box sx={{ position: 'absolute', top: 0, left: 0, right: 0, height: 4, borderRadius: '12px 12px 0 0', bgcolor: statusColor }} />
                         <CardContent sx={{ pt: 2.5 }}>
                           <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 1.5 }}>
                             <Avatar sx={{ width: 40, height: 40, bgcolor: alpha(roleColor(m.role), 0.15), color: roleColor(m.role), fontWeight: 700 }}>
@@ -651,9 +1025,9 @@ export default function StaffPage() {
                               <Typography variant="caption" color="text.secondary">{m.role}</Typography>
                             </Box>
                             <Chip
-                              label={isPaid ? 'Paid' : 'Pending'}
+                              label={statusText}
                               size="small"
-                              sx={{ fontWeight: 700, fontSize: '0.65rem', bgcolor: isPaid ? alpha('#22c55e', 0.1) : alpha('#f59e0b', 0.1), color: isPaid ? '#22c55e' : '#d97706' }}
+                              sx={{ fontWeight: 700, fontSize: '0.65rem', bgcolor: alpha(statusColor, 0.1), color: isPaid ? '#22c55e' : isPartial ? '#0284c7' : '#d97706' }}
                             />
                           </Box>
 
@@ -661,40 +1035,94 @@ export default function StaffPage() {
 
                           <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
                             <Typography variant="caption" color="text.secondary">Base ({m.salaryType})</Typography>
-                            <Typography variant="caption" sx={{ fontWeight: 600 }}>₹{fmt(m.salary)}</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 600 }}>₹{fmt(m.salary)}{m.salaryType === 'daily' ? ' / day' : m.salaryType === 'hourly' ? ' / hr' : ''}</Typography>
                           </Box>
 
-                          {m.salaryType === 'daily' && (
+                          {m.salaryType !== 'hourly' && (
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1 }}>
-                              <Typography variant="caption" color="text.secondary">Days worked</Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {m.salaryType === 'daily' ? 'Days worked' : 'Paid days'}
+                              </Typography>
                               <Typography variant="caption" sx={{ fontWeight: 600 }}>
-                                {attSummary.present + attSummary.halfDay * 0.5} / {getDaysInMonth(salYear, salMonth)}
+                                {attSummary.present + attSummary.halfDay * 0.5 + (m.salaryType === 'monthly' ? attSummary.leave : 0)} / {getDaysInMonth(salYear, salMonth)}
                               </Typography>
                             </Box>
                           )}
 
-                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 1.5 }}>
-                            <Typography variant="body2" sx={{ fontWeight: 700 }}>Net Salary</Typography>
-                            <Typography variant="body2" sx={{ fontWeight: 800, color: primary }}>₹{fmt(netSalary)}</Typography>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+                            <Typography variant="caption" color="text.secondary">Net earned</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 700 }}>₹{fmt(netSalary)}</Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 0.75 }}>
+                            <Typography variant="caption" color="text.secondary">Paid{payCount > 1 ? ` (${payCount} payments)` : ''}</Typography>
+                            <Typography variant="caption" sx={{ fontWeight: 700, color: '#22c55e' }}>₹{fmt(paidTotal)}</Typography>
+                          </Box>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: totalDue > 0 ? 0.75 : 1.5, pt: 0.75, borderTop: '1px dashed', borderColor: 'divider' }}>
+                            <Typography variant="body2" sx={{ fontWeight: 800 }}>Balance (this month)</Typography>
+                            <Typography variant="body2" sx={{ fontWeight: 900, color: balance > 0 ? '#dc2626' : '#22c55e' }}>₹{fmt(balance)}</Typography>
                           </Box>
 
-                          {isPaid && salRec?.paidDate && (
+                          {totalDue > 0 && (
+                            <Tooltip
+                              title={dues.map(d => `${monthName(d.month)} ${d.year}: ₹${fmt(d.due)}`).join(' · ')}
+                              placement="top"
+                            >
+                              <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1.5, px: 1, py: 0.6, borderRadius: 1.5, bgcolor: alpha('#dc2626', 0.07) }}>
+                                <Typography variant="caption" sx={{ fontWeight: 800, color: '#b91c1c' }}>
+                                  Previous dues{dues.length > 1 ? ` (${dues.length} months)` : ` · ${monthName(oldestDue.month)} ${oldestDue.year}`}
+                                </Typography>
+                                <Typography variant="caption" sx={{ fontWeight: 900, color: '#b91c1c' }}>₹{fmt(totalDue)}</Typography>
+                              </Box>
+                            </Tooltip>
+                          )}
+
+                          {salRec?.lastPaidDate && (
                             <Typography variant="caption" sx={{ display: 'block', color: 'text.secondary', mb: 1 }}>
-                              Paid on {new Date(salRec.paidDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
+                              Last paid {new Date(salRec.lastPaidDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}
                             </Typography>
                           )}
 
-                          <Button
-                            fullWidth
-                            variant={isPaid ? 'outlined' : 'contained'}
-                            size="small"
-                            color={isPaid ? 'success' : 'primary'}
-                            startIcon={isPaid ? <Check size={14} /> : <DollarSign size={14} />}
-                            onClick={() => openSalaryPayDialog(m)}
-                            sx={{ borderRadius: 2, fontWeight: 600, mt: 0.5 }}
-                          >
-                            {isPaid ? 'Mark as Unpaid' : 'Mark as Paid'}
-                          </Button>
+                          {totalDue > 0 && (
+                            <Button
+                              fullWidth
+                              variant="outlined"
+                              size="small"
+                              color="error"
+                              startIcon={<DollarSign size={14} />}
+                              onClick={() => openSalaryPayDialog(m, { year: oldestDue.year, month: oldestDue.month })}
+                              sx={{ borderRadius: 2, fontWeight: 700, mb: 0.75 }}
+                            >
+                              Pay dues — {monthName(oldestDue.month)} {oldestDue.year} (₹{fmt(oldestDue.due)})
+                            </Button>
+                          )}
+
+                          <Box sx={{ display: 'flex', gap: 0.75, mt: 0.5 }}>
+                            <Button
+                              fullWidth
+                              variant="contained"
+                              size="small"
+                              disabled={balance <= 0 && netSalary > 0}
+                              startIcon={<DollarSign size={14} />}
+                              onClick={() => openSalaryPayDialog(m)}
+                              sx={{ borderRadius: 2, fontWeight: 600 }}
+                            >
+                              {balance > 0 || netSalary <= 0 ? `Pay ₹${fmt(balance || netSalary)} (this month)` : 'Settled'}
+                            </Button>
+                            <Tooltip title="Print payslip">
+                              <IconButton size="small" onClick={() => openPayslip(m)}
+                                sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                                <Printer size={14} />
+                              </IconButton>
+                            </Tooltip>
+                            {paidTotal > 0 && (
+                              <Tooltip title="Undo last payment">
+                                <IconButton size="small" onClick={() => undoLastSalaryPayment(m)}
+                                  sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                                  <RotateCcw size={14} />
+                                </IconButton>
+                              </Tooltip>
+                            )}
+                          </Box>
                         </CardContent>
                       </Card>
                     </Grid>
@@ -710,11 +1138,24 @@ export default function StaffPage() {
                     <Typography variant="h6" sx={{ fontWeight: 800, color: primary }}>
                       ₹{fmt(activeMembers.reduce((sum, m) => sum + calcNetSalary(m, salYear, salMonth), 0))}
                     </Typography>
+                    {(() => {
+                      const totalOutstanding = activeMembers.reduce((sum, m) => {
+                        const cur = Math.max(0, calcNetSalary(m, salYear, salMonth) - salaryPaidTotal(getSalaryRecord(m.id)));
+                        const past = pastDuesFor(m).reduce((s, d) => s + d.due, 0);
+                        return sum + cur + past;
+                      }, 0);
+                      return totalOutstanding > 0 ? (
+                        <Typography variant="caption" sx={{ fontWeight: 700, color: '#b91c1c', display: 'block', mt: 0.25 }}>
+                          Outstanding (incl. previous months): ₹{fmt(totalOutstanding)}
+                        </Typography>
+                      ) : null;
+                    })()}
                   </Box>
                   <Box sx={{ display: 'flex', gap: 1.5 }}>
                     {[
-                      { label: 'Paid', color: '#22c55e', count: activeMembers.filter(m => getSalaryRecord(m.id)?.status === 'paid').length },
-                      { label: 'Pending', color: '#f59e0b', count: activeMembers.filter(m => !getSalaryRecord(m.id) || getSalaryRecord(m.id)?.status === 'pending').length },
+                      { label: 'Paid', color: '#22c55e', count: activeMembers.filter(m => salaryStatus(getSalaryRecord(m.id), calcNetSalary(m, salYear, salMonth)) === 'paid').length },
+                      { label: 'Partial', color: '#0284c7', count: activeMembers.filter(m => salaryStatus(getSalaryRecord(m.id), calcNetSalary(m, salYear, salMonth)) === 'partial').length },
+                      { label: 'Pending', color: '#f59e0b', count: activeMembers.filter(m => salaryStatus(getSalaryRecord(m.id), calcNetSalary(m, salYear, salMonth)) === 'pending').length },
                     ].map(s => (
                       <Box key={s.label} sx={{ textAlign: 'center' }}>
                         <Typography variant="h6" sx={{ fontWeight: 800, color: s.color, lineHeight: 1 }}>{s.count}</Typography>
@@ -795,17 +1236,8 @@ export default function StaffPage() {
         const upd = (key) => (e) => setMemberForm(f => ({ ...f, [key]: e.target.value }));
         const featOn = (key) => !!(memberForm.features || {})[key];
         const toggleFeat = (key) => setMemberForm(f => ({ ...f, features: { ...(f.features || {}), [key]: !featOn(key) } }));
-        const ACCESS_ITEMS = [
-          { key: 'dashboard', label: 'Dashboard' }, { key: 'pos', label: 'POS' },
-          { key: 'sales', label: 'Sales' }, { key: 'purchases', label: 'Purchases' },
-          { key: 'parties', label: 'Parties' }, { key: 'items', label: 'Items' },
-          { key: 'expenses', label: 'Expenses' }, { key: 'payments', label: 'Payments' },
-          { key: 'cash', label: 'Cash & Bank' }, { key: 'reports', label: 'Reports' },
-          { key: 'estimates', label: 'Estimates' }, { key: 'creditNotes', label: 'Credit Notes' },
-          { key: 'debitNotes', label: 'Debit Notes' }, { key: 'deliveryNotes', label: 'Delivery Notes' },
-          { key: 'ledger', label: 'Ledger' }, { key: 'membership', label: 'Membership' },
-          { key: 'opticals', label: 'Opticals' }, { key: 'viewPurchasePrice', label: 'View Purchase Price' },
-        ];
+        // Same permission list as Settings → Access Control (staffPermissions.js).
+        const ACCESS_ITEMS = STAFF_FEATURE_KEYS.map((key) => ({ key, label: STAFF_FEATURE_LABELS[key] || key }));
         const allOn = ACCESS_ITEMS.every(({ key }) => featOn(key));
         return (
           <Dialog
@@ -894,6 +1326,35 @@ export default function StaffPage() {
                     {SALARY_TYPES.map(t => <MenuItem key={t} value={t}>{t.charAt(0).toUpperCase()+t.slice(1)}</MenuItem>)}
                   </TextField>
                 </Box>
+                {(sf('salaryType') || 'monthly') !== 'hourly' && (() => {
+                  const isDaily = sf('salaryType') === 'daily';
+                  const amt = Number(sf('salary')) || 0;
+                  const full = isDaily ? amt : amt / 30;
+                  const halfAuto = Math.round((full / 2) * 100) / 100;
+                  return (
+                    <Box sx={{ mb: 2.5, p: 1.75, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: alpha('#5c1f22', 0.02) }}>
+                      <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: 'text.primary', mb: 0.25 }}>Attendance pay rules</Typography>
+                      <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mb: 1.5 }}>
+                        Full day = {isDaily ? `₹${fmt(amt)}` : `salary ÷ days in month (≈ ₹${fmt(full)} for a 30-day month)`}.
+                        Leave blank to use the default.
+                      </Typography>
+                      <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
+                        <TextField size="small" label="Half-day pay (₹)" type="number" value={sf('halfDayRate') ?? ''}
+                          onChange={upd('halfDayRate')} placeholder={isDaily && amt ? String(halfAuto) : 'Half of a full day'}
+                          helperText={isDaily && amt ? `Default ₹${fmt(halfAuto)}` : 'Default: half of a full day'}
+                          slotProps={{ htmlInput: { min: 0 } }} sx={{ flex: '1 1 150px' }} />
+                        <TextField size="small" label="Leave deduction (₹ / day)" type="number" value={sf('leaveDeduction') ?? ''}
+                          onChange={upd('leaveDeduction')} placeholder="0"
+                          helperText={isDaily ? 'Leave is unpaid; extra amount to deduct' : 'Leave is paid; amount to deduct per leave day'}
+                          slotProps={{ htmlInput: { min: 0 } }} sx={{ flex: '1 1 150px' }} />
+                        <TextField size="small" label="Absent deduction (₹ / day)" type="number" value={sf('absentDeduction') ?? ''}
+                          onChange={upd('absentDeduction')} placeholder="0"
+                          helperText="Absent days are unpaid; extra fine per day"
+                          slotProps={{ htmlInput: { min: 0 } }} sx={{ flex: '1 1 150px' }} />
+                      </Box>
+                    </Box>
+                  );
+                })()}
                 <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 1.25 }}>Login Credentials</Typography>
                 <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap' }}>
                   <TextField size="small" label="Username" placeholder="e.g. rahul" value={sf('username')}
@@ -910,14 +1371,17 @@ export default function StaffPage() {
                 <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
                   <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Section Access</Typography>
                   <Box sx={{ display: 'flex', gap: 0.5 }}>
-                    <Button size="small" onClick={() => setMemberForm(f => ({ ...f, features: ACCESS_ITEMS.reduce((a, { key }) => ({ ...a, [key]: true }), {}) }))}
+                    <Button size="small" onClick={() => setMemberForm(f => ({ ...f, features: ACCESS_ITEMS.reduce((a, { key }) => ({ ...a, [key]: true }), { ...(f.features || {}) }) }))}
                       sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: primary, '&:hover': { bgcolor: alpha(primary, 0.06) } }}>All On</Button>
-                    <Button size="small" onClick={() => setMemberForm(f => ({ ...f, features: ACCESS_ITEMS.reduce((a, { key }) => ({ ...a, [key]: false }), {}) }))}
+                    <Button size="small" onClick={() => setMemberForm(f => ({ ...f, features: ACCESS_ITEMS.reduce((a, { key }) => ({ ...a, [key]: false }), { ...(f.features || {}) }) }))}
                       sx={{ fontSize: '0.7rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#5f4f47', '&:hover': { bgcolor: '#f6efe9' } }}>All Off</Button>
                   </Box>
                 </Box>
+                {STAFF_FEATURE_GROUPS.map(({ group, keys }) => (
+                <Box key={group} sx={{ mb: 1.25 }}>
+                <Typography sx={{ fontSize: '0.66rem', fontWeight: 700, color: '#57433e', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.5 }}>{group}</Typography>
                 <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 0.75 }}>
-                  {ACCESS_ITEMS.map(({ key, label }) => {
+                  {keys.map((key) => ({ key, label: STAFF_FEATURE_LABELS[key] || key })).map(({ key, label }) => {
                     const on = featOn(key);
                     return (
                       <Box key={key} onClick={() => toggleFeat(key)} sx={{
@@ -929,13 +1393,35 @@ export default function StaffPage() {
                       }}>
                         <Box sx={{ width: 7, height: 7, borderRadius: '50%', flexShrink: 0, transition: 'background 0.12s',
                           bgcolor: on ? primary : '#e8ddd6' }} />
-                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: on ? primary : '#57433e', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 600, color: on ? primary : '#57433e', lineHeight: 1.2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1, minWidth: 0 }}>
                           {label}
                         </Typography>
+                        {isModuleOffForBusiness(key, config.features) && (
+                          <Tooltip title="Turned off for this business — switch it on in Settings → Features first, or staff won't see it">
+                            <Box component="span" sx={{ fontSize: '0.58rem', fontWeight: 800, color: '#b45309', bgcolor: alpha('#f59e0b', 0.14), px: 0.5, py: 0.1, borderRadius: '4px', flexShrink: 0 }}>OFF</Box>
+                          </Tooltip>
+                        )}
                       </Box>
                     );
                   })}
                 </Box>
+                </Box>
+                ))}
+                <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em', mt: 2, mb: 0.75 }}>Restrictions</Typography>
+                <Box onClick={() => toggleFeat('ownBillsOnly')} sx={{
+                  display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.875, borderRadius: '8px', cursor: 'pointer', border: '1.5px solid',
+                  borderColor: featOn('ownBillsOnly') ? alpha('#d97706', 0.4) : '#f6efe9',
+                  bgcolor: featOn('ownBillsOnly') ? alpha('#d97706', 0.06) : '#fafafa',
+                }}>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: featOn('ownBillsOnly') ? '#b45309' : '#57433e' }}>Show only bills created by this staff</Typography>
+                    <Typography sx={{ fontSize: '0.7rem', color: '#5f4f47' }}>Sales & Purchases lists show only the invoices / bills they created.</Typography>
+                  </Box>
+                  <Switch size="small" checked={featOn('ownBillsOnly')} onClick={(e) => e.stopPropagation()} onChange={() => toggleFeat('ownBillsOnly')} />
+                </Box>
+                <Typography sx={{ fontSize: '0.7rem', color: '#5f4f47', mt: 0.75 }}>
+                  Staff logins never see summary totals (receivables, payables, invoice totals, stock value).
+                </Typography>
                 {allOn && (
                   <Box sx={{ mt: 1.5, display: 'flex', alignItems: 'center', gap: 0.75 }}>
                     <Check size={13} color={primary} />
@@ -967,15 +1453,38 @@ export default function StaffPage() {
         );
       })()}
 
+      {/* Hidden payslip for printing */}
+      <div style={{ position: 'absolute', left: -99999, top: 0 }}>
+        <PayslipTemplate ref={payslipRef} data={payslipData} />
+      </div>
+
       {/* ══ DELETE CONFIRM ════════════════════════════════════════════════════ */}
       {/* ── Salary Payment Dialog ── */}
       <Dialog open={!!salPayDialog} onClose={() => { setSalPayDialog(null); setSalPayError(''); }} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: 3 } }}>
         <DialogTitle sx={{ fontWeight: 700, pb: 0.5 }}>
           Pay Salary — {salPayDialog?.member?.name}
+          {salPayDialog && (salPayDialog.payYear !== salYear || salPayDialog.payMonth !== salMonth) && (
+            <Typography component="span" sx={{ display: 'block', fontSize: '0.72rem', fontWeight: 700, color: '#b91c1c', mt: 0.25 }}>
+              Settling previous dues — {monthName(salPayDialog.payMonth)} {salPayDialog.payYear}
+            </Typography>
+          )}
         </DialogTitle>
         <DialogContent sx={{ pt: 1.5 }}>
+          <Box sx={{ display: 'flex', gap: 1, mb: 2 }}>
+            {[
+              { k: 'Net', v: salPayDialog?.netSalary || 0, c: 'text.primary' },
+              { k: 'Paid', v: salPayDialog?.paidSoFar || 0, c: '#22c55e' },
+              { k: 'Balance', v: salPayDialog?.balance || 0, c: (salPayDialog?.balance || 0) > 0 ? '#dc2626' : '#22c55e' },
+            ].map(x => (
+              <Box key={x.k} sx={{ flex: 1, textAlign: 'center', p: 0.75, borderRadius: '8px', bgcolor: '#f7f2ee', border: '1px solid', borderColor: 'divider' }}>
+                <Typography sx={{ fontSize: '0.6rem', fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{x.k}</Typography>
+                <Typography sx={{ fontSize: '0.85rem', fontWeight: 800, color: x.c }}>₹{fmt(x.v)}</Typography>
+              </Box>
+            ))}
+          </Box>
           <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 2 }}>
-            {new Date(salYear, salMonth, 1).toLocaleString('en-IN', { month: 'long' })} {salYear} · Net ₹{fmt(salPayDialog?.netSalary || 0)}
+            {new Date(salPayDialog?.payYear ?? salYear, salPayDialog?.payMonth ?? salMonth, 1).toLocaleString('en-IN', { month: 'long' })} {salPayDialog?.payYear ?? salYear}
+            {' · '}{salPayDialog?.member?.salaryType === 'daily' ? 'daily wage' : salPayDialog?.member?.salaryType === 'hourly' ? 'hourly wage' : 'monthly'}
           </Typography>
 
           {salPayError && (
@@ -984,16 +1493,35 @@ export default function StaffPage() {
             </Box>
           )}
 
+          {/* Amount to pay now */}
+          <TextField
+            size="small" label="Amount to pay now (₹)" type="number" fullWidth autoFocus sx={{ mb: 2 }}
+            value={salPayForm.amount}
+            onChange={e => {
+              const v = e.target.value;
+              setSalPayForm(f => ({
+                ...f, amount: v,
+                cashAmt: f.paymentMode === 'Cash' ? v : f.cashAmt,
+                bankAmt: f.paymentMode === 'Bank' ? v : f.bankAmt,
+              }));
+            }}
+            helperText={
+              (salPayDialog?.balance || 0) > 0
+                ? `Pay the full ₹${fmt(salPayDialog.balance)} to settle, or less for a partial / advance payment.`
+                : 'No balance due — recording this is optional.'
+            }
+          />
+
           {/* Payment Mode */}
           <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151', mb: 0.75 }}>Payment Mode</Typography>
           <Box sx={{ display: 'flex', gap: 0.75, mb: 2 }}>
             {['Cash', 'Bank', 'Split'].map(mode => (
               <Box key={mode} onClick={() => {
-                const net = salPayDialog?.netSalary || 0;
+                const amt = salPayForm.amount || '';
                 setSalPayForm(f => ({
                   ...f, paymentMode: mode,
-                  cashAmt: mode === 'Cash' ? String(net) : mode === 'Split' ? '' : '',
-                  bankAmt: mode === 'Bank' ? String(net) : mode === 'Split' ? '' : '',
+                  cashAmt: mode === 'Cash' ? amt : mode === 'Split' ? '' : '',
+                  bankAmt: mode === 'Bank' ? amt : mode === 'Split' ? '' : '',
                 }));
               }}
                 sx={{
@@ -1013,12 +1541,29 @@ export default function StaffPage() {
               <TextField size="small" label="Cash ₹" type="number" fullWidth
                 value={salPayForm.cashAmt}
                 onChange={e => setSalPayForm(f => ({ ...f, cashAmt: e.target.value }))}
-                helperText={`Balance: ₹${fmt(Math.max(0, (salPayDialog?.netSalary || 0) - (Number(salPayForm.cashAmt) || 0)))}`}
+                helperText={`Cash + Bank must total ₹${fmt(Number(salPayForm.amount) || 0)}`}
               />
               <TextField size="small" label="Bank ₹" type="number" fullWidth
                 value={salPayForm.bankAmt}
                 onChange={e => setSalPayForm(f => ({ ...f, bankAmt: e.target.value }))}
               />
+            </Box>
+          )}
+
+          {/* Payment history for this month */}
+          {Array.isArray(salPayDialog?.existing?.payments) && salPayDialog.existing.payments.length > 0 && (
+            <Box sx={{ mb: 2 }}>
+              <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.5 }}>
+                Payments so far
+              </Typography>
+              {salPayDialog.existing.payments.map((p, i) => (
+                <Box key={p.id || i} sx={{ display: 'flex', justifyContent: 'space-between', py: 0.4, borderBottom: i < salPayDialog.existing.payments.length - 1 ? '1px dashed' : 'none', borderColor: 'divider' }}>
+                  <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary' }}>
+                    {new Date(p.date + 'T00:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })} · {p.paymentMode}
+                  </Typography>
+                  <Typography sx={{ fontSize: '0.72rem', fontWeight: 700 }}>₹{fmt(p.amount)}</Typography>
+                </Box>
+              ))}
             </Box>
           )}
 

@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import {
   Box, Typography, Card, CardContent, TextField, Button, Grid,
-  Divider, List, ListItem, ListItemText, IconButton, Alert, Avatar,
-  FormControl, InputLabel, Select, MenuItem, Chip, FormControlLabel, Switch,
+  Divider, List, ListItem, ListItemText, IconButton, ButtonBase, Alert, Avatar,
+  FormControl, InputLabel, Select, MenuItem, Chip, FormControlLabel, Switch, Checkbox,
   InputAdornment, Stack, Tooltip, alpha, useTheme, useMediaQuery, CircularProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions, Slider,
+  Dialog, DialogTitle, DialogContent, DialogActions, Slider, Snackbar,
 } from '@mui/material';
-import { Save, Plus, Trash2, Building2, Check, Image, QrCode, FileSearch, RotateCcw, CornerUpLeft, Truck, BookOpen, CalendarRange, Printer, Users, Copy, KeyRound, Download, FileDown, SlidersHorizontal, Palette, Package, ReceiptText, Barcode, HardDrive, Clock, RefreshCw, AlertTriangle, Paintbrush, Coins, Percent, LayoutDashboard, Store, ShoppingBag, DollarSign, Wallet, FileText, CreditCard, Eye, Calculator, LayoutList, Search, ChevronDown, ChevronRight, GripVertical, Columns3, Lock, Handshake, ClipboardList, Landmark } from 'lucide-react';
+import { Save, Plus, Trash2, Building2, Check, Image, QrCode, FileSearch, RotateCcw, CornerUpLeft, Truck, BookOpen, CalendarRange, Printer, Users, Copy, KeyRound, Download, FileDown, SlidersHorizontal, Palette, Package, ReceiptText, Barcode, HardDrive, Clock, RefreshCw, AlertTriangle, Paintbrush, Coins, Percent, LayoutDashboard, Store, ShoppingBag, DollarSign, Wallet, FileText, CreditCard, Eye, Calculator, LayoutList, Search, ChevronDown, ChevronRight, GripVertical, Columns3, Lock, Handshake, ClipboardList, Landmark, LayoutTemplate, Hash, Layers, X, ShieldCheck, CheckSquare, Square } from 'lucide-react';
+import BillDesigner from './BillDesigner';
 import InvoiceTemplateComponent, { INVOICE_THEMES, THEME_COLORS, PAPER_SIZES, SAMPLE_INVOICE, SAMPLE_BUSINESS, getPaperWidthPx, ALL_COLUMN_KEYS, COLUMN_LABELS, resolveColumnOrder, CUSTOM_TEMPLATE_SECTIONS, resolveCustomTemplate } from './InvoiceTemplate';
 import { exportFullBusinessToExcel, exportToTallyXML } from './exportUtils';
 import { GST_RATES, STATE_NAMES } from './gstUtils';
@@ -14,12 +15,16 @@ import { Visibility, VisibilityOff } from '@mui/icons-material';
 import { useBusiness } from './BusinessContext';
 import { useConfig } from './ConfigContext';
 import { useData, ALL_TABLES } from './DataContext';
+import { saveCustomCategories, saveCustomItemCategories } from './partyUtils';
 import { useDialog } from './DialogContext';
 import { useAuth } from './AuthContext';
 import SectionBuilder from './SectionBuilder';
+import DashboardSettings from './DashboardSettings';
 import AddBusinessDialog from './AddBusinessDialog';
 import BillingPayments from './BillingPayments';
 import { useSubscription } from './SubscriptionContext';
+import { usePlanCheckout } from './PlanCheckout';
+import { PLAN_ID, PLAN_PRICE, PLAN_DAYS } from './planTiers';
 import { useI18n } from './i18n/I18nContext';
 import { firestore } from './db';
 import { collection, doc, onSnapshot, setDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -27,70 +32,12 @@ import { ensureUniquCode, resolveBizDocId, useBusinessAuthDoc } from './business
 import { resolveMaxStaff } from './businessLimits';
 import { buildUpiUri } from './upiUtils';
 import UpiQrImage from './UpiQrImage';
-import { LABEL_SIZES, CODE_POSITIONS, CONTENT_ALIGNS, BORDER_STYLES, ALL_LABEL_FIELDS, resolveFieldOrder, buildSizeConfig, UnifiedLabel } from './Items';
+import { CODE_POSITIONS, CONTENT_ALIGNS, BORDER_STYLES, ALL_LABEL_FIELDS, resolveFieldOrder, buildSizeConfig, UnifiedLabel } from './Items';
+import LabelDesigner from './LabelDesigner';
+import { templateLayout, LABEL_SIZES, resolveLabelEntry } from './labelDesignerUtils';
+import { STAFF_FEATURE_GROUPS, STAFF_FEATURE_KEYS, STAFF_FEATURE_LABELS, OFF_BY_DEFAULT, defaultStaffFeatures, STAFF_RESTRICTION_ITEMS, isModuleOffForBusiness } from './staffPermissions'; // shared with StaffPage.jsx + ConfigContext.jsx
+import { useResizableWidth, ResizeHandle } from './PanelResizer';
 
-// ── TallyKraft: Razorpay-gated business creation ─────────────────────────────
-const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_SgTH0ctSdvsPBb';
-const loadRazorpay = () =>
-  new Promise((resolve) => {
-    if (window.Razorpay) return resolve(true);
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-// Single plan tier (TallyKraft billing consolidation).
-const BIZ_PLANS = [
-  { id: 'monthly_pro', label: 'Monthly', price: 299,  period: '/month', amount: 29900,  isPro: true },
-  { id: 'yearly_pro',  label: 'Yearly',  price: 2999, period: '/year',  amount: 299900, isPro: true, badge: 'Save ₹589' },
-];
-
-const STAFF_FEATURE_GROUPS = [
-  {
-    group: 'Main',
-    keys: ['dashboard', 'pos', 'sales', 'purchases', 'expenses', 'payments'],
-  },
-  {
-    group: 'Records',
-    keys: ['parties', 'items', 'estimates', 'creditNotes', 'deliveryNotes', 'membership', 'opticals'],
-  },
-  {
-    group: 'Accounting',
-    keys: ['reports', 'journal', 'ledger', 'cash', 'calculator'],
-  },
-  {
-    group: 'Tools',
-    keys: ['barcode', 'loyalty', 'settings', 'viewPurchasePrice'],
-  },
-  {
-    group: 'Backup',
-    keys: ['backup', 'backupExportFile', 'backupRestoreFile', 'backupOnline', 'backupRestoreOnline'],
-  },
-];
-
-const STAFF_FEATURE_KEYS = STAFF_FEATURE_GROUPS.flatMap(g => g.keys);
-
-const STAFF_FEATURE_LABELS = {
-  dashboard: 'Dashboard', pos: 'POS', sales: 'Sales', purchases: 'Purchases',
-  expenses: 'Expenses', payments: 'Payments', parties: 'Parties', items: 'Items',
-  estimates: 'Estimates', creditNotes: 'Credit Notes', deliveryNotes: 'Delivery Notes',
-  membership: 'Membership', opticals: 'Opticals', reports: 'Reports',
-  journal: 'Journal', ledger: 'Ledger', cash: 'Cash Book', calculator: 'Calculator',
-  barcode: 'Barcode', loyalty: 'Loyalty Points', settings: 'Settings',
-  viewPurchasePrice: 'View Purchase Price',
-  backup: 'Backup / Restore', backupExportFile: 'Export File',
-  backupRestoreFile: 'Restore File', backupOnline: 'Backup Online',
-  backupRestoreOnline: 'Restore Online',
-};
-
-const OFF_BY_DEFAULT = new Set([
-  'backup', 'backupOnline', 'backupRestoreOnline', 'backupExportFile', 'backupRestoreFile',
-  'viewPurchasePrice', 'estimates', 'creditNotes', 'deliveryNotes', 'membership', 'opticals', 'loyalty',
-]);
-
-const defaultStaffFeatures = () =>
-  STAFF_FEATURE_KEYS.reduce((acc, key) => ({ ...acc, [key]: !OFF_BY_DEFAULT.has(key) }), {});
 
 // Scales an invoice preview down to fit a container while reserving the
 // correct (unscaled-natural-height × scale) space for it — mounted fresh via
@@ -253,26 +200,95 @@ const CustomTemplateEditor = ({ customTemplate, primary, dragKeyRef, onChange })
   );
 };
 
+// Groups offered in Settings → Data → "Delete Data". Every table that
+// "Delete All Data" covers must appear in exactly one group. Settings and
+// staff tables are never deleted here.
+const DELETE_DATA_GROUPS = [
+  { key: 'sales', label: 'Sales invoices', tables: ['sales'] },
+  { key: 'purchases', label: 'Purchase bills', tables: ['purchases'] },
+  { key: 'payments', label: 'Payments', tables: ['payments'] },
+  { key: 'expenses', label: 'Expenses', tables: ['expenses'] },
+  { key: 'cashEntries', label: 'Cash & Bank entries', tables: ['cashEntries'] },
+  { key: 'parties', label: 'Customers & Vendors', tables: ['parties'] },
+  { key: 'items', label: 'Items / Inventory', tables: ['items'] },
+  { key: 'estimates', label: 'Estimates', tables: ['estimates'] },
+  { key: 'orders', label: 'Orders', tables: ['orders'] },
+  { key: 'creditNotes', label: 'Credit notes', tables: ['creditNotes'] },
+  { key: 'debitNotes', label: 'Debit notes', tables: ['debitNotes'] },
+  { key: 'deliveryNotes', label: 'Delivery notes', tables: ['deliveryNotes'] },
+  { key: 'journalEntries', label: 'Journal entries', tables: ['journalEntries'] },
+  { key: 'opticals', label: 'Opticals', tables: ['opticals', 'opticalOrders', 'opticalSettings'] },
+  { key: 'memberships', label: 'Memberships', tables: ['memberships'] },
+  { key: 'investors', label: 'Investors', tables: ['investors'] },
+  { key: 'customSectionRecords', label: 'Custom section records', tables: ['customSectionRecords'] },
+  { key: 'notes', label: 'Dashboard notes', tables: ['notes'] },
+];
+
+// Settings that "Delete Data" can also reset to defaults. All UNTICKED by
+// default (kept) — clearing records should not wipe the business setup.
+// The business profile (name, address, GST, bank) is never touched here.
+const DELETE_SETTINGS_GROUPS = [
+  { key: 'cfg_invoice', label: 'Invoice & print settings', desc: 'Layout, bill sections, numbering, paper size', configKeys: ['billPrintOptions', 'invoiceNumberConfig', 'defaultPaperSize', 'defaultSaleTypeSales', 'defaultSaleTypePOS'] },
+  { key: 'cfg_features', label: 'Modules & features', desc: 'Feature switches, custom sections, dashboard layout', configKeys: ['features', 'customSections', 'sidebarOrder', 'dashboard'] },
+  { key: 'cfg_lists', label: 'Lists & categories', desc: 'Expense categories, units, item & party categories', configKeys: ['expenseCategories', 'itemUnits', 'defaultItemUnit', 'itemCategories'] },
+  { key: 'cfg_other', label: 'Barcode, loyalty & GST defaults', desc: 'Label design, reward points, item GST defaults', configKeys: ['barcodeLabel', 'loyalty', 'itemDefaults'] },
+  { key: 'staff', label: 'Staff & logins', desc: 'Staff, attendance, salary and staff login accounts', tables: ['staffMembers', 'staffAttendance', 'staffSalary'] },
+];
+
+// Tile + section header used by the Delete Data dialog.
+const DEL_RED = '#dc2626';
+const DelTile = ({ on, onClick, icon, label, sub, badge, dim }) => (
+  <ButtonBase onClick={onClick} role="checkbox" aria-checked={on}
+    sx={{
+      justifyContent: 'flex-start', textAlign: 'left', gap: 1, px: 1, py: 0.85, borderRadius: '10px', minWidth: 0, width: '100%',
+      border: '1.5px solid', borderColor: on ? alpha(DEL_RED, 0.55) : 'divider',
+      bgcolor: on ? alpha(DEL_RED, 0.05) : 'background.paper', opacity: dim && !on ? 0.6 : 1,
+      transition: 'all .12s', '&:hover': { borderColor: on ? DEL_RED : alpha(DEL_RED, 0.35) },
+      '&.Mui-focusVisible': { outline: `2px solid ${alpha(DEL_RED, 0.4)}`, outlineOffset: 1 },
+    }}>
+    <Box sx={{ color: on ? DEL_RED : 'text.disabled', display: 'flex', flexShrink: 0 }}>
+      {on ? <CheckSquare size={16} /> : <Square size={16} />}
+    </Box>
+    <Box sx={{ width: 26, height: 26, borderRadius: '7px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: on ? alpha(DEL_RED, 0.1) : alpha('#57433e', 0.08), color: on ? DEL_RED : '#57433e' }}>
+      {React.createElement(icon, { size: 14 })}
+    </Box>
+    <Box sx={{ minWidth: 0, flex: 1 }}>
+      <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, lineHeight: 1.2, color: on ? 'text.primary' : 'text.secondary', overflowWrap: 'anywhere' }}>{label}</Typography>
+      {sub && <Typography noWrap sx={{ fontSize: '0.66rem', lineHeight: 1.25, color: 'text.disabled' }}>{sub}</Typography>}
+    </Box>
+    {badge}
+  </ButtonBase>
+);
+
+const DelSectionHead = ({ icon, title, chip, action }) => (
+  <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 1 }}>
+    {React.createElement(icon, { size: 15, color: '#57433e' })}
+    <Typography sx={{ fontSize: '0.82rem', fontWeight: 800 }}>{title}</Typography>
+    {chip}
+    <Box sx={{ flex: 1 }} />
+    {action}
+  </Box>
+);
+
 const SettingsPage = () => {
+  const settingsNav = useResizableWidth('settings-nav', 220, { min: 180, max: 380 });
   const { currentBusiness, businesses, switchBusiness, setCurrentBusinessId } = useBusiness();
   const { t, lang, setLang, languages } = useI18n();
-  const { config, saveConfig } = useConfig();
+  const { config, saveConfig, resetConfigKeys } = useConfig();
   const { data, addBusiness, updateBusiness, deleteBusiness: deleteBusinessFromData, addItem, updateItem, deleteItem, deleteManyItems, getItems, backupToFirestore, allBusinessData } = useData();
   const { confirm, showAlert } = useDialog();
   const { currentBusiness: authBusiness, isAdmin, staffSession, currentUser } = useAuth();
-  const { activateSubscription } = useSubscription();
   const [uploading, setUploading] = useState({ logo: false });
   const [activeTab, setActiveTab] = useState('profile'); // Settings tab key
-  // ── TallyKraft: Add-Business Razorpay payment dialog state ──
-  const [showBizPayModal, setShowBizPayModal] = useState(false);
-  const [pendingBizData, setPendingBizData] = useState(null);
-  const [bizPaying, setBizPaying] = useState(null);
-  const [bizPayError, setBizPayError] = useState('');
   const [sidebarOrderDraft, setSidebarOrderDraft] = useState(null); // null = not editing / no unsaved changes
   const sidebarDragKeyRef = useRef(null);
   const [deleteDataDialog, setDeleteDataDialog] = useState(false);
   const [deleteDataInput, setDeleteDataInput] = useState('');
   const [deleteDataInputError, setDeleteDataInputError] = useState('');
+  // Which data groups "Delete All Data" will erase — all ticked by default;
+  // unticked groups are kept.
+  const [deleteDataSel, setDeleteDataSel] = useState(() => DELETE_DATA_GROUPS.map(g => g.key));
+  const [deleteSettingsSel, setDeleteSettingsSel] = useState([]);
   const [formData, setFormData] = useState({
     name: '', gstNumber: '', address: '', phone: '', email: '', state: '',
     fyStartMonth: 3,
@@ -281,6 +297,12 @@ const SettingsPage = () => {
   });
   const [msg, setMsg] = useState({ type: '', text: '' });
   const [isNew, setIsNew] = useState(false);
+  // Billing: a new business is created only after its first ₹299 / 30-day
+  // payment succeeds (see handleCreateBusiness / bizPayNow).
+  const { activateSubscription } = useSubscription();
+  const { openCheckout: openBizCheckout, checkoutDialog: bizCheckoutDialog, paying: bizPaying, error: bizPayError, setError: setBizPayError } = usePlanCheckout();
+  const [showBizPayModal, setShowBizPayModal] = useState(false);
+  const [pendingBizData, setPendingBizData] = useState(null);
   const [featuresSaving, setFeaturesSaving] = useState(false);
   const [newExpenseCat, setNewExpenseCat] = useState('');
   const [newItemUnit, setNewItemUnit] = useState('');
@@ -296,6 +318,10 @@ const SettingsPage = () => {
   const [themePickerOpen, setThemePickerOpen] = useState(false);
   const [tempTheme, setTempTheme] = useState(null); // holds theme value while picker is open
   const [billPreviewOpen, setBillPreviewOpen] = useState(false);
+  const [billDesignerOpen, setBillDesignerOpen] = useState(false);
+  const [invoiceSub, setInvoiceSub] = useState('print'); // Invoice & Lists sub-tab: print | numbering | lists
+  const [billDesignsTemp, setBillDesignsTemp] = useState(null);
+  const [useDesignerTemp, setUseDesignerTemp] = useState(false);
   // Reset counter confirmation dialog state
   const [resetCounterDlg, setResetCounterDlg] = useState(null); // { label, prefix, start, numKey, prefixKey, prefixDef, resetKey }
   const [resetCounterInput, setResetCounterInput] = useState('');
@@ -305,7 +331,9 @@ const SettingsPage = () => {
   const [collapsedBillGroups, setCollapsedBillGroups] = useState(new Set());
   const columnDragKey = useRef(null);
   const customTemplateDragKey = useRef(null);
-  const [advancedTab, setAdvancedTab] = useState('barcode'); // 'barcode' | 'loyalty' | 'gst'
+  const [advancedTab, setAdvancedTab] = useState('barcode'); // 'barcode' | 'loyalty' | 'gst' | 'others'
+  const [featSub, setFeatSub] = useState('modules'); // Features sub-tab: modules | barcode | loyalty | gst | others | sections
+  const [moduleSearch, setModuleSearch] = useState('');
 
   // Sync drafts when config loads (first load or external change)
   useEffect(() => {
@@ -422,7 +450,6 @@ const SettingsPage = () => {
         await setDoc(doc(firestore, 'businesses', bizDocId), {
           id: bizDocId,
           name: currentBusiness.name,
-          businessType: 'general',
           ownerId: currentUser.uid,
           ownerEmail: currentUser.email,
           businessCode: code,
@@ -631,6 +658,20 @@ const SettingsPage = () => {
     }
   };
 
+  // Turn several modules on/off with a single save.
+  const handleFeaturesBulk = async (patch) => {
+    setFeaturesSaving(true);
+    try {
+      await saveConfig({ features: { ...(config.features || {}), ...patch } });
+      setMsg({ type: 'success', text: 'Features updated.' });
+      setTimeout(() => setMsg({ type: '', text: '' }), 3000);
+    } catch {
+      setMsg({ type: 'error', text: 'Failed to update features.' });
+    } finally {
+      setFeaturesSaving(false);
+    }
+  };
+
   // Keep the inline edit form in sync with the active business.
   useEffect(() => {
     if (currentBusiness) {
@@ -685,8 +726,9 @@ const SettingsPage = () => {
   };
 
   // Create-new flow lives in the AddBusinessDialog popup. It hands us the
-  // assembled payload; TallyKraft requires a per-business subscription, so we
-  // validate limits then open the Razorpay payment modal (see handleBizSubscribe).
+  // assembled payload; every business needs its own subscription, so we
+  // validate limits, then ask for the first payment (see bizPayNow) — the
+  // business is only created once Razorpay reports success.
   const handleCreateBusiness = (businessData) => {
     if (!config.multiBusiness) {
       setMsg({ type: 'error', text: 'Multiple businesses feature is disabled. Please enable it in the admin panel.' });
@@ -705,44 +747,23 @@ const SettingsPage = () => {
     setIsNew(false); // close the AddBusinessDialog
   };
 
-  // TallyKraft: create the business only after a successful Razorpay payment,
-  // then activate its subscription and switch to it.
-  const handleBizSubscribe = async (plan) => {
-    setBizPayError('');
-    const loaded = await loadRazorpay();
-    if (!loaded) { setBizPayError('Could not load payment gateway. Check your connection.'); return; }
-    if (!RAZORPAY_KEY) { setBizPayError('Payment gateway not configured. Contact support.'); return; }
-    setBizPaying(plan.id);
-    const options = {
-      key: RAZORPAY_KEY,
-      amount: plan.amount,
-      currency: 'INR',
-      name: 'TallyKraft',
-      description: `${plan.label} Plan${pendingBizData?.name ? ` — ${pendingBizData.name}` : ''}`,
-      prefill: { email: currentUser?.email || '', name: currentUser?.displayName || '' },
-      theme: { color: (theme?.palette?.primary?.main) || '#5c1f22' },
-      modal: { ondismiss: () => setBizPaying(null) },
-      handler: async (response) => {
-        try {
-          const id = await addBusiness(pendingBizData);
-          if (!id) { setBizPayError('Business creation failed after payment. Contact support with ID: ' + response.razorpay_payment_id); setBizPaying(null); return; }
-          await activateSubscription(String(id), plan.id, response.razorpay_payment_id);
-          await backupToFirestore?.().catch?.(() => {});
-          if (typeof switchBusiness === 'function') switchBusiness(String(id));
-          else if (typeof setCurrentBusinessId === 'function') setCurrentBusinessId(id);
-          setShowBizPayModal(false);
-          setPendingBizData(null);
-          setMsg({ type: 'success', text: `"${pendingBizData?.name}" created with your plan!` });
-          setTimeout(() => setMsg({ type: '', text: '' }), 4000);
-        } catch (err) {
-          setBizPayError('Payment received but activation failed. Contact support with ID: ' + response.razorpay_payment_id);
-        }
-        setBizPaying(null);
+  const bizPayNow = () => {
+    const pending = pendingBizData;
+    setShowBizPayModal(false);
+    openBizCheckout({
+      businessName: pending?.name,
+      defaultState: pending?.state || currentBusiness?.state,
+      onPaid: async (paymentId, billingMeta) => {
+        const id = await addBusiness(pending);
+        if (!id) throw new Error('Business creation failed after payment');
+        await activateSubscription(String(id), PLAN_ID, paymentId, billingMeta);
+        await backupToFirestore?.().catch?.(() => {});
+        setCurrentBusinessId(id);
+        setPendingBizData(null);
+        setMsg({ type: 'success', text: `"${pending?.name}" created — active for ${PLAN_DAYS} days.` });
+        setTimeout(() => setMsg({ type: '', text: '' }), 4000);
       },
-    };
-    const rzp = new window.Razorpay(options);
-    rzp.on('payment.failed', () => { setBizPayError('Payment failed. Please try again.'); setBizPaying(null); });
-    rzp.open();
+    });
   };
 
   const handleSaveListUpdate = async (e) => {
@@ -833,9 +854,24 @@ const SettingsPage = () => {
     setTimeout(() => setMsg({ type: '', text: '' }), 4000);
   };
 
+  // Record count per delete group for the current business (shown in the
+  // Delete Data dialog). Only computed while the dialog is open.
+  const deleteDataCounts = useMemo(() => {
+    if (!deleteDataDialog) return {};
+    const bid = currentBusiness?.id;
+    const out = {};
+    DELETE_DATA_GROUPS.forEach(g => {
+      out[g.key] = g.tables.reduce((n, t) => n + (data?.[t] || []).filter(r => r.businessId === bid).length, 0);
+    });
+    out.staff = (data?.staffMembers || []).filter(r => r.businessId === bid).length;
+    return out;
+  }, [deleteDataDialog, data, currentBusiness?.id]);
+
   const handleDeleteAllData = () => {
     setDeleteDataInput('');
     setDeleteDataInputError('');
+    setDeleteDataSel(DELETE_DATA_GROUPS.map(g => g.key));
+    setDeleteSettingsSel([]);
     setDeleteDataDialog(true);
   };
 
@@ -853,6 +889,16 @@ const SettingsPage = () => {
         setDeleteDataInputError('Please type "delete" exactly to confirm.');
         return;
       }
+    }
+    const wipeStaff = deleteSettingsSel.includes('staff');
+    const selectedTables = [
+      ...DELETE_DATA_GROUPS.filter(g => deleteDataSel.includes(g.key)).flatMap(g => g.tables),
+      ...(wipeStaff ? ['staffMembers', 'staffAttendance', 'staffSalary'] : []),
+    ];
+    const resetGroups = DELETE_SETTINGS_GROUPS.filter(g => g.configKeys && deleteSettingsSel.includes(g.key));
+    if (selectedTables.length === 0 && resetGroups.length === 0) {
+      setDeleteDataInputError('Select at least one thing to delete or reset.');
+      return;
     }
     setDeleteDataDialog(false);
 
@@ -889,8 +935,9 @@ const SettingsPage = () => {
     // 'settings' (business config) and staff records are excluded
     // deliberately — this is "delete all business DATA", not a full
     // business teardown.
-    const EXCLUDED_FROM_DELETE_ALL = new Set(['settings', 'staffMembers', 'staffAttendance', 'staffSalary']);
-    const ALL_STORES = ALL_TABLES.filter(t => !EXCLUDED_FROM_DELETE_ALL.has(t));
+    const EXCLUDED_FROM_DELETE_ALL = new Set(['settings', ...(wipeStaff ? [] : ['staffMembers', 'staffAttendance', 'staffSalary'])]);
+    // Only the groups the user left ticked in the dialog.
+    const ALL_STORES = ALL_TABLES.filter(t => !EXCLUDED_FROM_DELETE_ALL.has(t) && selectedTables.includes(t));
     try {
       // Single batched mutation across all stores instead of one deleteItem()
       // call per record — with large datasets (thousands of sales/items) the
@@ -907,14 +954,34 @@ const SettingsPage = () => {
       // is worse than no feedback at all, since the user has no reason to
       // suspect anything is wrong. This surfaces exactly that instead of
       // showing the same "deleted successfully" toast either way.
-      if (totalMatched === 0) {
-        console.error('[handleDeleteDataConfirm] No records matched businessId', id, '(type:', typeof id, ') across any table — nothing to delete. Sample sales row businessId:', getItems('sales')[0]?.businessId, '(type:', typeof getItems('sales')[0]?.businessId, ')');
-        setMsg({ type: 'error', text: `No data found for this business (ID: ${id}) — nothing was deleted. This may be a business-selection mismatch; please reload and try again, or contact support if it persists.` });
-        setTimeout(() => setMsg({ type: '', text: '' }), 8000);
+      const deletedCount = totalMatched > 0 ? deleteManyItems(tableIdMap) : 0;
+      const done = [];
+      if (deletedCount > 0) done.push(`${deletedCount} records deleted`);
+
+      // Staff login accounts for this business (Firestore staffAccounts).
+      if (wipeStaff && scopedBiz?.id) {
+        const accs = staffAccountsList.map(a => a.id);
+        await Promise.all(accs.map(sid => deleteDoc(doc(staffCollectionRef(), sid)).catch(() => {})));
+        if (accs.length) done.push(`${accs.length} staff logins removed`);
+      }
+
+      // Settings → back to defaults for this business only.
+      if (resetGroups.length) {
+        await resetConfigKeys(resetGroups.flatMap(g => g.configKeys));
+        if (deleteSettingsSel.includes('cfg_lists')) {
+          // Device-only copies, otherwise they'd be carried back in.
+          ['product', 'service', 'membership'].forEach(t => saveCustomItemCategories(id, t, []));
+          ['Customer', 'Vendor'].forEach(t => saveCustomCategories(id, t, []));
+        }
+        done.push(`${resetGroups.length} setting group${resetGroups.length > 1 ? 's' : ''} reset`);
+      }
+
+      if (!done.length) {
+        setMsg({ type: 'error', text: 'No records found in the selected data for this business — nothing was deleted.' });
+        setTimeout(() => setMsg({ type: '', text: '' }), 6000);
         return;
       }
-      const deletedCount = deleteManyItems(tableIdMap);
-      setMsg({ type: 'success', text: withBackup ? `Data backed up and ${deletedCount} records deleted successfully.` : `${deletedCount} records deleted successfully.` });
+      setMsg({ type: 'success', text: `${withBackup ? 'Backed up. ' : ''}${done.join(', ')}.` });
     } catch (err) {
       setMsg({ type: 'error', text: 'Deletion failed: ' + (err.message || 'Unknown error') });
     }
@@ -961,6 +1028,7 @@ const SettingsPage = () => {
     { key: 'profile', icon: Building2, label: t('settings.profile') },
     { key: 'features', icon: Package, label: t('settings.features') },
     { key: 'invoice', icon: ReceiptText, label: t('settings.invoice') },
+    { key: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     ...((currentUser || staffSession?.role === 'admin') ? [{ key: 'staff', icon: Users, label: 'Access Control' }] : []),
     ...((currentUser && !staffSession) ? [{ key: 'billing', icon: CreditCard, label: t('settings.billing') }] : []),
     { key: 'appearance', icon: Palette, label: t('settings.appearance') },
@@ -999,7 +1067,7 @@ const SettingsPage = () => {
         ...(config.features?.calculator !== false ? [{ text: t('nav.calculator'), icon: Calculator, path: '/calculator' }] : []),
         ...(config.features?.ledger && canStaff('ledger') ? [{ text: t('nav.ledger'), icon: BookOpen, path: '/ledger' }] : []),
         ...(config.features?.membership && canStaff('membership') ? [{ text: t('nav.membership'), icon: CreditCard, path: '/membership' }] : []),
-        ...(config.features?.opticals && config.businessType === 'opticals' && canStaff('opticals') ? [{ text: t('nav.opticals'), icon: Eye, path: '/opticals' }] : []),
+        ...(config.features?.opticals && canStaff('opticals') ? [{ text: t('nav.opticals'), icon: Eye, path: '/opticals' }] : []),
         ...(config.customSections || []).map(section => ({ text: section.name, icon: LayoutList, path: `/section/${section.id}` })),
       ] },
       { label: t('nav.analytics'), items: [
@@ -1114,7 +1182,7 @@ const SettingsPage = () => {
 
         {/* ── LEFT SIDEBAR (desktop only) ── */}
         {!isMobile && (
-          <Box sx={{ width: 220, flexShrink: 0, position: 'sticky', top: 80 }}>
+          <Box sx={{ width: settingsNav.width, flexShrink: 0, position: 'sticky', top: 80 }}>
             <Box sx={{ bgcolor: '#fff', border: '1px solid #e5e7eb', borderRadius: '16px', overflow: 'hidden', mb: 2 }}>
               {/* Search */}
               <Box sx={{ px: 1.5, pt: 1.5, pb: 0.75 }}>
@@ -1183,6 +1251,7 @@ const SettingsPage = () => {
             </Box>
           </Box>
         )}
+        {!isMobile && <ResizeHandle panel={settingsNav} side="right" label="Resize settings menu" />}
 
         {/* ── CONTENT AREA ── */}
         <Box sx={{ flex: 1, minWidth: 0 }}>
@@ -1406,113 +1475,162 @@ const SettingsPage = () => {
         </Grid>
       </Box>
 
-      {/* ── Features / Modules ── */}
-      <Box sx={{ mb: 4, display: activeTab === 'features' ? 'block' : 'none' }}>
-        <Card elevation={0} sx={{ ...cardSx.sx, mb: 2 }}>
-          <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
-            <Package size={13} color={primary} style={{ opacity: 0.7 }} />
-            <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>Sections & Modules</Typography>
-            <Typography variant="caption" sx={{ color: '#5f4f47', ml: 0.5 }}>
-              — hidden when off · applies to {currentBusiness?.name || 'this business'} only
-            </Typography>
-          </Box>
-          <CardContent sx={{ p: 1.5 }}>
-            {/* Core */}
-            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75 }}>Core</Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 0.5, mb: 1.5 }}>
-              {[
-                { key: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard' },
-                { key: 'parties',    icon: Users,           label: 'Parties' },
-                { key: 'items',      icon: Package,         label: 'Items' },
-                { key: 'pos',        icon: Store,           label: 'POS' },
-                { key: 'sales',      icon: ReceiptText,     label: 'Sales' },
-                { key: 'purchases',  icon: ShoppingBag,     label: 'Purchases' },
-                { key: 'expenses',   icon: DollarSign,      label: 'Expenses' },
-                { key: 'payments',   icon: Download,        label: 'Payments' },
-                { key: 'reports',    icon: FileText,        label: 'Reports' },
-                { key: 'cash',       icon: Wallet,          label: 'Cash & Bank' },
-                { key: 'ledger',     icon: BookOpen,        label: 'Ledger' },
-                { key: 'calculator', icon: Calculator,      label: 'Calculator' },
-                { key: 'backup',     icon: HardDrive,       label: 'Backup' },
-              ].map(({ key, icon: Icon, label }) => {
-                const on = config.features?.[key] !== false;
-                return (
-                  <Box key={key} onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f6efe9' } }}>
-                    <Icon size={13} color={on ? primary : '#5f4f47'} style={{ flexShrink: 0 }} />
-                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#5f4f47', lineHeight: 1.2 }}>{label}</Typography>
-                    <Switch size="small" checked={on} disabled={featuresSaving} onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }} sx={{ transform: 'scale(0.8)', mr: -0.5 }} />
-                  </Box>
-                );
-              })}
+      {/* ── Features & Sections sub-tabs — one area at a time ── */}
+      <Box sx={{ mb: 2, display: activeTab === 'features' ? 'flex' : 'none', gap: 0.5, flexWrap: 'wrap', p: 0.5, borderRadius: '12px', border: '1px solid #e5e7eb', bgcolor: '#fafafa', width: 'fit-content', maxWidth: '100%' }}>
+        {[
+          { key: 'modules', label: 'Modules', icon: LayoutDashboard },
+          { key: 'barcode', label: 'Barcode Label', icon: Barcode, dirty: isDirty.barcode },
+          { key: 'loyalty', label: 'Loyalty', icon: Coins, dirty: isDirty.loyalty },
+          { key: 'gst', label: 'GST Defaults', icon: Percent, dirty: isDirty.gst },
+          { key: 'others', label: 'Others', icon: RefreshCw },
+          { key: 'sections', label: 'Custom Sections', icon: Layers },
+        ].map((tab) => {
+          const on = featSub === tab.key;
+          const pick = () => { setFeatSub(tab.key); if (['barcode', 'loyalty', 'gst', 'others'].includes(tab.key)) setAdvancedTab(tab.key); };
+          return (
+            <Box key={tab.key} role="button" tabIndex={0} onClick={pick}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } }}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.4, py: 0.7, borderRadius: '9px', cursor: 'pointer', userSelect: 'none',
+                fontSize: '0.8rem', fontWeight: on ? 700 : 600, color: on ? '#fff' : '#57433e', bgcolor: on ? primary : 'transparent',
+                transition: 'all 0.12s', '&:hover': { bgcolor: on ? primary : '#f6efe9' } }}>
+              <tab.icon size={14} />{tab.label}
+              {tab.dirty && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: on ? '#fff' : 'warning.main' }} />}
             </Box>
-            <Divider sx={{ my: 1 }} />
-            {/* Optional */}
-            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75, mt: 1 }}>Optional Modules</Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 0.5 }}>
-              {[
-                { key: 'estimates',     icon: FileSearch,   label: 'Estimates' },
-                { key: 'orders',        icon: ClipboardList, label: 'Orders' },
-                { key: 'creditNotes',   icon: RotateCcw,    label: 'Credit Notes' },
-                { key: 'debitNotes',    icon: CornerUpLeft, label: 'Debit Notes' },
-                { key: 'deliveryNotes', icon: Truck,        label: 'Delivery Notes' },
-                { key: 'journal',       icon: BookOpen,     label: 'Journal' },
-                { key: 'membership',    icon: CreditCard,   label: 'Membership' },
-                { key: 'investors',     icon: Handshake,    label: 'Investors' },
-                { key: 'opticals',      icon: Eye,          label: 'Opticals' },
-                { key: 'barcode',       icon: Barcode,      label: 'Barcodes' },
-                { key: 'staff',         icon: Users,        label: 'Staff Mgmt' },
-              ].map(({ key, icon: Icon, label }) => {
-                const on = !!config.features?.[key];
-                return (
-                  <Box key={key} onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f6efe9' } }}>
-                    <Icon size={13} color={on ? primary : '#5f4f47'} style={{ flexShrink: 0 }} />
-                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#5f4f47', lineHeight: 1.2 }}>{label}</Typography>
-                    <Switch size="small" checked={on} disabled={featuresSaving} onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }} sx={{ transform: 'scale(0.8)', mr: -0.5 }} />
-                  </Box>
-                );
-              })}
-            </Box>
-            <Divider sx={{ my: 1 }} />
-            {/* Sales & POS options */}
-            <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.75, mt: 1 }}>Sales & POS Options</Typography>
-            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: 0.5 }}>
-              {[
-                { key: 'customerPreview',        icon: Users,       label: 'Customer Preview Panel' },
-                { key: 'unitColumn',              icon: LayoutList,  label: 'Unit Column' },
-                { key: 'billPaymentStatusChip',   icon: ReceiptText, label: 'Paid/Unpaid Chip on Bills' },
-                { key: 'referenceImages',         icon: Image,       label: 'Reference Images on Bills', off: true },
-                { key: 'packingCharges',          icon: Package,     label: 'Packing Charges' },
-                { key: 'shippingCharges',          icon: Truck,       label: 'Shipping Charges' },
-              ].map(({ key, icon: Icon, label, off }) => {
-                // `off: true` entries (referenceImages) default OFF — only
-                // "on" once explicitly enabled. Everything else here keeps
-                // the existing default-ON-unless-explicitly-false behavior.
-                const on = off ? config.features?.[key] === true : config.features?.[key] !== false;
-                return (
-                  <Box key={key} onClick={() => !featuresSaving && handleFeatureToggle(key, !on)}
-                    sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1.25, py: 0.75, borderRadius: '8px', border: '1px solid #e5e7eb', bgcolor: on ? alpha(primary, 0.04) : '#fafafa', cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s', '&:hover': { bgcolor: on ? alpha(primary, 0.07) : '#f6efe9' } }}>
-                    <Icon size={13} color={on ? primary : '#5f4f47'} style={{ flexShrink: 0 }} />
-                    <Typography sx={{ flex: 1, fontWeight: 600, fontSize: '0.8rem', color: on ? '#3f1417' : '#5f4f47', lineHeight: 1.2 }}>{label}</Typography>
-                    <Switch size="small" checked={on} disabled={featuresSaving} onChange={e => { e.stopPropagation(); handleFeatureToggle(key, e.target.checked); }} sx={{ transform: 'scale(0.8)', mr: -0.5 }} />
-                  </Box>
-                );
-              })}
-            </Box>
-          </CardContent>
-        </Card>
+          );
+        })}
       </Box>
 
-      {/* ── Barcode / Loyalty / GST Defaults — tabbed card ── */}
-      <Box sx={{ mb: 2, display: activeTab === 'features' ? 'block' : 'none' }}>
+      {/* ── Modules ── */}
+      <Box sx={{ mb: 2, display: activeTab === 'features' && featSub === 'modules' ? 'block' : 'none' }}>
+        {(() => {
+          // `def: 'off'` modules are off until switched on; the rest are on unless switched off.
+          const GROUPS = [
+            { title: 'Core', items: [
+              { key: 'dashboard',  icon: LayoutDashboard, label: 'Dashboard',   desc: 'KPIs, charts and activity' },
+              { key: 'parties',    icon: Users,           label: 'Parties',     desc: 'Customers and vendors' },
+              { key: 'items',      icon: Package,         label: 'Items',       desc: 'Products, stock and prices' },
+              { key: 'pos',        icon: Store,           label: 'POS',         desc: 'Quick counter billing' },
+              { key: 'sales',      icon: ReceiptText,     label: 'Sales',       desc: 'Sales invoices' },
+              { key: 'purchases',  icon: ShoppingBag,     label: 'Purchases',   desc: 'Purchase bills' },
+              { key: 'expenses',   icon: DollarSign,      label: 'Expenses',    desc: 'Business expenses' },
+              { key: 'payments',   icon: Download,        label: 'Payments',    desc: 'Payment in / out' },
+              { key: 'reports',    icon: FileText,        label: 'Reports',     desc: 'Sales, GST, P&L and more' },
+              { key: 'cash',       icon: Wallet,          label: 'Cash & Bank', desc: 'Cash book and bank book' },
+              { key: 'ledger',     icon: BookOpen,        label: 'Ledger',      desc: 'Party-wise statement' },
+              { key: 'calculator', icon: Calculator,      label: 'Calculator',  desc: 'Quick calculator' },
+              { key: 'backup',     icon: HardDrive,       label: 'Backup',      desc: 'Backup and restore' },
+            ] },
+            { title: 'Optional modules', items: [
+              { key: 'estimates',     icon: FileSearch,    label: 'Estimates',      desc: 'Quotations you can convert to sales', def: 'off' },
+              { key: 'orders',        icon: ClipboardList, label: 'Orders',         desc: 'Customer orders with delivery status', def: 'off' },
+              { key: 'creditNotes',   icon: RotateCcw,     label: 'Credit Notes',   desc: 'Sales returns', def: 'off' },
+              { key: 'debitNotes',    icon: CornerUpLeft,  label: 'Debit Notes',    desc: 'Purchase returns', def: 'off' },
+              { key: 'deliveryNotes', icon: Truck,         label: 'Delivery Notes', desc: 'Dispatch / delivery challans', def: 'off' },
+              { key: 'journal',       icon: BookOpen,      label: 'Journal',        desc: 'Manual journal entries', def: 'off' },
+              { key: 'membership',    icon: CreditCard,    label: 'Membership',     desc: 'Plans and member tracking', def: 'off' },
+              { key: 'investors',     icon: Handshake,     label: 'Investors',      desc: 'Investor capital and returns', def: 'off' },
+              { key: 'opticals',      icon: Eye,           label: 'Opticals',       desc: 'Eye exams and optical orders', def: 'off' },
+              { key: 'barcode',       icon: Barcode,       label: 'Barcodes',       desc: 'Barcode / QR scanning and labels', def: 'off' },
+              { key: 'staff',         icon: Users,         label: 'Staff Mgmt',     desc: 'Attendance and salary', def: 'off' },
+            ] },
+            { title: 'Sales & POS options', items: [
+              { key: 'multiTabSales',         icon: Layers,        label: 'Multi-tab Sales',     desc: 'Open several invoices / bills at once in tabs' },
+              { key: 'multiTabPOS',           icon: Store,         label: 'Multi-tab POS',       desc: 'Serve several customers at once in POS tabs' },
+              { key: 'multiTabEstimates',     icon: Layers,        label: 'Multi-tab Estimates', desc: 'Work on several estimates at once in tabs' },
+              { key: 'customerPreview',       icon: Users,         label: 'Customer Preview',    desc: 'Customer panel with history on Sales / POS' },
+              { key: 'unitColumn',            icon: LayoutList,    label: 'Unit Column',         desc: 'Unit picker on invoice rows' },
+              { key: 'itemRowSummary',        icon: Eye,           label: 'Item Summary',        desc: 'Stock, price and margin under each invoice row' },
+              { key: 'billPaymentStatusChip', icon: ReceiptText,   label: 'Paid/Unpaid Chip',    desc: 'Status chip and row colour on bills' },
+              { key: 'referenceImages',       icon: Image,         label: 'Reference Images',    desc: 'Attach photos to bills (this device only)', def: 'off' },
+              { key: 'packingCharges',        icon: Package,       label: 'Packing Charges',     desc: 'Packing charge field on invoices' },
+              { key: 'shippingCharges',       icon: Truck,         label: 'Shipping Charges',    desc: 'Shipping charge field on invoices' },
+              { key: 'alertExpired',          icon: AlertTriangle, label: 'Expired Item Alert',  desc: 'Warn when billing an expired batch' },
+            ] },
+          ];
+          const isOn = (it) => (it.def === 'off' ? config.features?.[it.key] === true : config.features?.[it.key] !== false);
+          const q = moduleSearch.trim().toLowerCase();
+          const match = (it) => !q || it.label.toLowerCase().includes(q) || it.desc.toLowerCase().includes(q);
+          const totalOn = GROUPS.reduce((n, g) => n + g.items.filter(isOn).length, 0);
+          const total = GROUPS.reduce((n, g) => n + g.items.length, 0);
+          return (
+            <Card elevation={0} sx={{ ...cardSx.sx }}>
+              <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1.25, flexWrap: 'wrap' }}>
+                <Box sx={{ flex: 1, minWidth: 180 }}>
+                  <Typography sx={{ fontWeight: 700, fontSize: '0.9rem' }}>Sections & Modules</Typography>
+                  <Typography variant="caption" sx={{ color: '#5f4f47' }}>
+                    {totalOn} of {total} on · turned-off sections are hidden · applies to {currentBusiness?.name || 'this business'} only
+                  </Typography>
+                </Box>
+                <TextField size="small" placeholder="Search modules…" value={moduleSearch} onChange={(e) => setModuleSearch(e.target.value)}
+                  slotProps={{ input: { startAdornment: <InputAdornment position="start"><Search size={14} /></InputAdornment> } }}
+                  sx={{ ...fieldSx, width: { xs: '100%', sm: 220 } }} />
+              </Box>
+              <CardContent sx={{ p: 1.5, '&:last-child': { pb: 1.5 } }}>
+                {GROUPS.map((g) => {
+                  const items = g.items.filter(match);
+                  if (!items.length) return null;
+                  const onCount = g.items.filter(isOn).length;
+                  return (
+                    <Box key={g.title} sx={{ mb: 1.5, '&:last-child': { mb: 0 } }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 0.75 }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.68rem', color: '#57433e', textTransform: 'uppercase', letterSpacing: '0.07em' }}>{g.title}</Typography>
+                        <Chip size="small" label={`${onCount}/${g.items.length} on`} sx={{ height: 18, fontSize: '0.64rem', fontWeight: 700, bgcolor: alpha(primary, 0.08), color: primary }} />
+                        <Box sx={{ flex: 1, height: '1px', bgcolor: '#f6efe9' }} />
+                        {!q && (
+                          <>
+                            <Button size="small" disabled={featuresSaving || onCount === g.items.length} onClick={() => handleFeaturesBulk(Object.fromEntries(g.items.map((it) => [it.key, true])))}
+                              sx={{ textTransform: 'none', fontSize: '0.7rem', minWidth: 0, px: 0.75, py: 0 }}>All on</Button>
+                            <Button size="small" color="inherit" disabled={featuresSaving || onCount === 0} onClick={() => handleFeaturesBulk(Object.fromEntries(g.items.map((it) => [it.key, false])))}
+                              sx={{ textTransform: 'none', fontSize: '0.7rem', minWidth: 0, px: 0.75, py: 0, color: '#5f4f47' }}>All off</Button>
+                          </>
+                        )}
+                      </Box>
+                      <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: 0.5 }}>
+                        {items.map((it) => {
+                          const on = isOn(it);
+                          return (
+                            <Box key={it.key} role="switch" aria-checked={on} tabIndex={0}
+                              onClick={() => !featuresSaving && handleFeatureToggle(it.key, !on)}
+                              onKeyDown={(e) => { if ((e.key === 'Enter' || e.key === ' ') && !featuresSaving) { e.preventDefault(); handleFeatureToggle(it.key, !on); } }}
+                              sx={{ display: 'flex', alignItems: 'center', gap: 1, pl: 1, pr: 0.25, py: 0.4, borderRadius: '8px', border: '1px solid',
+                                borderColor: on ? alpha(primary, 0.28) : '#eef0f2', bgcolor: on ? alpha(primary, 0.045) : '#fff',
+                                cursor: featuresSaving ? 'default' : 'pointer', transition: 'all 0.12s',
+                                '&:hover': { borderColor: alpha(primary, 0.45) }, '&:focus-visible': { outline: `2px solid ${primary}`, outlineOffset: 1 } }}>
+                              <Box sx={{ width: 26, height: 26, borderRadius: '7px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                                bgcolor: on ? alpha(primary, 0.12) : '#f4f5f7', color: on ? primary : '#9ca3af' }}>
+                                <it.icon size={14} />
+                              </Box>
+                              <Box sx={{ flex: 1, minWidth: 0 }}>
+                                <Typography noWrap sx={{ fontWeight: 700, fontSize: '0.8rem', color: on ? '#3f1417' : '#57433e', lineHeight: 1.25 }}>{it.label}</Typography>
+                                <Typography noWrap sx={{ fontSize: '0.68rem', color: '#5f4f47', lineHeight: 1.25 }}>{it.desc}</Typography>
+                              </Box>
+                              <Switch size="small" checked={on} disabled={featuresSaving} onClick={(e) => e.stopPropagation()} onChange={(e) => handleFeatureToggle(it.key, e.target.checked)} sx={{ transform: 'scale(0.8)', flexShrink: 0 }} />
+                            </Box>
+                          );
+                        })}
+                      </Box>
+                    </Box>
+                  );
+                })}
+                {q && GROUPS.every((g) => !g.items.some(match)) && (
+                  <Typography sx={{ fontSize: '0.8rem', color: 'text.disabled', py: 2, textAlign: 'center' }}>No module matches “{moduleSearch}”.</Typography>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })()}
+      </Box>
+
+      {/* ── Barcode / Loyalty / GST Defaults / Others — picked from the sub-tabs above ── */}
+      <Box sx={{ mb: 2, display: activeTab === 'features' && ['barcode', 'loyalty', 'gst', 'others'].includes(featSub) ? 'block' : 'none' }}>
         <Card elevation={0} sx={{ ...cardSx.sx }}>
-          {/* Tab pills */}
-          <Box sx={{ px: 2, pt: 1.25, pb: 0, borderBottom: '1px solid #f6efe9', display: 'flex', gap: 0.5 }}>
+          {/* Former in-card tab pills — now driven by the Features sub-tabs */}
+          <Box sx={{ display: 'none' }}>
             {[
               { key: 'barcode', icon: Barcode, label: 'Barcode Label', dirty: isDirty.barcode },
               { key: 'loyalty', icon: Coins, label: 'Loyalty Points', dirty: isDirty.loyalty },
               { key: 'gst', icon: Percent, label: 'GST Defaults', dirty: isDirty.gst },
+              { key: 'others', icon: RefreshCw, label: 'Others', dirty: isDirty.gst },
             ].map(({ key, icon: Icon, label, dirty }) => (
               <Box key={key} onClick={() => setAdvancedTab(key)}
                 sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, cursor: 'pointer', borderBottom: advancedTab === key ? `2px solid ${primary}` : '2px solid transparent', color: advancedTab === key ? primary : '#57433e', transition: 'all 0.15s', '&:hover': { color: primary } }}>
@@ -1551,22 +1669,157 @@ const SettingsPage = () => {
             };
             const handleDrop = () => { barcodeDragKeyRef.current = null; };
 
-            const sizeEntry = LABEL_SIZES.find(s => s.key === (barcodeEff.defaultLabelSize || 'standard')) || LABEL_SIZES[0];
+            const sizeEntry = resolveLabelEntry(barcodeEff);
             const sizeConfig = buildSizeConfig(sizeEntry, contentScale, codeScale);
             const previewSizeConfig = { ...sizeConfig, width: 'auto', height: 'auto' };
             const sampleItem = {
               name: 'Sample Item', itemCode: 'ITM-001', category: 'General',
               mrp: 499, salePrice: 399, barcode: '8901234567890', hsnCode: '6109',
               size: 'M', variant: 'Blue', _businessName: currentBusiness?.name || 'My Business',
+              barcodeExtraFields: [{ label: 'Pkd', value: '09/2026' }],
             };
             const lblWithOrder = { ...barcodeEff, fieldOrder, fieldStyles, fieldLabels };
             const codeType = barcodeEff.codeType === 'qr' ? 'qr' : 'barcode';
+            const isCustomLayout = barcodeEff.layoutMode === 'custom';
+            const capsLabel = { fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.65rem' };
+
+            // Layout mode switch — Simple (automatic stacked layout) vs Custom
+            // (free-form designer). First switch to Custom seeds the designer
+            // from the current simple settings so it starts from something familiar.
+            const layoutModeSwitch = (
+              <Box sx={{ mb: 2 }}>
+                <Typography variant="caption" sx={capsLabel}>Layout</Typography>
+                <Box sx={{ display: 'flex', gap: 0.75, maxWidth: 520 }}>
+                  {[
+                    { value: 'simple', label: 'Simple', desc: 'Pick fields, the layout arranges itself' },
+                    { value: 'custom', label: 'Custom designer', desc: 'Drag, resize and place every element' },
+                  ].map((m) => {
+                    const active = (isCustomLayout ? 'custom' : 'simple') === m.value;
+                    return (
+                      <Box key={m.value}
+                        onClick={() => {
+                          if (m.value === 'custom') {
+                            setBc({ layoutMode: 'custom', ...(barcodeEff.customLayout?.elements?.length ? {} : { customLayout: templateLayout(barcodeEff, sizeEntry.widthMm, sizeEntry.heightMm) }) });
+                          } else setBc({ layoutMode: 'simple' });
+                        }}
+                        sx={{ flex: 1, px: 1.5, py: 1, borderRadius: 1.5, cursor: 'pointer', border: '1.5px solid', transition: 'all 0.12s',
+                          borderColor: active ? primary : 'divider', bgcolor: active ? alpha(primary, 0.08) : 'transparent',
+                          '&:hover': { borderColor: primary } }}>
+                        <Typography sx={{ fontWeight: 700, fontSize: '0.82rem', color: active ? primary : 'text.primary' }}>{m.label}</Typography>
+                        <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary' }}>{m.desc}</Typography>
+                      </Box>
+                    );
+                  })}
+                </Box>
+              </Box>
+            );
+
+            const sizeSelect = (
+              <Box sx={{ display: 'flex', gap: 1, flex: 1, minWidth: 220 }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5 }}>Label Size</Typography>
+                  <TextField select size="small" fullWidth value={barcodeEff.defaultLabelSize || 'standard'}
+                    onChange={e => setBc({ defaultLabelSize: e.target.value })} sx={fieldSx}>
+                    {LABEL_SIZES.map(s => <MenuItem key={s.key} value={s.key}>{s.label}</MenuItem>)}
+                  </TextField>
+                </Box>
+                {barcodeEff.defaultLabelSize === 'custom' && (
+                  <>
+                    <Box sx={{ width: 78 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5 }}>W (mm)</Typography>
+                      <TextField type="number" size="small" fullWidth value={barcodeEff.customWidthMm ?? 50}
+                        onChange={e => setBc({ customWidthMm: e.target.value })} inputProps={{ min: 10, max: 300 }} sx={fieldSx} />
+                    </Box>
+                    <Box sx={{ width: 78 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5 }}>H (mm)</Typography>
+                      <TextField type="number" size="small" fullWidth value={barcodeEff.customHeightMm ?? 25}
+                        onChange={e => setBc({ customHeightMm: e.target.value })} inputProps={{ min: 8, max: 300 }} sx={fieldSx} />
+                    </Box>
+                  </>
+                )}
+              </Box>
+            );
+
+            const saveRow = (
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 2 }}>
+                {isDirty.barcode && <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600, mr: 'auto', alignSelf: 'center' }}>Unsaved</Typography>}
+                <Button size="small" variant="outlined" disabled={!isDirty.barcode} onClick={() => setBarcodeDraft(null)} sx={{ textTransform: 'none', borderRadius: '8px' }}>Discard</Button>
+                <Button size="small" variant="contained" disabled={!isDirty.barcode || savingSection === 'barcode'} onClick={() => saveSection('barcode')}
+                  startIcon={savingSection === 'barcode' ? <CircularProgress size={13} color="inherit" /> : <Save size={13} />}
+                  sx={{ ...gradBtnSx, textTransform: 'none' }}>Save</Button>
+              </Box>
+            );
+
+            if (isCustomLayout) {
+              return (
+                <CardContent sx={{ p: 2 }}>
+                  {layoutModeSwitch}
+                  <Box sx={{ display: 'flex', gap: 1.5, flexWrap: 'wrap', alignItems: 'flex-end', mb: 2 }}>
+                    {sizeSelect}
+                    <Box sx={{ width: 90 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5 }}>Columns</Typography>
+                      <TextField type="number" size="small" fullWidth value={barcodeEff.columns || 1}
+                        onChange={e => { const v = e.target.value; setBc({ columns: v === '' ? '' : Math.max(1, Math.min(8, Number(v) || 1)) }); }}
+                        onBlur={() => setBc({ columns: Math.max(1, Math.min(8, Number(barcodeEff.columns) || 1)) })}
+                        inputProps={{ min: 1, max: 8 }} sx={fieldSx} />
+                    </Box>
+                    <Box sx={{ width: 90 }}>
+                      <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5 }}>Copies</Typography>
+                      <TextField type="number" size="small" fullWidth value={barcodeEff.copies || 1}
+                        onChange={e => { const v = e.target.value; setBc({ copies: v === '' ? '' : Math.max(1, Math.min(500, Number(v) || 1)) }); }}
+                        onBlur={() => setBc({ copies: Math.max(1, Math.min(500, Number(barcodeEff.copies) || 1)) })}
+                        inputProps={{ min: 1, max: 500 }} sx={fieldSx} />
+                    </Box>
+                    <Box sx={{ width: 120 }}>
+                      <TextField select label="Label border" size="small" fullWidth value={barcodeEff.borderStyle || 'solid'}
+                        onChange={e => setBc({ borderStyle: e.target.value })} sx={fieldSx}>
+                        {BORDER_STYLES.map(o => <MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>)}
+                      </TextField>
+                    </Box>
+                    <Box sx={{ display: 'flex', gap: 1 }}>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Background</Typography>
+                        <input type="color" value={barcodeEff.backgroundColor || '#ffffff'} onChange={e => setBc({ backgroundColor: e.target.value })}
+                          style={{ width: 52, height: 36, border: '1px solid #ccc', borderRadius: 6, cursor: 'pointer', padding: 2 }} />
+                      </Box>
+                      <Box>
+                        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 0.5 }}>Text colour</Typography>
+                        <input type="color" value={barcodeEff.textColor || '#000000'} onChange={e => setBc({ textColor: e.target.value })}
+                          style={{ width: 52, height: 36, border: '1px solid #ccc', borderRadius: 6, cursor: 'pointer', padding: 2 }} />
+                      </Box>
+                    </Box>
+                  </Box>
+
+                  <LabelDesigner
+                    widthMm={sizeEntry.widthMm}
+                    heightMm={sizeEntry.heightMm}
+                    layout={barcodeEff.customLayout || { elements: [] }}
+                    onChange={(next) => setBc({ customLayout: next })}
+                    onResetTemplate={() => setBc({ customLayout: templateLayout(barcodeEff, sizeEntry.widthMm, sizeEntry.heightMm) })}
+                    item={sampleItem}
+                    lbl={barcodeEff}
+                    primary={primary}
+                  />
+
+                  <Box sx={{ mt: 2, maxWidth: 520 }}>
+                    <ToggleRow
+                      label="Auto Print Barcodes"
+                      desc="After saving a purchase, opens a print popup for that bill's items instead of the invoice preview"
+                      checked={barcodeEff.autoPrintAfterPurchase === true}
+                      onChange={v => setBc({ autoPrintAfterPurchase: v })}
+                    />
+                  </Box>
+                  {saveRow}
+                </CardContent>
+              );
+            }
 
             return (
               <CardContent sx={{ p: 2 }}>
                 <Box sx={{ display: 'flex', gap: 2.5, flexDirection: { xs: 'column', md: 'row' } }}>
                   {/* Left: all settings */}
                   <Box sx={{ flex: 1, minWidth: 0 }}>
+                    {layoutModeSwitch}
                     <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.65rem' }}>Code Type</Typography>
                     <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5 }}>
                       {[{ value: 'barcode', label: 'Barcode', icon: Barcode }, { value: 'qr', label: 'QR Code', icon: QrCode }].map((tile) => {
@@ -1601,14 +1854,18 @@ const SettingsPage = () => {
                       })}
                     </Box>
 
+                    <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5, textTransform: 'uppercase', letterSpacing: '0.06em', fontSize: '0.65rem' }}>Print Behavior</Typography>
+                    <Box sx={{ mb: 1.5 }}>
+                      <ToggleRow
+                        label="Auto Print Barcodes"
+                        desc="After saving a purchase, opens a print popup for that bill's items instead of the invoice preview"
+                        checked={barcodeEff.autoPrintAfterPurchase === true}
+                        onChange={v => setBc({ autoPrintAfterPurchase: v })}
+                      />
+                    </Box>
+
                     <Box sx={{ display: 'flex', gap: 1.5, mb: 1.5 }}>
-                      <Box sx={{ flex: 1 }}>
-                        <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5 }}>Default Size</Typography>
-                        <TextField select size="small" fullWidth value={barcodeEff.defaultLabelSize || 'standard'}
-                          onChange={e => setBc({ defaultLabelSize: e.target.value })} sx={fieldSx}>
-                          {LABEL_SIZES.map(s => <MenuItem key={s.key} value={s.key}>{s.label}</MenuItem>)}
-                        </TextField>
-                      </Box>
+                      {sizeSelect}
                       <Box sx={{ width: 100 }}>
                         <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.5 }}>Columns</Typography>
                         <TextField type="number" size="small" fullWidth value={barcodeEff.columns || 1}
@@ -1742,9 +1999,9 @@ const SettingsPage = () => {
                                   { val: 'xs', label: 'XS' }, { val: 'sm', label: 'S' }, { val: 'md', label: 'M' },
                                   { val: 'lg', label: 'L' }, { val: 'xl', label: 'XL' }, { val: '2xl', label: '2XL' },
                                 ].map(({ val: sz, label }) => {
-                                  const active = sizeVal === sz || (sz === 'md' && (sizeVal === 'medium' || !sizeVal));
+                                  const active = !(Number(fst.fontPt) > 0) && (sizeVal === sz || (sz === 'md' && (sizeVal === 'medium' || !sizeVal)));
                                   return (
-                                    <Box key={sz} onClick={() => setFieldStyle(key, 'size', sz)}
+                                    <Box key={sz} onClick={() => setBc({ fieldStyles: { ...fieldStyles, [key]: { ...(fieldStyles[key] || {}), size: sz, fontPt: '' } } })}
                                       sx={{
                                         flex: '1 0 auto', textAlign: 'center', py: 0.35, px: 0.5, borderRadius: 1.5, cursor: 'pointer',
                                         border: '1px solid', fontSize: '0.62rem',
@@ -1758,6 +2015,12 @@ const SettingsPage = () => {
                                   );
                                 })}
                               </Box>
+                              <TextField size="small" type="number" fullWidth label="Exact font size" placeholder="Use the size above"
+                                value={fst.fontPt ?? ''}
+                                onChange={e => setFieldStyle(key, 'fontPt', e.target.value === '' ? '' : Math.min(72, Math.max(3, Number(e.target.value) || 0)))}
+                                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: 3, max: 72, step: 0.5 }, input: { endAdornment: <InputAdornment position="end">pt</InputAdornment> } }}
+                                helperText="Overrides the XS–2XL size. Leave blank to use it."
+                                sx={{ mb: 1, '& .MuiInputBase-input': { fontSize: '0.78rem' } }} />
                               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: 600, flexShrink: 0 }}>Color</Typography>
                                 <input type="color" value={colorVal || barcodeEff.textColor || '#000000'} onChange={e => setFieldStyle(key, 'color', e.target.value)}
@@ -1785,13 +2048,7 @@ const SettingsPage = () => {
                   </Box>
                 </Box>
 
-                <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 2 }}>
-                  {isDirty.barcode && <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600, mr: 'auto', alignSelf: 'center' }}>Unsaved</Typography>}
-                  <Button size="small" variant="outlined" disabled={!isDirty.barcode} onClick={() => setBarcodeDraft(null)} sx={{ textTransform: 'none', borderRadius: '8px' }}>Discard</Button>
-                  <Button size="small" variant="contained" disabled={!isDirty.barcode || savingSection === 'barcode'} onClick={() => saveSection('barcode')}
-                    startIcon={savingSection === 'barcode' ? <CircularProgress size={13} color="inherit" /> : <Save size={13} />}
-                    sx={{ ...gradBtnSx, textTransform: 'none' }}>Save</Button>
-                </Box>
+                {saveRow}
               </CardContent>
             );
           })()}
@@ -1920,6 +2177,34 @@ const SettingsPage = () => {
                     <ToggleRow label="Price inclusive" desc="Sale price includes GST"
                       checked={gstEff.taxInclusive ?? false} onChange={v => setGstDefaultsDraft(d => ({ ...(d ?? config.itemDefaults ?? {}), taxInclusive: v }))} />
                   </>
+                )}
+              </Box>
+              <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1.5 }}>
+                {isDirty.gst && <Typography variant="caption" sx={{ color: 'warning.main', fontWeight: 600, mr: 'auto', alignSelf: 'center' }}>Unsaved</Typography>}
+                <Button size="small" variant="outlined" disabled={!isDirty.gst} onClick={() => setGstDefaultsDraft(null)} sx={{ textTransform: 'none', borderRadius: '8px' }}>Discard</Button>
+                <Button size="small" variant="contained" disabled={!isDirty.gst || savingSection === 'gst'} onClick={() => saveSection('gst')}
+                  startIcon={savingSection === 'gst' ? <CircularProgress size={13} color="inherit" /> : <Save size={13} />}
+                  sx={{ ...gradBtnSx, textTransform: 'none' }}>Save</Button>
+              </Box>
+            </CardContent>
+          )}
+
+          {/* Others tab — misc item-pricing behaviors that don't belong under
+              GST Defaults specifically. Shares the same config.itemDefaults
+              object/draft/save plumbing as the GST tab (both save via
+              saveSection('gst')) since there's no reason for a second config
+              namespace just for two toggles. */}
+          {advancedTab === 'others' && (
+            <CardContent sx={{ p: 2 }}>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1.25 }}>
+                <ToggleRow label="Auto-update sale rate" desc="When saving a Sales invoice with a changed price, update the item's sale price to match"
+                  checked={gstEff.autoUpdateSalePrice ?? false} onChange={v => setGstDefaultsDraft(d => ({ ...(d ?? config.itemDefaults ?? {}), autoUpdateSalePrice: v }))} />
+                <ToggleRow label="Auto-update purchase rate" desc="When saving a Purchase bill with a changed price, update the item's purchase price to match"
+                  checked={gstEff.autoUpdatePurchasePrice ?? false} onChange={v => setGstDefaultsDraft(d => ({ ...(d ?? config.itemDefaults ?? {}), autoUpdatePurchasePrice: v }))} />
+                {(gstEff.autoUpdateSalePrice || gstEff.autoUpdatePurchasePrice) && (
+                  <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+                    Only applies when the rate typed on the bill is different from the item's current price — the item master is updated the moment the bill is saved. Leaving the price unchanged never rewrites anything.
+                  </Typography>
                 )}
               </Box>
               <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', mt: 1.5 }}>
@@ -2249,7 +2534,7 @@ const SettingsPage = () => {
 
         </Box>}
 
-      <Box sx={{ mb: 2, display: activeTab === 'features' ? 'block' : 'none' }}>
+      <Box sx={{ mb: 2, display: activeTab === 'features' && featSub === 'sections' ? 'block' : 'none' }}>
         <Card elevation={0} sx={{ ...cardSx.sx }}>
           <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
             <Package size={13} color={primary} style={{ opacity: 0.7 }} />
@@ -2264,8 +2549,31 @@ const SettingsPage = () => {
         </Card>
       </Box>
 
+      {/* ── Invoice & Lists sub-tabs — one area at a time instead of one long page ── */}
+      <Box sx={{ mb: 2, display: activeTab === 'invoice' ? 'flex' : 'none', gap: 0.75, flexWrap: 'wrap', p: 0.5, borderRadius: '12px', border: '1px solid #e5e7eb', bgcolor: '#fafafa', width: 'fit-content', maxWidth: '100%' }}>
+        {[
+          { key: 'print', label: 'Print & Layout', icon: Printer },
+          { key: 'numbering', label: 'Numbering & Defaults', icon: Hash },
+          { key: 'lists', label: 'Lists & Categories', icon: BookOpen },
+        ].map((tab) => {
+          const { key, label } = tab;
+          const on = invoiceSub === key;
+          return (
+            <Box key={key} role="button" tabIndex={0} onClick={() => setInvoiceSub(key)}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setInvoiceSub(key); } }}
+              sx={{ display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, borderRadius: '9px', cursor: 'pointer', userSelect: 'none',
+                fontSize: '0.82rem', fontWeight: on ? 700 : 600, color: on ? '#fff' : '#57433e', bgcolor: on ? primary : 'transparent',
+                transition: 'all 0.12s', '&:hover': { bgcolor: on ? primary : '#f6efe9' } }}>
+              <tab.icon size={14} />{label}
+              {key === 'numbering' && isDirty.invoiceNum && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: on ? '#fff' : 'warning.main' }} />}
+              {key === 'print' && isDirty.printOpts && <Box sx={{ width: 6, height: 6, borderRadius: '50%', bgcolor: on ? '#fff' : 'warning.main' }} />}
+            </Box>
+          );
+        })}
+      </Box>
+
       {/* ── Lists & Categories ── */}
-      <Box sx={{ mb: 2, display: activeTab === 'invoice' ? 'block' : 'none' }}>
+      <Box sx={{ mb: 2, display: activeTab === 'invoice' && invoiceSub === 'lists' ? 'block' : 'none' }}>
         <SH icon={BookOpen} title="Lists & Categories" subtitle="Reusable categories and units picked from dropdowns across Expenses and Items" />
         <Card elevation={0} sx={{ ...cardSx.sx }}>
           <Grid container>
@@ -2339,7 +2647,7 @@ const SettingsPage = () => {
       </Box>
 
       {/* ── Sale Type Defaults + Invoice Numbering (combined compact card) ── */}
-      <Box sx={{ mb: 2, display: activeTab === 'invoice' ? 'block' : 'none' }}>
+      <Box sx={{ mb: 2, display: activeTab === 'invoice' && invoiceSub === 'numbering' ? 'block' : 'none' }}>
         <SH icon={ReceiptText} title="Sale Defaults & Numbering" subtitle="Default payment type per module, and the invoice/note number format for each document type" />
         <Card elevation={0} sx={{ ...cardSx.sx }}>
           <CardContent sx={{ p: 2.25 }}>
@@ -2370,57 +2678,61 @@ const SettingsPage = () => {
               ))}
             </Grid>
 
-            {/* Invoice Numbering */}
+            {/* Invoice Numbering — one compact row per document type */}
             <Box sx={{ pt: 1.5, borderTop: '1px solid #f6efe9' }}>
-              <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#57433e', mb: 1.25, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Numbering</Typography>
-              <Grid container spacing={1.5}>
-                {[
-                  { label: 'Sales', typeKey: 'salesType', prefixKey: 'salesPrefix', numKey: 'salesStartingNumber', prefixDef: 'INV', resetKey: 'salesCounterOverride' },
-                  { label: 'Purchases', typeKey: 'purchaseType', prefixKey: 'purchasePrefix', numKey: 'purchaseStartingNumber', prefixDef: 'BILL', resetKey: 'purchaseCounterOverride' },
-                  { label: 'Estimates', typeKey: null, prefixKey: 'estimatePrefix', numKey: 'estimateStartingNumber', prefixDef: 'EST', resetKey: 'estimateCounterOverride' },
-                  { label: 'Credit Notes', typeKey: null, prefixKey: 'creditNotePrefix', numKey: 'creditNoteStartingNumber', prefixDef: 'CN', resetKey: 'creditNoteCounterOverride' },
-                  { label: 'Debit Notes', typeKey: null, prefixKey: 'debitNotePrefix', numKey: 'debitNoteStartingNumber', prefixDef: 'DBN', resetKey: 'debitNoteCounterOverride' },
-                  { label: 'Delivery Notes', typeKey: null, prefixKey: 'deliveryNotePrefix', numKey: 'deliveryNoteStartingNumber', prefixDef: 'DLV', resetKey: 'deliveryNoteCounterOverride' },
-                ].map(({ label, typeKey, prefixKey, numKey, prefixDef, resetKey }) => (
-                  <Grid key={label} size={{ xs: 12, md: 6 }}>
-                    <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: '#374151', mb: 0.75 }}>{label}</Typography>
-                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.75 }}>
-                      {typeKey && <FormControl fullWidth size="small" sx={fieldSx}>
-                        <InputLabel>Number Type</InputLabel>
-                        <Select label="Number Type" value={invoiceNumEff[typeKey] || 'auto'}
+              <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#57433e', mb: 1, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Numbering</Typography>
+              <Box sx={{ overflowX: 'auto' }}>
+                <Box sx={{ minWidth: 560 }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: '120px 150px 1fr 100px 110px 36px', gap: 1, px: 0.5, pb: 0.5, borderBottom: '1px solid #f6efe9' }}>
+                    {['Document', 'Number type', 'Prefix', 'Start #', 'Preview', ''].map((h) => (
+                      <Typography key={h} sx={{ fontSize: '0.66rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</Typography>
+                    ))}
+                  </Box>
+                  {[
+                    { label: 'Sales', typeKey: 'salesType', prefixKey: 'salesPrefix', numKey: 'salesStartingNumber', prefixDef: 'INV', resetKey: 'salesCounterOverride' },
+                    { label: 'Purchases', typeKey: 'purchaseType', prefixKey: 'purchasePrefix', numKey: 'purchaseStartingNumber', prefixDef: 'BILL', resetKey: 'purchaseCounterOverride' },
+                    { label: 'Estimates', typeKey: null, prefixKey: 'estimatePrefix', numKey: 'estimateStartingNumber', prefixDef: 'EST', resetKey: 'estimateCounterOverride' },
+                    { label: 'Credit Notes', typeKey: null, prefixKey: 'creditNotePrefix', numKey: 'creditNoteStartingNumber', prefixDef: 'CN', resetKey: 'creditNoteCounterOverride' },
+                    { label: 'Debit Notes', typeKey: null, prefixKey: 'debitNotePrefix', numKey: 'debitNoteStartingNumber', prefixDef: 'DBN', resetKey: 'debitNoteCounterOverride' },
+                    { label: 'Delivery Notes', typeKey: null, prefixKey: 'deliveryNotePrefix', numKey: 'deliveryNoteStartingNumber', prefixDef: 'DLV', resetKey: 'deliveryNoteCounterOverride' },
+                  ].map(({ label, typeKey, prefixKey, numKey, prefixDef, resetKey }) => (
+                    <Box key={label} sx={{ display: 'grid', gridTemplateColumns: '120px 150px 1fr 100px 110px 36px', gap: 1, alignItems: 'center', px: 0.5, py: 0.6, borderBottom: '1px solid #f6efe9', '&:hover': { bgcolor: '#fafafa' } }}>
+                      <Typography sx={{ fontSize: '0.8rem', fontWeight: 700, color: '#374151' }}>{label}</Typography>
+                      {typeKey ? (
+                        <Select size="small" value={invoiceNumEff[typeKey] || 'auto'} sx={{ ...fieldSx, fontSize: '0.8rem', '& .MuiSelect-select': { py: 0.6 } }}
                           onChange={e => setInvoiceNumDraft(d => ({ ...(d ?? config.invoiceNumberConfig ?? {}), [typeKey]: e.target.value }))}>
                           <MenuItem value="auto">Auto-increment</MenuItem>
                           <MenuItem value="date">Date-based</MenuItem>
                           <MenuItem value="manual">Manual</MenuItem>
                         </Select>
-                      </FormControl>}
-                      <Box sx={{ display: 'flex', gap: 0.75 }}>
-                        <TextField size="small" label="Prefix" sx={{ ...fieldSx, flex: 1 }}
-                          value={invoiceNumEff[prefixKey] ?? prefixDef}
-                          onChange={e => setInvoiceNumDraft(d => ({ ...(d ?? config.invoiceNumberConfig ?? {}), [prefixKey]: e.target.value }))} />
-                        <TextField size="small" label="Start #" type="number" sx={{ ...fieldSx, flex: 1 }}
-                          value={invoiceNumEff[numKey] ?? 1}
-                          onChange={e => { const v = e.target.value; setInvoiceNumDraft(d => ({ ...(d ?? config.invoiceNumberConfig ?? {}), [numKey]: v === '' ? '' : parseInt(v) || 1 })); }}
-                          onBlur={() => setInvoiceNumDraft(d => ({ ...(d ?? config.invoiceNumberConfig ?? {}), [numKey]: parseInt((d ?? config.invoiceNumberConfig ?? {})[numKey]) || 1 }))} />
-                        <Tooltip title="Reset counter">
-                          <Button size="small" variant="outlined" color="warning" sx={{ flexShrink: 0, minWidth: 0, px: 1, height: 40, borderRadius: 1.5 }}
-                            onClick={() => {
-                              const start = config.invoiceNumberConfig?.[numKey] ?? 1;
-                              const prefix = config.invoiceNumberConfig?.[prefixKey] ?? prefixDef;
-                              setResetCounterInput('');
-                              setResetCounterDlg({ label, prefix, start, numKey, prefixKey, prefixDef, resetKey });
-                            }}>
-                            <RotateCcw size={13} />
-                          </Button>
-                        </Tooltip>
-                      </Box>
-                      <Typography variant="caption" color="text.secondary">
-                        Preview: <strong>{invoiceNumEff[prefixKey] ?? prefixDef}-{String(invoiceNumEff[numKey] ?? 1).padStart(3, '0')}</strong>
+                      ) : (
+                        <Typography sx={{ fontSize: '0.75rem', color: '#5f4f47' }}>Auto-increment</Typography>
+                      )}
+                      <TextField size="small" sx={{ ...fieldSx, '& .MuiInputBase-input': { py: 0.6, fontSize: '0.8rem' } }}
+                        value={invoiceNumEff[prefixKey] ?? prefixDef}
+                        onChange={e => setInvoiceNumDraft(d => ({ ...(d ?? config.invoiceNumberConfig ?? {}), [prefixKey]: e.target.value }))} />
+                      <TextField size="small" type="number" sx={{ ...fieldSx, '& .MuiInputBase-input': { py: 0.6, fontSize: '0.8rem' } }}
+                        value={invoiceNumEff[numKey] ?? 1}
+                        onChange={e => { const v = e.target.value; setInvoiceNumDraft(d => ({ ...(d ?? config.invoiceNumberConfig ?? {}), [numKey]: v === '' ? '' : parseInt(v) || 1 })); }}
+                        onBlur={() => setInvoiceNumDraft(d => ({ ...(d ?? config.invoiceNumberConfig ?? {}), [numKey]: parseInt((d ?? config.invoiceNumberConfig ?? {})[numKey]) || 1 }))} />
+                      <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, fontFamily: 'monospace', color: primary }} noWrap>
+                        {invoiceNumEff[prefixKey] ?? prefixDef}-{String(invoiceNumEff[numKey] ?? 1).padStart(3, '0')}
                       </Typography>
+                      <Tooltip title="Reset counter">
+                        <IconButton size="small" color="warning"
+                          onClick={() => {
+                            const start = config.invoiceNumberConfig?.[numKey] ?? 1;
+                            const prefix = config.invoiceNumberConfig?.[prefixKey] ?? prefixDef;
+                            setResetCounterInput('');
+                            setResetCounterDlg({ label, prefix, start, numKey, prefixKey, prefixDef, resetKey });
+                          }}>
+                          <RotateCcw size={14} />
+                        </IconButton>
+                      </Tooltip>
                     </Box>
-                  </Grid>
-                ))}
-              </Grid>
+                  ))}
+                </Box>
+              </Box>
             </Box>
 
             <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 1, pt: 1.5, mt: 1, borderTop: '1px solid #f6efe9' }}>
@@ -2437,7 +2749,7 @@ const SettingsPage = () => {
       </Box>
 
       {/* ── Invoice Theme & Print Settings (merged) ── */}
-      <Box sx={{ mb: 2, display: activeTab === 'invoice' ? 'block' : 'none' }}>
+      <Box sx={{ mb: 2, display: activeTab === 'invoice' && invoiceSub === 'print' ? 'block' : 'none' }}>
         <SH icon={Paintbrush} title="Invoice Theme & Print Settings" subtitle="Choose look, paper size, accent colour, bill sections — preview updates live"
           action={
             <Button size="small" variant="outlined" startIcon={<Eye size={14} />} onClick={() => setBillPreviewOpen(true)}
@@ -2491,11 +2803,24 @@ const SettingsPage = () => {
                 const currentThemeValue = printOptsEff.invoiceTheme || 'classic';
                 const currentTheme = INVOICE_THEMES.find(t => t.value === currentThemeValue);
                 if (isThermalOrDot) {
+                  const designed = !!printOptsEff.billDesigns?.[ps]?.enabled;
                   return (
-                    <Box sx={{ mb: 2.5, p: 1.5, borderRadius: `${baseRadius}px`, bgcolor: alpha(primary, 0.05), border: '1px solid', borderColor: alpha(primary, 0.15) }}>
-                      <Typography variant="caption" sx={{ color: primary, fontWeight: 700 }}>
-                        {ps === 'Dot Matrix' ? 'Dot Matrix uses a monospace plain-text layout — no theme applies.' : 'Thermal receipts use a compact receipt layout — no theme applies.'}
-                      </Typography>
+                    <Box sx={{ mb: 2.5, p: 1.5, borderRadius: `${baseRadius}px`, bgcolor: alpha(primary, 0.05), border: '1px solid', borderColor: alpha(primary, 0.15), display: 'flex', alignItems: 'center', gap: 1.5, flexWrap: 'wrap' }}>
+                      <Box sx={{ flex: 1, minWidth: 180 }}>
+                        <Typography variant="body2" sx={{ fontWeight: 700, fontSize: '0.86rem', color: primary }}>
+                          {designed ? `Custom design (${ps})` : (ps === 'Dot Matrix' ? 'Standard dot-matrix layout' : 'Standard receipt layout')}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          {designed ? 'Printing uses your own receipt design.' : 'Open the designer to place and size every part of the receipt yourself.'}
+                        </Typography>
+                      </Box>
+                      <Button
+                        size="small" variant="contained" startIcon={<LayoutTemplate size={14} />}
+                        onClick={() => { setBillDesignsTemp({ ...(printOptsEff.billDesigns || {}) }); setUseDesignerTemp(printOptsEff.invoiceTheme === 'designer'); setBillDesignerOpen(true); }}
+                        sx={{ ...gradBtnSx, borderRadius: `${baseRadius + 2}px`, textTransform: 'none', fontWeight: 700, px: 2, flexShrink: 0 }}
+                      >
+                        Design {ps === 'Dot Matrix' ? 'Print' : 'Receipt'}
+                      </Button>
                     </Box>
                   );
                 }
@@ -2515,6 +2840,13 @@ const SettingsPage = () => {
                         sx={{ borderRadius: `${baseRadius + 2}px`, textTransform: 'none', fontWeight: 700, px: 2, flexShrink: 0 }}
                       >
                         Change Layout
+                      </Button>
+                      <Button
+                        size="small" variant="contained" startIcon={<LayoutTemplate size={14} />}
+                        onClick={() => { setBillDesignsTemp({ ...(printOptsEff.billDesigns || {}) }); setUseDesignerTemp(printOptsEff.invoiceTheme === 'designer'); setBillDesignerOpen(true); }}
+                        sx={{ ...gradBtnSx, borderRadius: `${baseRadius + 2}px`, textTransform: 'none', fontWeight: 700, px: 2, flexShrink: 0 }}
+                      >
+                        Design Bill
                       </Button>
                     </Box>
                   </>
@@ -2563,33 +2895,84 @@ const SettingsPage = () => {
                 <FileText size={13} /> Content
               </Typography>
 
+              <Grid container spacing={1.5} sx={{ mb: 2 }}>
+              <Grid size={{ xs: 12, sm: 6 }}>
               <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 1 }}>
-                Terms & Conditions
+                Terms (Sales / Purchases)
               </Typography>
               <TextField
-                multiline rows={3} fullWidth size="small" sx={{ ...fieldSx, mb: 2.5 }}
+                multiline rows={3} fullWidth size="small" sx={{ ...fieldSx }}
                 placeholder={'1. Goods once sold will not be taken back.\n2. Interest @ 18% charged if payment is delayed.'}
                 value={printOptsEff.termsText || ''}
                 onChange={e => setPrintOptsDraft(d => ({ ...(d ?? config.billPrintOptions ?? {}), termsText: e.target.value }))}
               />
 
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6 }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 1 }}>
+                Terms (Estimates / Quotes)
+              </Typography>
+              <TextField
+                multiline rows={3} fullWidth size="small" sx={{ ...fieldSx }}
+                placeholder={'Falls back to the Sales terms if left blank.'}
+                value={printOptsEff.estimateTermsText || ''}
+                onChange={e => setPrintOptsDraft(d => ({ ...(d ?? config.billPrintOptions ?? {}), estimateTermsText: e.target.value }))}
+              />
+              </Grid>
+              </Grid>
+
+              <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 0.5 }}>
+                Logo Size
+              </Typography>
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', display: 'block', mb: 0.5 }}>
+                Size of the business logo on printed bills (every theme, paper size and thermal). 100% = default.
+              </Typography>
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mb: 2, px: 0.5 }}>
+                <Slider
+                  size="small" min={30} max={300} step={5}
+                  value={Number(printOptsEff.logoScale) || 100}
+                  onChange={(_, v) => setPrintOptsDraft(d => ({ ...(d ?? config.billPrintOptions ?? {}), logoScale: v }))}
+                  valueLabelDisplay="auto" valueLabelFormat={v => `${v}%`}
+                  disabled={printOptsEff.showLogo === false}
+                  sx={{ flex: 1 }}
+                />
+                <TextField
+                  size="small" type="number" sx={{ ...fieldSx, width: 96 }}
+                  value={Number(printOptsEff.logoScale) || 100}
+                  onChange={e => {
+                    const v = Math.min(300, Math.max(30, Number(e.target.value) || 100));
+                    setPrintOptsDraft(d => ({ ...(d ?? config.billPrintOptions ?? {}), logoScale: v }));
+                  }}
+                  disabled={printOptsEff.showLogo === false}
+                  slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> } }}
+                />
+                <Tooltip title="Reset to 100%">
+                  <span>
+                    <IconButton size="small" disabled={printOptsEff.showLogo === false || (Number(printOptsEff.logoScale) || 100) === 100}
+                      onClick={() => setPrintOptsDraft(d => ({ ...(d ?? config.billPrintOptions ?? {}), logoScale: 100 }))}>
+                      <RotateCcw size={14} />
+                    </IconButton>
+                  </span>
+                </Tooltip>
+              </Box>
+
               <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', mb: 0.5 }}>
                 Page Padding
               </Typography>
-              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', display: 'block', mb: 1.25 }}>
-                Blank space around the printed content, in pixels. Top/bottom default to 0 so nothing is wasted above the header or below the footer.
+              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.7rem', display: 'block', mb: 1 }}>
+                Blank space around the printed content (px). Blank Left/Right = theme default.
               </Typography>
-              <Grid container spacing={1.25} sx={{ mb: 2.5 }}>
+              <Grid container spacing={1} sx={{ mb: 2 }}>
                 {[
                   { key: 'docPaddingTop', label: 'Top', fallback: 0 },
                   { key: 'docPaddingBottom', label: 'Bottom', fallback: 0 },
                   { key: 'docPaddingLeft', label: 'Left', fallback: '' },
                   { key: 'docPaddingRight', label: 'Right', fallback: '' },
                 ].map(({ key, label, fallback }) => (
-                  <Grid size={6} key={key}>
+                  <Grid size={{ xs: 6, sm: 3 }} key={key}>
                     <TextField
                       size="small" fullWidth type="number" label={label} sx={fieldSx}
-                      placeholder={fallback === '' ? 'theme default' : String(fallback)}
+                      placeholder={fallback === '' ? 'auto' : String(fallback)}
                       value={printOptsEff[key] ?? fallback}
                       onChange={e => {
                         const raw = e.target.value;
@@ -2628,6 +3011,7 @@ const SettingsPage = () => {
                     items: [
                       { key: 'showInvoiceNumber', label: 'Invoice Number',     desc: 'Bill / invoice number' },
                       { key: 'showDate',          label: 'Invoice Date',        desc: 'Date of the invoice' },
+                      { key: 'showTime',          label: 'Time',                desc: 'Bill time next to the date' },
                       { key: 'showDueDate',       label: 'Due Date',            desc: 'Payment due date' },
                       { key: 'showBilledBy',      label: 'Billed By',           desc: 'Staff name who created the bill' },
                       { key: 'showPaymentMode',   label: 'Payment Mode',        desc: 'Cash / UPI / Bank mode label' },
@@ -2676,7 +3060,7 @@ const SettingsPage = () => {
                 ];
                 const isDefaultFalseKeys = new Set([
                   'showOldBalance', 'autoRoundOff', 'showBankDetails', 'showAmountInWords',
-                  'showDueDate', 'showBilledBy', 'showPaymentMode', 'showQRCode', 'showBusinessEmail',
+                  'showDueDate', 'showTime', 'showBilledBy', 'showPaymentMode', 'showQRCode', 'showBusinessEmail',
                   'showUnitColumn', 'showItemCategory', 'showItemSize', 'showItemVariant',
                   'showLoyaltyOnBill',
                 ]);
@@ -2711,24 +3095,27 @@ const SettingsPage = () => {
                           </Box>
                           {!isCollapsed && (
                             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.6 }}>
+                              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.5 }}>
                               {items.map(({ key, label, desc }) => {
                                 const isChecked = getChecked(key);
                                 return (
-                                  <Box key={key} onClick={() => toggle(key)}
-                                    sx={{
-                                      display: 'flex', alignItems: 'center', gap: 1.25, px: 1, py: 0.55,
-                                      borderRadius: '8px', cursor: 'pointer',
-                                      transition: 'background 0.12s',
-                                      '&:hover': { bgcolor: '#f6efe9' },
-                                    }}>
-                                    <Switch size="small" checked={isChecked} onChange={() => toggle(key)} sx={{ flexShrink: 0 }} />
-                                    <Box sx={{ flex: 1, minWidth: 0 }}>
-                                      <Typography sx={{ fontWeight: 500, fontSize: '0.82rem', lineHeight: 1.2, color: isChecked ? '#3f1417' : '#57433e' }}>{label}</Typography>
-                                      <Typography variant="caption" sx={{ color: '#5f4f47', lineHeight: 1.2, fontSize: '0.72rem' }}>{desc}</Typography>
+                                  <Tooltip key={key} title={desc} placement="top" enterDelay={400}>
+                                    <Box onClick={() => toggle(key)}
+                                      sx={{
+                                        display: 'flex', alignItems: 'center', gap: 0.5, pl: 0.25, pr: 1, py: 0.1,
+                                        borderRadius: '8px', cursor: 'pointer', border: '1px solid',
+                                        borderColor: isChecked ? alpha(primary, 0.25) : '#f6efe9',
+                                        bgcolor: isChecked ? alpha(primary, 0.04) : 'transparent',
+                                        transition: 'all 0.12s',
+                                        '&:hover': { bgcolor: isChecked ? alpha(primary, 0.08) : '#f6efe9' },
+                                      }}>
+                                      <Switch size="small" checked={isChecked} onClick={(e) => e.stopPropagation()} onChange={() => toggle(key)} sx={{ flexShrink: 0, transform: 'scale(0.85)' }} />
+                                      <Typography noWrap sx={{ fontWeight: isChecked ? 600 : 500, fontSize: '0.79rem', color: isChecked ? '#3f1417' : '#57433e', minWidth: 0 }}>{label}</Typography>
                                     </Box>
-                                  </Box>
+                                  </Tooltip>
                                 );
                               })}
+                              </Box>
                               {group === 'Items Table' && (
                                 <ColumnOrderEditor
                                   bpo={bpo}
@@ -3052,9 +3439,9 @@ const SettingsPage = () => {
                   <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
                     <Typography sx={{ fontSize: '0.72rem', fontWeight: 700, color: '#5f4f47', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Permissions</Typography>
                     <Box sx={{ display: 'flex', gap: 0.5 }}>
-                      <Button size="small" onClick={() => setStaffForm(f => ({ ...f, features: STAFF_FEATURE_KEYS.reduce((a, k) => ({ ...a, [k]: true }), {}) }))}
+                      <Button size="small" onClick={() => setStaffForm(f => ({ ...f, features: STAFF_FEATURE_KEYS.reduce((a, k) => ({ ...a, [k]: true }), { ...f.features }) }))}
                         sx={{ fontSize: '0.68rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: primary, '&:hover': { bgcolor: alpha(primary, 0.06) } }}>All On</Button>
-                      <Button size="small" onClick={() => setStaffForm(f => ({ ...f, features: STAFF_FEATURE_KEYS.reduce((a, k) => ({ ...a, [k]: false }), {}) }))}
+                      <Button size="small" onClick={() => setStaffForm(f => ({ ...f, features: STAFF_FEATURE_KEYS.reduce((a, k) => ({ ...a, [k]: false }), { ...f.features }) }))}
                         sx={{ fontSize: '0.68rem', textTransform: 'none', py: 0.2, px: 0.75, minWidth: 0, color: '#5f4f47', '&:hover': { bgcolor: '#f6efe9' } }}>All Off</Button>
                     </Box>
                   </Box>
@@ -3079,6 +3466,11 @@ const SettingsPage = () => {
                                 <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, color: on ? primary : '#57433e', lineHeight: 1.2, flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                   {STAFF_FEATURE_LABELS[key] || key}
                                 </Typography>
+                                {isModuleOffForBusiness(key, config.features) && (
+                                  <Tooltip title="Turned off for this business — switch it on in Settings → Features first, or staff won't see it">
+                                    <Box component="span" sx={{ fontSize: '0.58rem', fontWeight: 800, color: '#b45309', bgcolor: alpha('#f59e0b', 0.14), px: 0.5, py: 0.1, borderRadius: '4px', flexShrink: 0 }}>OFF</Box>
+                                  </Tooltip>
+                                )}
                               </Box>
                             );
                           })}
@@ -3086,6 +3478,24 @@ const SettingsPage = () => {
                       </Box>
                     ))}
                   </Box>
+                </Box>
+
+                <Box sx={{ mt: 1.25 }}>
+                  <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: '#ddd0c9', textTransform: 'uppercase', letterSpacing: '0.07em', mb: 0.5 }}>Restrictions</Typography>
+                  {STAFF_RESTRICTION_ITEMS.map(({ key, label, hint }) => (
+                    <Box key={key} onClick={() => setStaffForm(f => ({ ...f, features: { ...f.features, [key]: !f.features[key] } }))}
+                      sx={{ display: 'flex', alignItems: 'center', gap: 1, px: 1, py: 0.75, borderRadius: '6px', cursor: 'pointer', border: '1px solid', borderColor: staffForm.features[key] ? alpha('#d97706', 0.35) : '#f6efe9', bgcolor: staffForm.features[key] ? alpha('#d97706', 0.05) : '#fafafa' }}>
+                      <Box sx={{ flex: 1, minWidth: 0 }}>
+                        <Typography sx={{ fontSize: '0.78rem', fontWeight: 700, color: staffForm.features[key] ? '#b45309' : '#57433e' }}>{label}</Typography>
+                        <Typography sx={{ fontSize: '0.68rem', color: '#5f4f47' }}>{hint}</Typography>
+                      </Box>
+                      <Switch size="small" checked={!!staffForm.features[key]} onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => setStaffForm(f => ({ ...f, features: { ...f.features, [key]: e.target.checked } }))} />
+                    </Box>
+                  ))}
+                  <Typography sx={{ fontSize: '0.66rem', color: '#5f4f47', mt: 0.5 }}>
+                    Staff logins never see summary totals (receivables, payables, invoice totals, stock value).
+                  </Typography>
                 </Box>
 
                 <Box sx={{ display: 'flex', gap: 1, justifyContent: 'flex-end', pt: 1.5, mt: 1, borderTop: '1px solid #f6efe9' }}>
@@ -3103,7 +3513,7 @@ const SettingsPage = () => {
         </Box>
       )}
 
-      {/* ── Billing & Payments (TallyKraft — Google-auth owners only) ── */}
+      {/* ── Billing & Payments (Google-auth owners only) ── */}
       {currentUser && !staffSession && (
         <Box sx={{ mb: 2, display: activeTab === 'billing' ? 'block' : 'none' }}>
           <Card elevation={0} sx={{ ...cardSx.sx }}>
@@ -3119,6 +3529,11 @@ const SettingsPage = () => {
       )}
 
       {/* ── Appearance ── */}
+      {/* ── Dashboard customisation ── */}
+      <Box sx={{ mb: 2, display: activeTab === 'dashboard' ? 'block' : 'none' }}>
+        <DashboardSettings config={config} saveConfig={saveConfig} primary={primary} businessName={currentBusiness?.name} />
+      </Box>
+
       <Box sx={{ mb: 2, display: activeTab === 'appearance' ? 'block' : 'none' }}>
         <Card elevation={0} sx={{ ...cardSx.sx }}>
           <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', gap: 1 }}>
@@ -3291,104 +3706,173 @@ const SettingsPage = () => {
     {/* ── Add-Business popup (collects details, then opens payment) ── */}
     <AddBusinessDialog open={isNew} onClose={() => setIsNew(false)} onCreate={handleCreateBusiness} />
 
-    {/* ── TallyKraft: Add-Business Razorpay payment modal ── */}
-    <Dialog open={showBizPayModal} onClose={() => { if (!bizPaying) { setShowBizPayModal(false); setBizPayError(''); } }} maxWidth="xs" fullWidth>
+    {/* ── Add-business payment modal ── */}
+    <Dialog open={showBizPayModal} onClose={() => setShowBizPayModal(false)} maxWidth="xs" fullWidth>
       <DialogTitle sx={{ fontWeight: 800 }}>Subscribe {pendingBizData?.name || 'your new business'}</DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
           Each business needs its own subscription — all features, cloud backup &amp; multi-device sync.
+          The business is created as soon as the payment succeeds.
         </Typography>
-        <Stack spacing={1.5}>
-          {BIZ_PLANS.map((plan) => (
-            <Button key={plan.id} variant="outlined" fullWidth disabled={bizPaying !== null}
-              onClick={() => handleBizSubscribe(plan)}
-              sx={{ justifyContent: 'space-between', textTransform: 'none', py: 1.25, borderRadius: 2 }}>
-              <span style={{ fontWeight: 700 }}>{plan.label} — ₹{plan.price}{plan.period}</span>
-              <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                {plan.badge && <Chip size="small" label={plan.badge} color="primary" />}
-                {bizPaying === plan.id && <CircularProgress size={14} />}
-              </span>
-            </Button>
-          ))}
-        </Stack>
-        {bizPayError && <Typography color="error" variant="body2" sx={{ mt: 2, textAlign: 'center' }}>{bizPayError}</Typography>}
+        <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: alpha(primary, 0.25), bgcolor: alpha(primary, 0.04), display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
+          <Typography sx={{ fontWeight: 900, fontSize: '1.6rem', color: primary }}>₹{PLAN_PRICE}</Typography>
+          <Typography variant="body2" color="text.secondary">/ {PLAN_DAYS} days</Typography>
+        </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={() => { setShowBizPayModal(false); setBizPayError(''); }} disabled={bizPaying !== null}>Cancel</Button>
+        <Button onClick={() => { setShowBizPayModal(false); setPendingBizData(null); }}>Cancel</Button>
+        <Button variant="contained" onClick={bizPayNow} disabled={bizPaying}
+          startIcon={bizPaying ? <CircularProgress size={14} color="inherit" /> : undefined}
+          sx={{ textTransform: 'none', fontWeight: 700 }}>
+          Pay ₹{PLAN_PRICE}
+        </Button>
       </DialogActions>
     </Dialog>
+    {bizCheckoutDialog}
+    {bizPayError && (
+      <Snackbar open anchorOrigin={{ vertical: 'top', horizontal: 'center' }} onClose={() => setBizPayError('')}>
+        <Alert severity="error" variant="filled" onClose={() => setBizPayError('')}>{bizPayError}</Alert>
+      </Snackbar>
+    )}
 
-    {/* ── Delete All Data confirmation dialog ── */}
-    <Dialog open={deleteDataDialog} onClose={() => setDeleteDataDialog(false)} maxWidth="xs" fullWidth
-      slotProps={{ paper: { sx: { borderRadius: '16px', overflow: 'hidden' } }, backdrop: { sx: { bgcolor: 'rgba(0,0,0,0.45)' } } }}>
-      <Box sx={{ height: 4, bgcolor: '#dc2626', flexShrink: 0 }} />
-      <DialogTitle sx={{ pb: 0, pt: 2.5, px: 3 }}>
-        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
-          <Box sx={{ width: 40, height: 40, borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: alpha('#dc2626', 0.1) }}>
-            <Trash2 size={20} color="#dc2626" />
+    {/* ── Delete Data dialog ── */}
+    {(() => {
+      const RED = '#dc2626';
+      const DATA_ICONS = { sales: ReceiptText, purchases: ShoppingBag, payments: CreditCard, expenses: Wallet, cashEntries: Landmark, parties: Users, items: Package, estimates: FileText, orders: ClipboardList, creditNotes: CornerUpLeft, debitNotes: RotateCcw, deliveryNotes: Truck, journalEntries: BookOpen, opticals: Eye, memberships: Handshake, investors: DollarSign, customSectionRecords: LayoutList };
+      const SETTING_ICONS = { cfg_invoice: Printer, cfg_features: SlidersHorizontal, cfg_lists: Layers, cfg_other: Barcode, staff: Users };
+      const allData = deleteDataSel.length === DELETE_DATA_GROUPS.length;
+      const toggleData = (key) => { setDeleteDataSel(sel => sel.includes(key) ? sel.filter(k => k !== key) : [...sel, key]); setDeleteDataInputError(''); };
+      const toggleSetting = (key) => { setDeleteSettingsSel(sel => sel.includes(key) ? sel.filter(k => k !== key) : [...sel, key]); setDeleteDataInputError(''); };
+      const selRecords = DELETE_DATA_GROUPS.filter(g => deleteDataSel.includes(g.key)).reduce((n, g) => n + (deleteDataCounts[g.key] || 0), 0)
+        + (deleteSettingsSel.includes('staff') ? (deleteDataCounts.staff || 0) : 0);
+      const resetCount = deleteSettingsSel.filter(k => k !== 'staff').length;
+      const keepsPartiesOnly = !deleteDataSel.includes('parties') && ['sales', 'purchases', 'payments'].some(k => deleteDataSel.includes(k));
+      const hasPwd = !!scopedBiz?.adminPassword;
+      const nothing = deleteDataSel.length === 0 && deleteSettingsSel.length === 0;
+      const canGo = !nothing && (hasPwd ? !!deleteDataInput : deleteDataInput.trim().toLowerCase() === 'delete');
+      const fmt = (n) => Number(n || 0).toLocaleString('en-IN');
+
+      return (
+        <Dialog open={deleteDataDialog} onClose={() => setDeleteDataDialog(false)} maxWidth="sm" fullWidth fullScreen={isMobile}
+          slotProps={{ paper: { sx: { borderRadius: isMobile ? 0 : '16px', overflow: 'hidden', display: 'flex', flexDirection: 'column', maxHeight: isMobile ? '100%' : 'calc(100% - 48px)' } }, backdrop: { sx: { bgcolor: 'rgba(0,0,0,0.45)' } } }}>
+
+          {/* Header */}
+          <Box sx={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: 1.5, px: 2.5, py: 1.75, bgcolor: alpha(RED, 0.05), borderBottom: `1px solid ${alpha(RED, 0.15)}` }}>
+            <Box sx={{ width: 38, height: 38, borderRadius: '10px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', bgcolor: RED, color: '#fff' }}>
+              <Trash2 size={18} />
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1.25 }}>Delete data</Typography>
+              <Typography noWrap sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                {currentBusiness?.name || 'This business'} · ticked items are erased, the rest is kept
+              </Typography>
+            </Box>
+            <IconButton size="small" onClick={() => setDeleteDataDialog(false)} aria-label="Close"><X size={18} /></IconButton>
           </Box>
-          <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1rem', lineHeight: 1.3 }}>
-            Delete All Data for "{currentBusiness?.name}"?
-          </Typography>
-        </Box>
-      </DialogTitle>
-      <DialogContent sx={{ pt: 2, px: 3, pb: 0 }}>
-        <Typography variant="body2" color="text.secondary" sx={{ lineHeight: 1.6, mb: 2 }}>
-          This will permanently erase <strong>all transactions, parties, items, payments and expenses</strong> for this business. The business profile will remain. <strong>This cannot be undone.</strong>
-        </Typography>
-        {scopedBiz?.adminPassword ? (
-          <>
-            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.75 }}>
-              Enter your admin password to confirm
-            </Typography>
+
+          {/* Body */}
+          <Box sx={{ flex: 1, minHeight: 0, overflowY: 'auto', px: 2.5, py: 2 }}>
+            <DelSectionHead icon={HardDrive} title="Records"
+              chip={<Chip size="small" label={`${deleteDataSel.length}/${DELETE_DATA_GROUPS.length}`} sx={{ height: 20, fontSize: '0.66rem', fontWeight: 700 }} />}
+              action={
+                <Button size="small" onClick={() => { setDeleteDataSel(allData ? [] : DELETE_DATA_GROUPS.map(g => g.key)); setDeleteDataInputError(''); }}
+                  sx={{ textTransform: 'none', fontSize: '0.74rem', fontWeight: 700, py: 0 }}>
+                  {allData ? 'Keep all' : 'Select all'}
+                </Button>
+              } />
+            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr 1fr', sm: '1fr 1fr 1fr' }, gap: 0.75 }}>
+              {DELETE_DATA_GROUPS.map(g => {
+                const cnt = deleteDataCounts[g.key] || 0;
+                return (
+                  <DelTile key={g.key} on={deleteDataSel.includes(g.key)} onClick={() => toggleData(g.key)}
+                    icon={DATA_ICONS[g.key] || FileText} label={g.label} sub={`${fmt(cnt)} record${cnt === 1 ? '' : 's'}`} dim={cnt === 0} />
+                );
+              })}
+            </Box>
+            {keepsPartiesOnly && (
+              <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'flex-start', mt: 1, px: 1, py: 0.75, borderRadius: '8px', bgcolor: alpha('#f59e0b', 0.1) }}>
+                <AlertTriangle size={14} color="#b45309" style={{ flexShrink: 0, marginTop: 1 }} />
+                <Typography sx={{ fontSize: '0.72rem', color: '#92400e', lineHeight: 1.4 }}>
+                  Customers & Vendors are kept, but their balances are not recalculated after deleting bills or payments.
+                </Typography>
+              </Box>
+            )}
+
+            <Box sx={{ mt: 2.25 }}>
+              <DelSectionHead icon={SlidersHorizontal} title="Settings"
+                chip={deleteSettingsSel.length
+                  ? <Chip size="small" label={`${deleteSettingsSel.length} selected`} sx={{ height: 20, fontSize: '0.66rem', fontWeight: 700, bgcolor: alpha(RED, 0.1), color: RED }} />
+                  : <Chip size="small" icon={<ShieldCheck size={11} />} label="All kept" sx={{ height: 20, fontSize: '0.66rem', fontWeight: 700, bgcolor: alpha('#16a34a', 0.1), color: '#15803d', '& .MuiChip-icon': { color: '#15803d' } }} />}
+                action={deleteSettingsSel.length > 0 && (
+                  <Button size="small" onClick={() => setDeleteSettingsSel([])} sx={{ textTransform: 'none', fontSize: '0.74rem', fontWeight: 700, py: 0 }}>Keep all</Button>
+                )} />
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 0.75 }}>
+                {DELETE_SETTINGS_GROUPS.map(g => {
+                  const on = deleteSettingsSel.includes(g.key);
+                  const isStaff = g.key === 'staff';
+                  return (
+                    <DelTile key={g.key} on={on} onClick={() => toggleSetting(g.key)}
+                      icon={SETTING_ICONS[g.key] || SlidersHorizontal}
+                      label={isStaff ? `${g.label} (${deleteDataCounts.staff || 0})` : g.label}
+                      sub={g.desc}
+                      badge={on && (
+                        <Box sx={{ flexShrink: 0, px: 0.6, py: 0.1, borderRadius: '5px', bgcolor: RED, color: '#fff', fontSize: '0.6rem', fontWeight: 800 }}>
+                          {isStaff ? 'DELETE' : 'RESET'}
+                        </Box>
+                      )} />
+                  );
+                })}
+              </Box>
+              <Typography sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mt: 1, fontSize: '0.7rem', color: 'text.secondary' }}>
+                <Lock size={11} /> The business and its profile (name, address, GST, bank) are never deleted here.
+              </Typography>
+            </Box>
+          </Box>
+
+          {/* Footer */}
+          <Box sx={{ flexShrink: 0, borderTop: '1px solid', borderColor: 'divider', px: 2.5, pt: 1.5, pb: 2, bgcolor: 'background.paper' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 1.25, px: 1.25, py: 0.85, borderRadius: '10px', bgcolor: nothing ? alpha('#57433e', 0.06) : alpha(RED, 0.06) }}>
+              <AlertTriangle size={15} color={nothing ? '#57433e' : RED} style={{ flexShrink: 0 }} />
+              <Typography sx={{ fontSize: '0.76rem', lineHeight: 1.4, color: nothing ? 'text.secondary' : '#991b1b' }}>
+                {nothing
+                  ? 'Nothing selected yet.'
+                  : <>Will delete <b>{fmt(selRecords)} record{selRecords === 1 ? '' : 's'}</b>{resetCount > 0 && <> and reset <b>{resetCount} setting group{resetCount > 1 ? 's' : ''}</b></>}. This cannot be undone.</>}
+              </Typography>
+            </Box>
+
             <TextField
-              fullWidth size="small" type="password" autoComplete="off"
-              placeholder="Admin password"
+              fullWidth size="small" autoComplete="off" type={hasPwd ? 'password' : 'text'}
+              label={hasPwd ? 'Admin password' : 'Type "delete" to confirm'}
+              placeholder={hasPwd ? '' : 'delete'}
               value={deleteDataInput}
               onChange={e => { setDeleteDataInput(e.target.value); setDeleteDataInputError(''); }}
-              onKeyDown={e => e.key === 'Enter' && handleDeleteDataConfirm()}
+              onKeyDown={e => e.key === 'Enter' && canGo && handleDeleteDataConfirm()}
               error={!!deleteDataInputError}
-              helperText={deleteDataInputError}
-              autoFocus
+              helperText={deleteDataInputError || ' '}
+              sx={{ mb: 0.25 }}
             />
-          </>
-        ) : (
-          <>
-            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.secondary', display: 'block', mb: 0.75 }}>
-              Type <strong>delete</strong> to confirm
-            </Typography>
-            <TextField
-              fullWidth size="small" autoComplete="off"
-              placeholder="delete"
-              value={deleteDataInput}
-              onChange={e => { setDeleteDataInput(e.target.value); setDeleteDataInputError(''); }}
-              onKeyDown={e => e.key === 'Enter' && handleDeleteDataConfirm()}
-              error={!!deleteDataInputError}
-              helperText={deleteDataInputError}
-              autoFocus
-            />
-          </>
-        )}
-      </DialogContent>
-      <DialogActions sx={{ px: 3, py: 2.5, gap: 1, flexWrap: 'wrap' }}>
-        <Button variant="outlined" onClick={() => setDeleteDataDialog(false)}
-          sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, px: 2, borderColor: 'divider', color: 'text.secondary' }}>
-          Cancel
-        </Button>
-        <Box sx={{ flex: 1 }} />
-        <Button variant="outlined" onClick={() => handleDeleteDataConfirm(true)}
-          disabled={scopedBiz?.adminPassword ? !deleteDataInput : deleteDataInput.trim().toLowerCase() !== 'delete'}
-          startIcon={<Download size={14} />}
-          sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, px: 2, color: '#dc2626', borderColor: '#fca5a5', '&:hover': { bgcolor: alpha('#dc2626', 0.06), borderColor: '#dc2626' }, '&.Mui-disabled': { borderColor: alpha('#dc2626', 0.25), color: alpha('#dc2626', 0.4) } }}>
-          Backup & Delete
-        </Button>
-        <Button variant="contained" onClick={() => handleDeleteDataConfirm(false)}
-          disabled={scopedBiz?.adminPassword ? !deleteDataInput : deleteDataInput.trim().toLowerCase() !== 'delete'}
-          sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, px: 2.5, bgcolor: '#dc2626', '&:hover': { bgcolor: '#b91c1c' }, '&.Mui-disabled': { bgcolor: alpha('#dc2626', 0.4), color: '#fff' } }}>
-          Delete All Data
-        </Button>
-      </DialogActions>
-    </Dialog>
+
+            <Box sx={{ display: 'flex', gap: 1, flexDirection: { xs: 'column-reverse', sm: 'row' }, '& > .MuiButton-root': { width: { xs: '100%', sm: 'auto' } } }}>
+              <Button variant="text" onClick={() => setDeleteDataDialog(false)}
+                sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, color: 'text.secondary' }}>
+                Cancel
+              </Button>
+              <Box sx={{ flex: 1, display: { xs: 'none', sm: 'block' } }} />
+              <Button variant="outlined" onClick={() => handleDeleteDataConfirm(true)} disabled={!canGo}
+                startIcon={<Download size={14} />}
+                sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, color: RED, borderColor: alpha(RED, 0.4), '&:hover': { bgcolor: alpha(RED, 0.06), borderColor: RED } }}>
+                Backup & Delete
+              </Button>
+              <Button variant="contained" onClick={() => handleDeleteDataConfirm(false)} disabled={!canGo}
+                startIcon={<Trash2 size={14} />}
+                sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700, bgcolor: RED, boxShadow: 'none', '&:hover': { bgcolor: '#b91c1c', boxShadow: 'none' }, '&.Mui-disabled': { bgcolor: alpha(RED, 0.35), color: '#fff' } }}>
+                {allData && deleteSettingsSel.length === DELETE_SETTINGS_GROUPS.length ? 'Delete everything' : 'Delete selected'}
+              </Button>
+            </Box>
+          </Box>
+        </Dialog>
+      );
+    })()}
 
     {/* ── Reset Counter Confirmation Dialog ── */}
     <Dialog open={!!resetCounterDlg} onClose={() => setResetCounterDlg(null)} maxWidth="xs" fullWidth PaperProps={{ sx: { borderRadius: '14px' } }}>
@@ -3437,6 +3921,50 @@ const SettingsPage = () => {
           sx={{ borderRadius: '8px', textTransform: 'none', fontWeight: 700 }}>
           Reset Counter
         </Button>
+      </Box>
+    </Dialog>
+
+    {/* ── Bill Designer (free-form header/footer) ── */}
+    <Dialog open={billDesignerOpen} onClose={() => setBillDesignerOpen(false)} fullScreen>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 3, py: 1.5, borderBottom: '1px solid', borderColor: 'divider' }}>
+        <LayoutTemplate size={20} color={primary} />
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 800, fontSize: '1rem' }}>Bill Designer</Typography>
+          <Typography sx={{ fontSize: '0.74rem', color: 'text.secondary' }}>
+            Place and size everything on your bill — every paper size, thermal and dot matrix included, gets its own design.
+          </Typography>
+        </Box>
+        <Button onClick={() => setBillDesignerOpen(false)} sx={{ textTransform: 'none', fontWeight: 600, color: 'text.secondary' }}>Cancel</Button>
+        <Button variant="contained" startIcon={<Check size={15} />}
+          onClick={() => {
+            setPrintOptsDraft(d => {
+              const cur = d ?? config.billPrintOptions ?? {};
+              const theme = useDesignerTemp ? 'designer' : (cur.invoiceTheme === 'designer' ? 'classic' : cur.invoiceTheme);
+              return { ...cur, invoiceTheme: theme, billDesigns: billDesignsTemp };
+            });
+            setBillDesignerOpen(false);
+          }}
+          sx={{ ...gradBtnSx, textTransform: 'none', fontWeight: 700 }}>
+          Apply to bill
+        </Button>
+      </Box>
+      <Box sx={{ p: { xs: 2, md: 3 }, overflowY: 'auto' }}>
+        {billDesignerOpen && billDesignsTemp && (
+          <BillDesigner
+            designs={billDesignsTemp}
+            onDesignsChange={setBillDesignsTemp}
+            fallbackDesign={printOptsEff.billDesign}
+            initialPaperSize={printOptsEff._paperSize ?? config.defaultPaperSize ?? 'A4'}
+            useDesignerTheme={useDesignerTemp}
+            onUseDesignerThemeChange={setUseDesignerTemp}
+            opts={printOptsEff}
+            business={currentBusiness}
+            primary={primary}
+          />
+        )}
+        <Typography sx={{ fontSize: '0.72rem', color: 'text.disabled', mt: 1.5 }}>
+          After "Apply to bill", click Save in the Invoice settings to keep the design.
+        </Typography>
       </Box>
     </Dialog>
 

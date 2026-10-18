@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useTableScrollReset } from './useTableScrollReset';
 import {
   Box, Typography, Grid, TextField, MenuItem, Button, Dialog,
   Card, CardContent, Stack, Avatar, alpha, useTheme,
@@ -19,6 +20,8 @@ import PartySelect from './PartySelect';
 import { useConfig } from './ConfigContext';
 import { useSubscription } from './SubscriptionContext';
 import { useData } from './DataContext';
+import { useAuth } from './AuthContext';
+import { canSeeSummaries } from './staffScope';
 import { useI18n } from './i18n/I18nContext';
 import { FitPreview } from './TxListView';
 import { useDialog } from './DialogContext';
@@ -48,11 +51,13 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
   const { currentBusiness } = useBusiness();
   const { confirm, showAlert } = useDialog();
   const { t } = useI18n();
-  // TallyKraft billing: data layer blocks the write; this greys the CTA.
+  // BillDheko billing: data layer blocks the write; this greys the CTA.
   const { isBusinessActive } = useSubscription();
   const canWrite = isBusinessActive(currentBusiness?.id);
 
-  const { addItem, updateItem, deleteItem, getItems } = useData();
+  const { data, addItem, updateItem, deleteItem, getItems } = useData();
+  const { staffSession } = useAuth();
+  const showSummaries = canSeeSummaries(staffSession);
 
   const [tabValue, setTabValue] = useState(mode === 'payment-out' ? 1 : 0);
   const [formData, setFormData] = useState({
@@ -151,19 +156,35 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
   const [outstandingSearch, setOutstandingSearch] = useState('');
   const outstandingListRef = useRef(null);
   const entryFormRef = useRef(null);
+  const txScrollRef = useTableScrollReset(page, rowsPerPage);
 
   const allPayments = getItems('payments').filter(t => t.businessId === currentBusiness?.id);
   const totalIn  = allPayments.filter(t => t.type === 'PaymentIn').reduce((s, t) => s + (t.totalAmount || 0), 0);
   const totalOut = allPayments.filter(t => t.type === 'PaymentOut').reduce((s, t) => s + (t.totalAmount || 0), 0);
 
-  const transactions = allPayments.filter(t => t.type === (isPaymentIn ? 'PaymentIn' : 'PaymentOut'));
-
   const selectedParty = useMemo(() => parties.find(p => p.id === formData.partyId), [formData.partyId, parties]);
+
+  // With a customer/vendor picked in the form, the history switches to that
+  // party's full payment history — both Payment In and Payment Out, all
+  // dates — so everything received from / paid to them is visible at once.
+  const partyScoped = !!selectedParty;
+  const [historyType, setHistoryType] = useState('all'); // all | in | out (party-scoped only)
+  useEffect(() => { setHistoryType('all'); }, [formData.partyId]);
+  const partyPayments = useMemo(
+    () => (partyScoped ? allPayments.filter(t => t.partyId === selectedParty.id) : []),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [partyScoped, selectedParty?.id, data.payments, currentBusiness?.id]);
+  const partyInTotal = partyPayments.filter(t => t.type === 'PaymentIn').reduce((s, t) => s + (t.totalAmount || 0), 0);
+  const partyOutTotal = partyPayments.filter(t => t.type === 'PaymentOut').reduce((s, t) => s + (t.totalAmount || 0), 0);
+
+  const transactions = partyScoped
+    ? partyPayments.filter(t => historyType === 'all' || t.type === (historyType === 'in' ? 'PaymentIn' : 'PaymentOut'))
+    : allPayments.filter(t => t.type === (isPaymentIn ? 'PaymentIn' : 'PaymentOut'));
 
   const filteredHistory = useMemo(() => {
     return transactions.filter(t => {
       const matchesSearch = t.partyName.toLowerCase().includes(searchQuery.toLowerCase());
-      const matchesDate = t.date >= dateRange.start && t.date <= dateRange.end;
+      const matchesDate = partyScoped || (t.date >= dateRange.start && t.date <= dateRange.end);
       const matchesMode = filters.paymentMode === 'all' || t.paymentMode === filters.paymentMode;
       const matchesMin = !filters.minAmount || t.totalAmount >= parseFloat(filters.minAmount);
       const matchesMax = !filters.maxAmount || t.totalAmount <= parseFloat(filters.maxAmount);
@@ -180,11 +201,11 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
       }
       return filters.sortOrder === 'desc' ? (aValue < bValue ? 1 : -1) : (aValue > bValue ? 1 : -1);
     });
-  }, [transactions, searchQuery, dateRange, filters]);
+  }, [transactions, partyScoped, searchQuery, dateRange, filters]);
 
   const filteredTotal = filteredHistory.reduce((s, t) => s + (t.totalAmount || 0), 0);
 
-  useEffect(() => { setPage(0); }, [searchQuery, dateRange, filters]);
+  useEffect(() => { setPage(0); }, [searchQuery, dateRange, filters, formData.partyId, historyType]);
 
   const handleSave = async () => {
     if (!currentBusiness?.id) { await showAlert({ title: 'Business not selected', message: 'Please select a business before saving.', variant: 'warning' }); return; }
@@ -263,6 +284,9 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
   };
 
   const startEdit = (row) => {
+    // A party-scoped history mixes In and Out — edit on the row's own tab so
+    // the save (which derives the type/direction from the tab) stays correct.
+    setTabValue(row.type === 'PaymentOut' ? 1 : 0);
     setEditingId(row.id);
     setFormData({
       partyId: row.partyId,
@@ -292,7 +316,10 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
     try {
       const party = parties.find(p => p.id === row.partyId);
       if (party) {
-        const rollback = isPaymentIn ? (row.totalAmount || 0) : -(row.totalAmount || 0);
+        // Direction comes from the row itself (the history can show both types),
+        // and the write-off (lessAmount) was settled too, so reverse it as well.
+        const settled = (row.totalAmount || 0) + (row.lessAmount || 0);
+        const rollback = row.type === 'PaymentOut' ? -settled : settled;
         await updateItem('parties', row.partyId, { balance: (party.balance || 0) + rollback });
       }
       deleteItem('payments', row.id);
@@ -311,13 +338,13 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
     const modeText = isSplit
       ? `Mode: ⚡ Split Payment\n  💵 Cash: ₹${Number(row.paymentSplit.cash).toLocaleString()}\n  🏦 Bank: ₹${Number(row.paymentSplit.bank).toLocaleString()}`
       : `Mode: ${row.paymentMode}`;
-    const text = `*Payment Receipt from ${currentBusiness?.name || 'TallyKraft'}*\n\n` +
+    const text = `*Payment Receipt from ${currentBusiness?.name || 'BillDheko'}*\n\n` +
       `Amount: ₹${row.totalAmount.toLocaleString()}\n` +
       `Date: ${row.date}\n` +
       `Party: ${row.partyName}\n` +
       `${modeText}\n` +
       `Ref: ${row.referenceNo}\n\n` +
-      `Shared via TallyKraft`;
+      `Shared via BillDheko`;
     if (navigator.share) {
       navigator.share({ title: `Payment Receipt ${row.referenceNo}`, text }).catch(e => console.error(e));
     } else {
@@ -347,10 +374,10 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
         </Box>
         {/* Summary chips */}
         <Box sx={{ display: 'flex', gap: 1, alignItems: 'center', flexWrap: 'wrap' }}>
-          {[
+          {(showSummaries ? [
             { label: 'Received', value: totalIn, color: '#16a34a' },
             { label: 'Paid Out', value: totalOut, color: '#d97706' },
-          ].map(({ label, value, color }) => (
+          ] : []).map(({ label, value, color }) => (
             <Box key={label} sx={{ px: 1.5, py: 0.75, borderRadius: '10px', bgcolor: alpha(color, 0.06), border: `1px solid ${alpha(color, 0.18)}` }}>
               <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color, textTransform: 'uppercase', letterSpacing: '0.05em', lineHeight: 1.2 }}>{label}</Typography>
               <Typography sx={{ fontWeight: 800, fontSize: '0.9rem', color, lineHeight: 1.2 }}>₹{value.toLocaleString('en-IN')}</Typography>
@@ -649,14 +676,14 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
               </Typography>
             </Box>
           </Box>
-          <Box sx={{ px: 1.5, py: 0.75, borderRadius: '10px', bgcolor: alpha(accentColor, 0.08) }}>
+          {showSummaries && <Box sx={{ px: 1.5, py: 0.75, borderRadius: '10px', bgcolor: alpha(accentColor, 0.08) }}>
             <Typography sx={{ fontSize: '0.65rem', fontWeight: 700, color: accentColor, textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1.1 }}>
               Total {isPaymentIn ? 'Receivable' : 'Payable'}
             </Typography>
             <Typography sx={{ fontWeight: 800, fontSize: '1rem', color: accentColor, lineHeight: 1.2 }}>
               ₹{(isPaymentIn ? receivables : payables).reduce((s, p) => s + Math.abs(p.balance || 0), 0).toLocaleString('en-IN')}
             </Typography>
-          </Box>
+          </Box>}
         </Box>
 
         <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -723,17 +750,32 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
           <Card elevation={0} sx={{ border: `1px solid #e5e7eb`, borderRadius: '14px', overflow: 'hidden' }}>
             {/* History header */}
             <Box sx={{ px: 2, py: 1.25, borderBottom: '1px solid #f6efe9', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 1, bgcolor: '#fafafa' }}>
-              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.875rem' }}>
-                  {isPaymentIn ? t('pay.paymentIn') : t('pay.paymentOut')} History
+              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.875rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                  {partyScoped ? `${selectedParty.name} — Payment History` : `${isPaymentIn ? t('pay.paymentIn') : t('pay.paymentOut')} History`}
                 </Typography>
                 <Box sx={{ px: 1, py: 0.25, borderRadius: '6px', bgcolor: alpha(accentColor, 0.08) }}>
                   <Typography sx={{ fontSize: '0.7rem', fontWeight: 700, color: accentColor }}>{filteredHistory.length}</Typography>
                 </Box>
+                {partyScoped && (
+                  <Tooltip title="Clear the selected party and show everyone's payments">
+                    <Button size="small" onClick={() => { if (!editingId) setFormData(f => ({ ...f, partyId: '' })); }} disabled={!!editingId}
+                      sx={{ textTransform: 'none', fontSize: '0.72rem', fontWeight: 600, minWidth: 0, px: 1, py: 0.1, flexShrink: 0 }}>
+                      Show all parties
+                    </Button>
+                  </Tooltip>
+                )}
               </Box>
-              <Typography sx={{ fontSize: '0.75rem', color: '#57433e' }}>
-                Total&nbsp;<Box component="span" sx={{ fontWeight: 800, color: accentColor }}>₹{filteredTotal.toLocaleString('en-IN')}</Box>
-              </Typography>
+              {partyScoped ? (
+                <Typography sx={{ fontSize: '0.75rem', color: '#57433e' }}>
+                  In&nbsp;<Box component="span" sx={{ fontWeight: 800, color: '#16a34a' }}>₹{partyInTotal.toLocaleString('en-IN')}</Box>
+                  &nbsp;·&nbsp;Out&nbsp;<Box component="span" sx={{ fontWeight: 800, color: '#d97706' }}>₹{partyOutTotal.toLocaleString('en-IN')}</Box>
+                </Typography>
+              ) : (
+                <Typography sx={{ fontSize: '0.75rem', color: '#57433e' }}>
+                  Total&nbsp;<Box component="span" sx={{ fontWeight: 800, color: accentColor }}>₹{filteredTotal.toLocaleString('en-IN')}</Box>
+                </Typography>
+              )}
             </Box>
 
             {/* Toolbar */}
@@ -743,12 +785,30 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                 <InputBase sx={{ ml: 1, flex: 1, fontSize: '0.8125rem' }} placeholder="Search vouchers…"
                   value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
               </Paper>
-              <TextField type="date" size="small" value={dateRange.start}
-                onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
-                sx={{ width: 142 }} slotProps={{ inputLabel: { shrink: true } }} />
-              <TextField type="date" size="small" value={dateRange.end}
-                onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
-                sx={{ width: 142 }} slotProps={{ inputLabel: { shrink: true } }} />
+              {partyScoped ? (
+                <Box sx={{ display: 'inline-flex', gap: 0.5, flexShrink: 0 }}>
+                  {[
+                    { value: 'all', label: 'All', color: '#7a2e30' },
+                    { value: 'in', label: 'Payment In', color: '#16a34a' },
+                    { value: 'out', label: 'Payment Out', color: '#d97706' },
+                  ].map(o => {
+                    const sel = historyType === o.value;
+                    return (
+                      <Chip key={o.value} label={o.label} size="small" clickable onClick={() => setHistoryType(o.value)}
+                        sx={{ fontWeight: 700, fontSize: '0.72rem', border: '1px solid', borderColor: sel ? o.color : 'divider', bgcolor: sel ? alpha(o.color, 0.1) : 'transparent', color: sel ? o.color : 'text.secondary' }} />
+                    );
+                  })}
+                </Box>
+              ) : (
+                <>
+                  <TextField type="date" size="small" value={dateRange.start}
+                    onChange={(e) => setDateRange({ ...dateRange, start: e.target.value })}
+                    sx={{ width: 142 }} slotProps={{ inputLabel: { shrink: true } }} />
+                  <TextField type="date" size="small" value={dateRange.end}
+                    onChange={(e) => setDateRange({ ...dateRange, end: e.target.value })}
+                    sx={{ width: 142 }} slotProps={{ inputLabel: { shrink: true } }} />
+                </>
+              )}
               <Button onClick={() => setShowFilters(!showFilters)} variant="outlined" size="small" sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
                 {showFilters ? 'Hide' : 'Filters'}
               </Button>
@@ -791,12 +851,12 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
             )}
 
             {/* Table */}
-            <TableContainer sx={{ overflowX: 'auto' }}>
+            <TableContainer ref={txScrollRef} sx={{ overflowX: 'auto' }}>
               <Table stickyHeader size="small" sx={{ minWidth: 560 }}>
                 <TableHead>
                   <TableRow sx={{ '& th': { bgcolor: alpha(theme.palette.text.primary, 0.03), fontWeight: 700, fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'text.secondary', py: 1.5 } }}>
                     <TableCell>Date</TableCell>
-                    <TableCell>Party</TableCell>
+                    <TableCell>{partyScoped ? 'Type' : 'Party'}</TableCell>
                     <TableCell sx={{ display: { xs: 'none', md: 'table-cell' } }}>Reference</TableCell>
                     <TableCell sx={{ display: { xs: 'none', sm: 'table-cell' } }}>Mode</TableCell>
                     <TableCell align="right">Amount</TableCell>
@@ -814,7 +874,12 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                           </Typography>
                         )}
                       </TableCell>
-                      <TableCell sx={{ fontWeight: 600 }}>{row.partyName}</TableCell>
+                      <TableCell sx={{ fontWeight: 600 }}>
+                        {partyScoped ? (
+                          <Chip size="small" label={row.type === 'PaymentOut' ? 'Payment Out' : 'Payment In'}
+                            sx={{ fontWeight: 700, fontSize: '0.7rem', bgcolor: alpha(row.type === 'PaymentOut' ? '#d97706' : '#16a34a', 0.1), color: row.type === 'PaymentOut' ? '#b45309' : '#15803d' }} />
+                        ) : row.partyName}
+                      </TableCell>
                       <TableCell sx={{ color: 'text.secondary', fontSize: '0.8rem', display: { xs: 'none', md: 'table-cell' } }}>
                         {row.referenceNo || '—'}
                       </TableCell>
@@ -836,7 +901,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                         </Tooltip>
                       </TableCell>
                       <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                        <Typography sx={{ fontWeight: 800, color: accentColor, fontSize: '0.9rem' }}>
+                        <Typography sx={{ fontWeight: 800, color: partyScoped ? (row.type === 'PaymentOut' ? '#d97706' : '#16a34a') : accentColor, fontSize: '0.9rem' }}>
                           ₹{row.totalAmount?.toLocaleString('en-IN')}
                         </Typography>
                         {row.lessAmount > 0 && (
@@ -869,7 +934,7 @@ const PaymentEntry = ({ mode = 'payment-in' }) => {
                         <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 1, opacity: 0.45 }}>
                           <Banknote size={34} strokeWidth={1.5} />
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>No payment records found</Typography>
-                          <Typography variant="caption">Try adjusting the date range or search term</Typography>
+                          <Typography variant="caption">{partyScoped ? `No ${historyType === 'in' ? 'Payment In ' : historyType === 'out' ? 'Payment Out ' : ''}records for ${selectedParty.name} yet` : 'Try adjusting the date range or search term'}</Typography>
                         </Box>
                       </TableCell>
                     </TableRow>

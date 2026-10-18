@@ -12,8 +12,8 @@ import { SAC_CODE } from './gstUtils';
 
 const PLAN_LABEL = {
   monthly: 'Basic (Monthly)', yearly: 'Basic (Yearly)',
-  monthly_pro: 'Pro (Monthly)', yearly_pro: 'Pro (Yearly)',
-  trial: 'Trial', admin_granted: 'Admin Granted',
+  monthly_pro: '30-day plan', yearly_pro: 'Yearly plan',
+  trial: 'Free trial', admin_granted: 'Admin Granted',
 };
 
 const money = (n) => `₹${(Number(n) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -27,7 +27,7 @@ const Receipt_Template = React.forwardRef(({ payment, billing, business }, ref) 
     <div ref={ref} style={{ width: '210mm', minHeight: '148mm', padding: '18mm 16mm', fontFamily: 'Arial, sans-serif', color: '#111', boxSizing: 'border-box', background: '#fff' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid #111', paddingBottom: 12, marginBottom: 16 }}>
         <div>
-          <div style={{ fontSize: 20, fontWeight: 800 }}>{billing?.legalName || 'TallyKraft'}</div>
+          <div style={{ fontSize: 20, fontWeight: 800 }}>{billing?.legalName || 'BillDheko'}</div>
           {billing?.address && <div style={{ fontSize: 12, color: '#444', maxWidth: 320, marginTop: 4 }}>{billing.address}</div>}
           {billing?.gstin && <div style={{ fontSize: 12, marginTop: 4 }}><b>GSTIN:</b> {billing.gstin}</div>}
           {billing?.sellerState && <div style={{ fontSize: 12 }}><b>State:</b> {billing.sellerState}</div>}
@@ -66,6 +66,11 @@ const Receipt_Template = React.forwardRef(({ payment, billing, business }, ref) 
           <tr>
             <td style={{ padding: 8, border: '1px solid #ddd' }}>
               {PLAN_LABEL[payment.plan] || payment.plan} subscription{business?.name ? ` — ${business.name}` : ''}
+              {payment.periodStart && payment.periodEnd && (
+                <div style={{ fontSize: 11, color: '#666', marginTop: 2 }}>
+                  Service period: {fmtDate(payment.periodStart)} – {fmtDate(payment.periodEnd)}
+                </div>
+              )}
             </td>
             <td style={{ padding: 8, border: '1px solid #ddd', textAlign: 'right' }}>{Number(payment.taxable || 0).toFixed(2)}</td>
           </tr>
@@ -116,7 +121,7 @@ const BillingPayments = () => {
   // Current plan summary (drives the "Change plan" card).
   const isSubscribed = getBusinessState(bId) === 'subscribed';
   const currentIsPro = isBusinessProPlan(bId);
-  const currentPlanLabel = PLAN_LABEL[businessSubs?.[bId]?.plan] || (currentIsPro ? 'Pro' : 'Basic');
+  const currentPlanLabel = PLAN_LABEL[businessSubs?.[bId]?.plan] || (currentIsPro ? '30-day plan' : 'Plan');
 
   const [printPayment, setPrintPayment] = useState(null);
   const printRef = useRef();

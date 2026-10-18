@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTableScrollReset } from './useTableScrollReset';
 import {
   Box, Button, Card, CardContent, Typography, TextField, Grid,
   Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
@@ -23,6 +24,7 @@ const Journal = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [page, setPage] = useState(0);
   const [rowsPerPage, setRowsPerPage] = useState(10);
+  const txScrollRef = useTableScrollReset(page, rowsPerPage);
 
   const entries = getItems('journalEntries').filter(e => e.businessId === currentBusiness?.id).reverse();
 
@@ -104,7 +106,7 @@ const Journal = () => {
       {view === 'list' && (
         <Card>
           <CardContent>
-            <TableContainer component={Paper} variant="outlined">
+            <TableContainer ref={txScrollRef} component={Paper} variant="outlined">
               <Table size="small">
                 <TableHead>
                   <TableRow>

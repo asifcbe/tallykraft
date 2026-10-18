@@ -13,7 +13,7 @@ import { useData } from './DataContext';
 import { useI18n } from './i18n/I18nContext';
 import { useDialog } from './DialogContext';
 import { useReactToPrint } from 'react-to-print';
-import InvoiceTemplate, { PAPER_SIZES, getPaperWidthMm, getJsPdfFormat } from './InvoiceTemplate';
+import InvoiceTemplate, { PAPER_SIZES } from './InvoiceTemplate';
 import PartySelect from './PartySelect';
 import ItemSelect from './ItemSelect';
 import ItemFormDialog from './ItemFormDialog';
@@ -21,6 +21,7 @@ import BarcodeScanner from './BarcodeScanner';
 import SendDialog from './SendDialog';
 import TxListView from './TxListView';
 import { waitForQrReady } from './qrReady';
+import { captureElement, canvasToPdf } from './pdfCapture';
 
 const PAPER_SIZE_VALUES = PAPER_SIZES.map(p => p.value);
 
@@ -134,7 +135,7 @@ const buildDeliveryNoteMessage = ({ tx, businessName }) => {
     lines.push('');
   }
   if (tx.deliveryAddress) lines.push(`📍 Deliver to: ${tx.deliveryAddress}`);
-  lines.push('\n_Sent via TallyKraft_');
+  lines.push('\n_Sent via BillDheko_');
   return lines.filter(l => l !== null).join('\n');
 };
 
@@ -480,9 +481,8 @@ const DeliveryNotes = () => {
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   };
   const captureInvoiceCanvas = async () => {
-    const { default: html2canvas } = await import('html2canvas');
     await waitForCaptureReady(pdfRef.current);
-    return html2canvas(pdfRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+    return captureElement(pdfRef.current, { scale: 1.5 });
   };
   const showDeliverResult = (result) => {
     if (result.method === 'clipboard') setSnack({ open: true, msg: 'Copied — paste it into the WhatsApp chat' });
@@ -511,12 +511,7 @@ const DeliveryNotes = () => {
       if (_shareCancelledRef.current || !pdfRef.current) return;
       const [canvas, { jsPDF }] = await Promise.all([captureInvoiceCanvas(), import('jspdf').then(m => ({ jsPDF: m.jsPDF }))]);
       if (_shareCancelledRef.current) return;
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfWidthMm = getPaperWidthMm(paperSize);
-      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
-      const namedFormat = getJsPdfFormat(paperSize);
-      const pdf = new jsPDF({ unit: 'mm', format: namedFormat || [pdfWidthMm, pdfHeightMm] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const pdf = canvasToPdf(canvas, jsPDF, paperSize);
       if (_shareCancelledRef.current) return;
       const fileName = `${target.noteNumber || 'delivery-note'}.pdf`;
       const pdfBlob = pdf.output('blob');
@@ -749,8 +744,8 @@ const DeliveryNotes = () => {
         onClose={() => setSendOpen(false)}
         tx={sendTx}
         party={sendParty}
-        businessName={currentBusiness?.name || 'TallyKraft'}
-        initialMessage={buildDeliveryNoteMessage({ tx: sendTx, businessName: currentBusiness?.name || 'TallyKraft' })}
+        businessName={currentBusiness?.name || 'BillDheko'}
+        initialMessage={buildDeliveryNoteMessage({ tx: sendTx, businessName: currentBusiness?.name || 'BillDheko' })}
         dialogTitle="Share Delivery Note"
         onSharePDF={() => shareAsPDF(sendTx)}
         onShareImage={() => shareAsImage(sendTx)}

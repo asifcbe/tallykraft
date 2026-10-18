@@ -78,6 +78,24 @@ export function saveCustomCategories(businessId, type, cats) {
   } catch {}
 }
 
+// ── Party groups ───────────────────────────────────────────────────────────
+// Free-form, business+type-scoped (same storage pattern as custom
+// categories, just its own key) — lets a customer/vendor be grouped
+// independently of Category (e.g. Category=Wholesale, Group="North Region").
+// No built-in list — every group is user-created via the Group field's
+// freeSolo Autocomplete on PartyFormDialog.
+export function loadCustomGroups(businessId, type) {
+  try {
+    return JSON.parse(localStorage.getItem(`dz_party_groups_${businessId}_${type}`) || '[]');
+  } catch { return []; }
+}
+
+export function saveCustomGroups(businessId, type, groups) {
+  try {
+    localStorage.setItem(`dz_party_groups_${businessId}_${type}`, JSON.stringify(groups));
+  } catch {}
+}
+
 // ── Item categories (same keys as ItemFormDialog uses) ───────────────────────
 export const BUILTIN_PRODUCT_CATEGORIES = [
   'Clothing', 'Footwear', 'Accessories', 'Electronics', 'Mobile & Tablets',

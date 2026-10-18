@@ -220,7 +220,7 @@ const Cash = () => {
   const { data, getItems, addItem, addItems, deleteItem } = useData();
   const { confirm } = useDialog();
   const { t } = useI18n();
-  // TallyKraft billing: data layer blocks the write anyway; this greys the CTAs.
+  // BillDheko billing: data layer blocks the write anyway; this greys the CTAs.
   const { isBusinessActive } = useSubscription();
   const canWrite = isBusinessActive(currentBusiness?.id);
   const bizId = currentBusiness?.id;

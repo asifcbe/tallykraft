@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo, lazy, Suspense } from 'react';
 import { useData } from './DataContext';
-import { useTabs, pathLabel } from './TabsContext';
+import { useTabs, pathLabel, isMultiTabAllowed } from './TabsContext';
 
 // After a new build is deployed, a tab still running the OLD index chunk
 // asks for a page chunk whose hashed filename no longer exists on the
@@ -136,7 +136,7 @@ import { useSubscription } from './SubscriptionContext';
 import SectionIcon from './SectionIcon';
 import { useDialog } from './DialogContext';
 import BusinessSetupDialog from './BusinessSetupDialog';
-import TallyKraftLogo from './TallyKraftLogo';
+import BillDhekoLogo, { TM } from './BillDhekoLogo';
 import { BRAND } from './theme';
 import { useI18n } from './i18n/I18nContext';
 import { buildUpiUri } from './upiUtils';
@@ -146,7 +146,7 @@ const drawerWidth = 240;
 const miniWidth = 64; // collapsed sidebar — icons only
 const APP_BAR_H = 52; // single unified bar height
 // Oxblood brand fill for the left nav (white text on it); the warm-stone
-// #e0b878 is the accent used on the "Kraft" wordmark + the selected-item rail.
+// #e0b878 is the accent used on the "Dheko" wordmark + the selected-item rail.
 const OXBLOOD_SIDEBAR = 'linear-gradient(180deg, #3f1417 0%, #5c1f22 55%, #6e2a2c 100%)';
 
 // Routes accessible to staff and the feature key required in staffSession.features.
@@ -174,6 +174,7 @@ const STAFF_ROUTE_FEATURES = {
   '/membership': 'membership',
   '/investors': 'investors',
   '/opticals': 'opticals',
+  '/backup': 'backup',
 };
 
 // ── No-permission full screen shown when a staff member hits a blocked page ──
@@ -315,7 +316,7 @@ const TabPageRenderer = ({ path, tabId }) => {
   if (path === '/') return <Dashboard />;
   if (path === '/parties') return <Parties />;
   if (path === '/items') return <Items />;
-  if (path === '/pos') return <POS />;
+  if (path === '/pos') return <POS tabId={tabId} />;
   if (path === '/sales') return <Sales tabId={tabId} />;
   if (path === '/purchases') return <Sales mode="purchase" tabId={tabId} />;
   if (path === '/expenses') return <Expenses />;
@@ -324,7 +325,7 @@ const TabPageRenderer = ({ path, tabId }) => {
   if (path === '/payment-in') return <PaymentEntry mode="payment-in" />;
   if (path === '/payment-out') return <PaymentEntry mode="payment-out" />;
   if (path === '/opticals') return <Opticals />;
-  if (path === '/estimates') return <Estimates />;
+  if (path === '/estimates') return <Estimates tabId={tabId} />;
   if (path === '/orders') return <Orders />;
   if (path === '/credit-notes') return <CreditNotes />;
   if (path === '/debit-notes') return <DebitNotes />;
@@ -344,14 +345,20 @@ const TabPageRenderer = ({ path, tabId }) => {
 };
 
 // ── Multi-instance tab sub-strip ─────────────────────────────────────────────
+const MULTI_TAB_PATHS = ['/sales', '/reports', '/pos', '/estimates'];
 const MultiTabStrip = ({ activeTabPath }) => {
   const { tabs, activeTabId, activateTab, closeTab, openTab } = useTabs();
+  const { config } = useConfig();
 
   // Only show tabs that belong to the currently active page
   const stripTabs = tabs.filter(t => t.path === activeTabPath);
-  if (!stripTabs.length || (activeTabPath !== '/sales' && activeTabPath !== '/reports')) return null;
+  if (!stripTabs.length || !MULTI_TAB_PATHS.includes(activeTabPath)) return null;
+  // Multi-tab switched off in Settings: hide the strip, but keep it (without
+  // the + button) while extra tabs from before are still open so they can be closed.
+  const allowNew = isMultiTabAllowed(activeTabPath, config.features);
+  if (!allowNew && stripTabs.length < 2) return null;
 
-  const newLabel = activeTabPath === '/sales' ? 'New Invoice' : 'New Report';
+  const newLabel = activeTabPath === '/sales' ? 'New Invoice' : activeTabPath === '/pos' ? 'New POS' : activeTabPath === '/estimates' ? 'New Estimate' : 'New Report';
 
   return (
     <Box sx={{
@@ -414,7 +421,7 @@ const MultiTabStrip = ({ activeTabPath }) => {
         );
       })}
       {/* + button to open a new instance of the current page */}
-      <Tooltip title={newLabel}>
+      {allowNew && <Tooltip title={newLabel}>
         <Box
           onClick={() => openTab(activeTabPath, newLabel, { duplicate: true })}
           sx={{
@@ -428,7 +435,7 @@ const MultiTabStrip = ({ activeTabPath }) => {
         >
           <Plus size={13} />
         </Box>
-      </Tooltip>
+      </Tooltip>}
     </Box>
   );
 };
@@ -550,7 +557,9 @@ const Layout = () => {
   const daysLeft = currentBizId ? daysLeftForBusiness(currentBizId) : null;
   const isActiveTrial = bizState === 'trial';
   const isExpired = bizState === 'expired' || bizState === 'trial_expired';
-  const showSubscribePill = isActiveTrial || isExpired;
+  // Paid plan in its last 5 days → nudge to renew before the app locks.
+  const isRenewSoon = bizState === 'subscribed' && daysLeft !== null && daysLeft <= 5;
+  const showSubscribePill = isActiveTrial || isExpired || isRenewSoon;
   const { confirm } = useDialog();
   const { getItems } = useData();
   const [signOutOpen, setSignOutOpen] = useState(false);
@@ -740,7 +749,7 @@ const Layout = () => {
         ...(config.features?.ledger && canStaff('ledger') ? [{ text: t('nav.ledger'), icon: <BookOpen size={18} />, path: '/ledger' }] : []),
         ...(config.features?.membership && canStaff('membership') ? [{ text: t('nav.membership'), icon: <CreditCard size={18} />, path: '/membership' }] : []),
         ...(config.features?.investors && canStaff('investors') ? [{ text: 'Investors', icon: <Handshake size={18} />, path: '/investors' }] : []),
-        ...(config.features?.opticals && config.businessType === 'opticals' && canStaff('opticals') ? [{ text: t('nav.opticals'), icon: <Eye size={18} />, path: '/opticals' }] : []),
+        ...(config.features?.opticals && canStaff('opticals') ? [{ text: t('nav.opticals'), icon: <Eye size={18} />, path: '/opticals' }] : []),
         ...(config.customSections || []).map(section => ({
           text: section.name,
           icon: <SectionIcon name={section.icon} size={18} />,
@@ -757,7 +766,7 @@ const Layout = () => {
     {
       label: t('nav.system'),
       items: [
-        ...(!sf ? [{ text: t('nav.backup'), icon: <Database size={18} />, path: '/backup' }] : []),
+        ...(!sf || canStaff('backup') ? [{ text: t('nav.backup'), icon: <Database size={18} />, path: '/backup' }] : []),
         ...(!sf ? [{ text: 'Migrate Data', icon: <RefreshCw size={18} />, path: '/migrate' }] : []),
         { text: t('nav.help'), icon: <HelpCircle size={18} />, path: '/help' },
         ...(!sf && config.features?.settings ? [{ text: t('nav.settings'), icon: <Settings size={18} />, path: '/settings' }] : []),
@@ -833,6 +842,13 @@ const Layout = () => {
     ? 'Admin'
     : isStaff ? staffSession.name : (currentUser?.displayName || 'User');
   const userEmail = isStaff ? `@${staffSession.username}` : currentUser?.email;
+  // Google profile photo. Google's image host often refuses requests that
+  // carry the app's page as the referrer, which left the avatar showing only
+  // the initial — hence referrerPolicy="no-referrer" on the <img> below.
+  // Fall back to the provider record if the top-level photoURL is empty.
+  const userPhoto = !isStaff
+    ? (currentUser?.photoURL || (currentUser?.providerData || []).find(p => p?.photoURL)?.photoURL || '')
+    : '';
   const userInitial = isAdminSessionTop
     ? ((currentBusiness?.name || staffSession.name)?.[0] || 'A').toUpperCase()
     : isStaff
@@ -897,18 +913,18 @@ const Layout = () => {
               onClick={handleDrawerToggle}
               sx={{ p: 0.5, borderRadius: 1.5, bgcolor: '#fff', '&:hover': { bgcolor: 'rgba(255,255,255,0.88)' } }}
             >
-              <TallyKraftLogo size={26} variant="icon" />
+              <BillDhekoLogo size={26} variant="icon" />
             </IconButton>
           </Tooltip>
         ) : (
           <>
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Box sx={{ bgcolor: '#fff', borderRadius: 1.5, p: 0.5, display: 'flex', lineHeight: 0 }}>
-                <TallyKraftLogo size={24} variant="icon" />
+                <BillDhekoLogo size={24} variant="icon" />
               </Box>
               <Box component="span" sx={{ fontSize: '1.05rem', lineHeight: 1, letterSpacing: '-0.02em', color: '#fff', whiteSpace: 'nowrap', userSelect: 'none' }}>
-                <Box component="span" sx={{ fontWeight: 700 }}>Tally</Box>
-                <Box component="span" sx={{ fontWeight: 800, color: '#e0b878' }}>Kraft</Box>
+                <Box component="span" sx={{ fontWeight: 700 }}>Bill</Box>
+                <Box component="span" sx={{ fontWeight: 800, color: '#e0b878' }}>Dheko</Box><TM />
               </Box>
             </Box>
             <Tooltip title="Collapse sidebar" placement="right">
@@ -1278,7 +1294,7 @@ const Layout = () => {
                 },
               }} />
               <Typography sx={{ fontWeight: 700, fontSize: '0.72rem', lineHeight: 1, whiteSpace: 'nowrap', display: { xs: 'none', sm: 'block' } }}>
-                {isExpired ? 'Expired · Renew' : daysLeft !== null ? `${daysLeft}d left · Upgrade` : 'Trial · Upgrade'}
+                {isExpired ? 'Expired · Renew' : isRenewSoon ? `${daysLeft}d left · Renew` : daysLeft !== null ? `${daysLeft}d left · Upgrade` : 'Trial · Upgrade'}
               </Typography>
               <Crown size={12} style={{ flexShrink: 0 }} />
             </Box>
@@ -1292,7 +1308,9 @@ const Layout = () => {
               sx={{ p: 0.5 }}
             >
               <Avatar
-                src={!isStaff ? currentUser?.photoURL : undefined}
+                src={userPhoto || undefined}
+                alt={userDisplayName || ''}
+                slotProps={{ img: { referrerPolicy: 'no-referrer' } }}
                 sx={{
                   width: 30, height: 30, fontSize: '0.75rem', fontWeight: 700,
                   bgcolor: '#fff',
@@ -1313,7 +1331,13 @@ const Layout = () => {
             transformOrigin={{ vertical: 'top', horizontal: 'right' }}
             PaperProps={{ sx: { minWidth: 220, mt: 0.75 } }}
           >
-            <ListSubheader disableSticky sx={{ px: 2, py: 1.5, lineHeight: 1.4, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper' }}>
+            <ListSubheader disableSticky sx={{ px: 2, py: 1.5, lineHeight: 1.4, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'background.paper', display: 'flex', alignItems: 'center', gap: 1.25 }}>
+              <Avatar src={userPhoto || undefined} alt={userDisplayName || ''}
+                slotProps={{ img: { referrerPolicy: 'no-referrer' } }}
+                sx={{ width: 38, height: 38, fontSize: '0.9rem', fontWeight: 700, bgcolor: '#fff', color: BRAND.tealDark, border: `1.5px solid ${BRAND.teal}`, flexShrink: 0 }}>
+                {userInitial}
+              </Avatar>
+              <Box sx={{ minWidth: 0 }}>
               <Typography variant="subtitle2" noWrap sx={{ color: 'text.primary' }}>
                 {userDisplayName}
               </Typography>
@@ -1325,6 +1349,7 @@ const Layout = () => {
                   {isAdminSessionTop ? 'Admin' : 'Staff'} · {currentBusiness?.name || staffSession.businessName}
                 </Typography>
               )}
+              </Box>
             </ListSubheader>
             <MenuItem
               onClick={() => { setUserMenuAnchor(null); setSignOutOpen(true); }}
@@ -1373,10 +1398,18 @@ const Layout = () => {
         sx={{
           flexGrow: 1,
           width: { xs: '100%', md: `calc(100% - ${collapsed ? miniWidth : drawerWidth}px)` },
-          mt: (() => {
-            if (isMobile) return `${APP_BAR_H}px`;
-            const hasStrip = (activeTab?.path === '/sales' || activeTab?.path === '/reports') && tabs.some(t => t.path === activeTab?.path);
-            return `${APP_BAR_H + (hasStrip ? 38 : 0)}px`;
+          ...(() => {
+            const p = activeTab?.path;
+            const n = tabs.filter(t => t.path === p).length;
+            const hasStrip = !isMobile && MULTI_TAB_PATHS.includes(p) && n > 0 && (isMultiTabAllowed(p, config.features) || n > 1);
+            const extra = hasStrip ? 38 : 0;
+            return {
+              mt: `${APP_BAR_H + extra}px`,
+              // Height taken above the page beyond the app bar (multi-tab
+              // strip). Full-height pages (POS) subtract it so their bottom
+              // buttons stay on screen.
+              '--app-top-extra': `${extra}px`,
+            };
           })(),
           minWidth: 0,
           transition: 'margin-top 0.15s ease',

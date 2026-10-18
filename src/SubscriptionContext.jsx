@@ -3,10 +3,9 @@ import { firestore } from './db';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 import { setBusinessActive, setBusinessPro, setAllBusinessesActive, notifyProStateChange } from './activeBusinessState';
-import { SOLO_PLANS, PRO_PLANS } from './planTiers';
+import { SOLO_PLANS, PRO_PLANS, TRIAL_DAYS, PLAN_DAYS, PLAN_ID, PLAN_PRICE, addDays } from './planTiers';
 
 const SubscriptionContext = createContext();
-const TRIAL_DAYS = 3;
 
 // ── Per-business state computation ──────────────────────────────────────────
 
@@ -93,6 +92,15 @@ export const SubscriptionProvider = ({ children }) => {
     };
   }, [currentUser?.email, isAdmin, staffSession, isAuthorized]);
 
+  // Re-evaluate once a minute so a trial / paid period that ends while the app
+  // is open locks the business without needing a reload (state is derived
+  // from endDate vs now, and the Firestore doc itself doesn't change).
+  const [tick, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60 * 1000);
+    return () => clearInterval(id);
+  }, []);
+
   // ── Derived state ────────────────────────────────────────────────────────
 
   const adminGrantedAll = !!(subDoc?.adminGrantedAll);
@@ -103,7 +111,8 @@ export const SubscriptionProvider = ({ children }) => {
       if (adminGrantedAll) return 'admin_granted';
       return computeState(businessSubs[String(bId)]);
     },
-    [adminGrantedAll, businessSubs]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tick re-derives time-based state
+    [adminGrantedAll, businessSubs, tick]
   );
 
   const isBusinessActive = useCallback(
@@ -135,7 +144,8 @@ export const SubscriptionProvider = ({ children }) => {
       if (adminGrantedAll) return null;
       return computeDaysLeft(businessSubs[String(bId)]);
     },
-    [adminGrantedAll, businessSubs]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- tick re-derives time-based state
+    [adminGrantedAll, businessSubs, tick]
   );
 
   // Has the user started any subscription at all (even expired)?
@@ -164,8 +174,10 @@ export const SubscriptionProvider = ({ children }) => {
     async (businessId = '1') => {
       if (!currentUser?.email) return;
       const bId = String(businessId);
+      // One free trial per business — never restart it over an existing record.
+      if (businessSubs[bId]) return;
       const now = new Date();
-      const endDate = new Date(now.getTime() + TRIAL_DAYS * 24 * 60 * 60 * 1000);
+      const endDate = addDays(now, TRIAL_DAYS);
       await setDoc(
         doc(firestore, 'subscriptions', currentUser.email),
         {
@@ -178,8 +190,15 @@ export const SubscriptionProvider = ({ children }) => {
               startDate: now.toISOString(),
               endDate: endDate.toISOString(),
               createdAt: now.toISOString(),
+              // Kept permanently (activateSubscription doesn't touch them) so the
+              // Admin panel can show trial history after the business converts.
+              trialStartDate: now.toISOString(),
+              trialEndDate: endDate.toISOString(),
+              trialDays: TRIAL_DAYS,
             },
           },
+          trialUsed: true,
+          firstTrialAt: now.toISOString(),
         },
         { merge: true }
       );
@@ -192,13 +211,16 @@ export const SubscriptionProvider = ({ children }) => {
       if (!currentUser?.email) return;
       const bId = String(businessId);
       const now = new Date();
-      const endDate = new Date(now);
-      if (plan === 'yearly' || plan === 'yearly_pro') endDate.setFullYear(endDate.getFullYear() + 1);
-      else endDate.setMonth(endDate.getMonth() + 1);
+      const existing = businessSubs[bId] || {};
+      // Every payment buys PLAN_DAYS (30) days. Paying while still active (trial
+      // or paid) stacks onto the remaining time instead of discarding it.
+      const currentEnd = existing.endDate && existing.status === 'active' ? new Date(existing.endDate) : null;
+      const periodStart = currentEnd && currentEnd > now ? currentEnd : now;
+      const endDate = addDays(periodStart, PLAN_DAYS);
+      const planId = plan || PLAN_ID;
 
       // Build a payment/receipt record. Appended to a per-business history so the
       // customer can download GST receipts from Settings → Billing & Payments.
-      const existing = businessSubs[bId] || {};
       const prevPayments = Array.isArray(existing.payments) ? existing.payments : [];
       const seq = prevPayments.length + 1;
       const invoiceNo = billingMeta?.invoicePrefix
@@ -207,10 +229,19 @@ export const SubscriptionProvider = ({ children }) => {
       const paymentRecord = {
         invoiceNo,
         date: now.toISOString(),
-        plan,
+        plan: planId,
         paymentId: paymentId || null,
+        amount: Number(billingMeta?.total) || PLAN_PRICE,
+        days: PLAN_DAYS,
+        periodStart: periodStart.toISOString(),
+        periodEnd: endDate.toISOString(),
         ...(billingMeta || {}),
       };
+      // Carry the trial window over from a legacy trial record that predates
+      // the trialStartDate/trialEndDate fields.
+      const legacyTrial = existing.plan === 'trial' && !existing.trialStartDate
+        ? { trialStartDate: existing.startDate || null, trialEndDate: existing.endDate || null }
+        : {};
 
       await setDoc(
         doc(firestore, 'subscriptions', currentUser.email),
@@ -220,12 +251,15 @@ export const SubscriptionProvider = ({ children }) => {
             ...businessSubs,
             [bId]: {
               ...existing,
-              plan,
+              ...legacyTrial,
+              plan: planId,
               status: 'active',
-              startDate: now.toISOString(),
+              startDate: periodStart.toISOString(),
               endDate: endDate.toISOString(),
               razorpayPaymentId: paymentId,
               activatedAt: now.toISOString(),
+              firstPaidAt: existing.firstPaidAt || now.toISOString(),
+              ...(billingMeta?.businessName ? { businessName: billingMeta.businessName } : {}),
               lastBilling: billingMeta || existing.lastBilling || null,
               payments: [...prevPayments, paymentRecord],
             },

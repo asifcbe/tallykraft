@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
+import { useTableScrollReset } from './useTableScrollReset';
 import {
   Box, Button, Card, CardContent, Typography, TextField, Dialog,
   DialogTitle, DialogContent, DialogActions, Grid, Table, TableBody,
@@ -7,27 +8,36 @@ import {
   Snackbar, Alert, Avatar, Tooltip, alpha, useTheme, useMediaQuery, Menu, Divider,
   FormControl, InputLabel, Select, Collapse
 } from '@mui/material';
-import { Plus, Search, Edit2, Trash2, Users, TrendingUp, TrendingDown, UserCheck, Store, Upload, Download, LayoutList, MoreHorizontal, Tag, X, FolderOpen, ChevronsUpDown, Landmark, Phone, MapPin, BadgeCheck, Building2, CreditCard, Hash, CheckSquare, Filter } from 'lucide-react';
+import { Plus, Search, Edit2, Trash2, Users, TrendingUp, TrendingDown, UserCheck, Store, Upload, Download, LayoutList, LayoutGrid, MoreHorizontal, Tag, X, FolderOpen, ChevronsUpDown, Landmark, Phone, MapPin, BadgeCheck, Building2, CreditCard, Hash, CheckSquare, Filter } from 'lucide-react';
 import { useBusiness } from './BusinessContext';
 import { useData } from './DataContext';
+import { useAuth } from './AuthContext';
+import { canSeeSummaries } from './staffScope';
 import { useI18n } from './i18n/I18nContext';
 import { useDialog } from './DialogContext';
 import ImportDialog from './ImportDialog';
 import BulkAddDialog from './BulkAddDialog';
 import BulkEditDialog from './BulkEditDialog';
 import { exportToExcel, PARTY_COLUMNS } from './exportUtils';
-import { COUNTRY_CODES, CUSTOMER_CATEGORIES, VENDOR_CATEGORIES, loadCustomCategories, saveCustomCategories, generatePartyId } from './partyUtils';
+import { COUNTRY_CODES, CUSTOMER_CATEGORIES, VENDOR_CATEGORIES, loadCustomCategories, saveCustomCategories, loadCustomGroups, saveCustomGroups, generatePartyId } from './partyUtils';
 import PartyFormDialog from './PartyFormDialog';
 import CustomerPreviewPanel from './CustomerPreviewPanel';
 import { useFillHeight } from './TxListView';
 import { useSubscription } from './SubscriptionContext';
+import { useResizableWidth, ResizeHandle } from './PanelResizer';
+import { usePersistedState } from './usePersistedState';
 
 const PartiesPage = () => {
+  // List (table) or Grid (cards) on desktop — remembered on this device.
+  const [viewMode, setViewMode] = usePersistedState('parties_view', 'list');
+  const detailPanel = useResizableWidth('parties-detail', 300, { min: 260, max: 560 });
   const { currentBusiness } = useBusiness();
   const { data, addItem, addItems, updateItem, deleteItem, getItems } = useData();
+  const { staffSession } = useAuth();
+  const showSummaries = canSeeSummaries(staffSession);
   const { confirm } = useDialog();
   const { t } = useI18n();
-  // TallyKraft billing: data-layer already blocks writes when inactive; this
+  // BillDheko billing: data-layer already blocks writes when inactive; this
   // greys the primary add CTA.
   const { isBusinessActive } = useSubscription();
   const canWrite = isBusinessActive(currentBusiness?.id);
@@ -47,7 +57,7 @@ const PartiesPage = () => {
   const [balanceAmt, setBalanceAmt] = useState('');
 
   const [filters, setFilters] = useState({
-    balanceMin: '', balanceMax: '', hasGST: 'all', category: 'all', sortBy: 'name', sortOrder: 'asc', balanceType: 'all'
+    balanceMin: '', balanceMax: '', hasGST: 'all', category: 'all', group: 'all', sortBy: 'name', sortOrder: 'asc', balanceType: 'all'
   });
   const [showFilters, setShowFilters] = useState(false);
   const [page, setPage] = useState(0);
@@ -60,6 +70,11 @@ const PartiesPage = () => {
   const [catManagerInput, setCatManagerInput] = useState('');
   const [customCatCustomer, setCustomCatCustomer] = useState([]);
   const [customCatVendor, setCustomCatVendor] = useState([]);
+  const [groupManagerOpen, setGroupManagerOpen] = useState(false);
+  const [groupManagerTab, setGroupManagerTab] = useState('Customer');
+  const [groupManagerInput, setGroupManagerInput] = useState('');
+  const [customGroupCustomer, setCustomGroupCustomer] = useState([]);
+  const [customGroupVendor, setCustomGroupVendor] = useState([]);
   const [newCatInput, setNewCatInput] = useState('');
   const [showNewCatInput, setShowNewCatInput] = useState(false);
   const newCatRef = useRef(null);
@@ -71,6 +86,7 @@ const PartiesPage = () => {
   // Bounds the party list/table to the remaining viewport so pagination
   // stays visible with no extra outer-page scroll.
   const listContainerRef = useRef(null);
+  const txScrollRef = useTableScrollReset(page, rowsPerPage);
   const listFillHeight = useFillHeight(listContainerRef, { bottomGap: 16, fallbackPx: 500 });
   // Memoized: with thousands of parties, re-running filter/sort on every
   // render (tab switches, unrelated state changes) caused visible lag.
@@ -122,11 +138,13 @@ const PartiesPage = () => {
     return Array.from(perItem.values()).sort((a, b) => b.qty - a.qty).slice(0, limit);
   };
 
-  // Load persisted custom categories when business is known
+  // Load persisted custom categories/groups when business is known
   useEffect(() => {
     if (!currentBusiness?.id) return;
     setCustomCatCustomer(loadCustomCategories(currentBusiness.id, 'Customer'));
     setCustomCatVendor(loadCustomCategories(currentBusiness.id, 'Vendor'));
+    setCustomGroupCustomer(loadCustomGroups(currentBusiness.id, 'Customer'));
+    setCustomGroupVendor(loadCustomGroups(currentBusiness.id, 'Vendor'));
   }, [currentBusiness?.id]);
 
   const customCats = formData.type === 'Customer' ? customCatCustomer : customCatVendor;
@@ -138,6 +156,9 @@ const PartiesPage = () => {
   const filterBuiltin = tab === 0 ? CUSTOMER_CATEGORIES : VENDOR_CATEGORIES;
   const filterCustom = tab === 0 ? customCatCustomer : customCatVendor;
   const allFilterCategories = [...filterBuiltin, ...filterCustom.filter(c => !filterBuiltin.includes(c))];
+
+  // Group — no built-in list (fully user-created), tab-aware same as Category
+  const customGroups = tab === 0 ? customGroupCustomer : customGroupVendor;
 
   const handleAddCustomCategory = () => {
     const name = newCatInput.trim();
@@ -171,6 +192,36 @@ const PartiesPage = () => {
     }
   };
 
+  // Group manager (More menu → "Manage Groups") — same add/delete pattern
+  // as the Category manager above, just no built-in list since every group
+  // is user-created (PartyFormDialog's freeSolo Group field also writes here).
+  const handleGroupManagerAdd = () => {
+    const name = groupManagerInput.trim();
+    if (!name || !currentBusiness?.id) return;
+    const current = groupManagerTab === 'Customer' ? customGroupCustomer : customGroupVendor;
+    if (current.some(g => g.toLowerCase() === name.toLowerCase())) {
+      setGroupManagerInput('');
+      return;
+    }
+    const updated = [...current, name];
+    if (groupManagerTab === 'Customer') { setCustomGroupCustomer(updated); saveCustomGroups(currentBusiness.id, 'Customer', updated); }
+    else { setCustomGroupVendor(updated); saveCustomGroups(currentBusiness.id, 'Vendor', updated); }
+    setGroupManagerInput('');
+  };
+
+  const handleGroupManagerDelete = (g) => {
+    if (!currentBusiness?.id) return;
+    if (groupManagerTab === 'Customer') {
+      const updated = customGroupCustomer.filter(x => x !== g);
+      setCustomGroupCustomer(updated);
+      saveCustomGroups(currentBusiness.id, 'Customer', updated);
+    } else {
+      const updated = customGroupVendor.filter(x => x !== g);
+      setCustomGroupVendor(updated);
+      saveCustomGroups(currentBusiness.id, 'Vendor', updated);
+    }
+  };
+
   const currentCategories = tab === 0 ? CUSTOMER_CATEGORIES : VENDOR_CATEGORIES;
   const usedCategories = useMemo(() => {
     const tabParties = tab === 0 ? customers : vendors;
@@ -191,13 +242,14 @@ const PartiesPage = () => {
         (filters.hasGST === 'yes' && p.gstNumber) ||
         (filters.hasGST === 'no' && !p.gstNumber);
       const matchesCategory = filters.category === 'all' || p.category === filters.category;
+      const matchesGroup = filters.group === 'all' || p.group === filters.group;
       const bal = p.balance || 0;
       const isCollect = p.type === 'Customer' ? bal > 0 : bal > 0;
       const isPay = p.type === 'Customer' ? bal < 0 : bal < 0;
       const matchesBalanceType = filters.balanceType === 'all' ||
         (filters.balanceType === 'collect' && isCollect) ||
         (filters.balanceType === 'pay' && isPay);
-      return matchesSearch && matchesTab && matchesBalanceMin && matchesBalanceMax && matchesGST && matchesCategory && matchesBalanceType;
+      return matchesSearch && matchesTab && matchesBalanceMin && matchesBalanceMax && matchesGST && matchesCategory && matchesGroup && matchesBalanceType;
     })
     .sort((a, b) => {
       let aValue, bValue;
@@ -328,6 +380,62 @@ const PartiesPage = () => {
     }
   };
 
+  // One party card — used by the phone list and by the desktop Grid view.
+  const renderPartyCard = (party) => {
+                    const chip = getBalanceChip(party);
+                    const isSelected = selectedParty?.id === party.id;
+                    return (
+                      <Box
+                        key={party.id}
+                        onClick={() => setSelectedParty(prev => prev?.id === party.id ? null : party)}
+                        sx={{
+                          border: '1px solid', borderColor: isSelected ? 'primary.main' : 'divider',
+                          borderRadius: 2, p: 1.5, cursor: 'pointer', bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.03) : 'background.paper',
+                          transition: 'all 0.15s',
+                        }}
+                      >
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1 }}>
+                          <Avatar sx={{ width: 36, height: 36, bgcolor: tab === 0 ? alpha('#111', 0.1) : alpha('#5c1f22', 0.1), color: tab === 0 ? '#111' : '#5c1f22', fontSize: '0.85rem', fontWeight: 800, flexShrink: 0 }}>
+                            {party.name.charAt(0).toUpperCase()}
+                          </Avatar>
+                          <Box sx={{ flex: 1, minWidth: 0 }}>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', lineHeight: 1.2 }} noWrap>{party.name}</Typography>
+                            <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', flexWrap: 'wrap', mt: 0.25 }}>
+                              {party.partyId && (
+                                <Typography variant="caption" sx={{ fontFamily: 'monospace', bgcolor: alpha(theme.palette.primary.main, 0.07), color: 'primary.main', px: 0.6, py: 0.1, borderRadius: 0.5, fontWeight: 700, fontSize: '0.65rem' }}>
+                                  {party.partyId}
+                                </Typography>
+                              )}
+                              {party.phone && (
+                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
+                                  {party.countryCode || '+91'} {party.phone}
+                                </Typography>
+                              )}
+                            </Box>
+                          </Box>
+                          <Box sx={{ display: 'flex', gap: 0.25, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
+                            <IconButton size="small" onClick={() => handleOpen(party)} sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main' } }}><Edit2 size={14} /></IconButton>
+                            <IconButton size="small" onClick={() => handleDelete(party.id)} sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}><Trash2 size={14} /></IconButton>
+                          </Box>
+                        </Box>
+                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 0.5 }}>
+                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
+                            {party.category && (
+                              <Chip label={party.category} size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.08), color: 'primary.main' }} />
+                            )}
+                            {party.group && (
+                              <Chip icon={<Users size={10} />} label={party.group} size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#7c3aed', 0.08), color: '#7c3aed', '& .MuiChip-icon': { color: '#7c3aed', ml: '4px' } }} />
+                            )}
+                            {party.gstNumber && (
+                              <Chip label="GST" size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#5c1f22', 0.08), color: '#5c1f22' }} />
+                            )}
+                          </Box>
+                          <Chip label={chip.label} size="small" sx={{ height: 20, fontWeight: 700, fontSize: '0.68rem', bgcolor: chip.bgcolor, color: chip.color, border: `1px solid ${chip.border}` }} />
+                        </Box>
+                      </Box>
+                    );
+  };
+
   return (
     <Box sx={{ mx: 0 }}>
       {/* Hero Header */}
@@ -378,6 +486,9 @@ const PartiesPage = () => {
               <MenuItem onClick={() => { setCatManagerTab(tab === 0 ? 'Customer' : 'Vendor'); setCatManagerOpen(true); setMoreMenuAnchor(null); }} sx={{ gap: 1.5 }}>
                 <FolderOpen size={16} /> Categories
               </MenuItem>
+              <MenuItem onClick={() => { setGroupManagerTab(tab === 0 ? 'Customer' : 'Vendor'); setGroupManagerOpen(true); setMoreMenuAnchor(null); }} sx={{ gap: 1.5 }}>
+                <Users size={16} /> Groups
+              </MenuItem>
             </Menu>
             <Button variant="contained" disabled={!canWrite} onClick={() => handleOpen()} sx={{ display: { xs: 'inline-flex', sm: 'none' }, flexDirection: 'column', alignItems: 'center', gap: 0.25, bgcolor: '#5c1f22', color: '#ffffff', fontWeight: 700, minWidth: 0, px: 1.25, py: 0.5, '&:hover': { bgcolor: '#3f1417' }, borderRadius: 2, textTransform: 'none', lineHeight: 1 }}><Plus size={15} /><Typography sx={{ fontSize: '0.6rem', fontWeight: 700, lineHeight: 1 }}>{tab === 0 ? 'Add Customer' : 'Add Vendor'}</Typography></Button>
             <Button variant="contained" size="small" disabled={!canWrite} startIcon={<Plus size={16} />} onClick={() => handleOpen()} sx={{ display: { xs: 'none', sm: 'inline-flex' }, bgcolor: '#5c1f22', color: '#ffffff', fontWeight: 700, '&:hover': { bgcolor: '#3f1417' }, borderRadius: 2, textTransform: 'none' }}>{tab === 0 ? 'Add Customer' : 'Add Vendor'}</Button>
@@ -387,8 +498,10 @@ const PartiesPage = () => {
           {[
             { label: 'Customers', value: customers.length, icon: UserCheck, color: '#57433e' },
             { label: 'Vendors', value: vendors.length, icon: Store, color: '#93c5fd' },
-            { label: t('parties.receivable'), value: `₹${totalReceivable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#16a34a' },
-            { label: t('parties.payable'), value: `₹${totalPayable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingDown, color: '#fca5a5' },
+            ...(showSummaries ? [
+              { label: t('parties.receivable'), value: `₹${totalReceivable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingUp, color: '#6ee7b7' },
+              { label: t('parties.payable'), value: `₹${totalPayable.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`, icon: TrendingDown, color: '#fca5a5' },
+            ] : []),
           ].map(({ label, value, icon: Icon, color }) => (
             <Box key={label} sx={{ bgcolor: 'rgba(92,31,34,0.05)', borderRadius: 2, p: 1.5, border: '1px solid #ece2db' }}>
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.75, mb: 0.5 }}>
@@ -432,6 +545,18 @@ const PartiesPage = () => {
               InputProps={{ startAdornment: <InputAdornment position="start"><Search size={16} /></InputAdornment> }}
               sx={{ flex: 1, minWidth: 0 }}
             />
+            {!isMobile && (
+              <Box role="group" aria-label="View" sx={{ display: 'flex', flexShrink: 0, border: '1px solid', borderColor: 'divider', borderRadius: 1.5, p: 0.25, gap: 0.25 }}>
+                {[{ v: 'list', label: 'List view', Icon: LayoutList }, { v: 'grid', label: 'Grid view', Icon: LayoutGrid }].map((opt) => (
+                  <Tooltip key={opt.v} title={opt.label}>
+                    <IconButton size="small" aria-label={opt.label} aria-pressed={viewMode === opt.v} onClick={() => setViewMode(opt.v)}
+                      sx={{ borderRadius: 1, p: 0.6, color: viewMode === opt.v ? 'primary.main' : 'text.secondary', bgcolor: viewMode === opt.v ? alpha(theme.palette.primary.main, 0.1) : 'transparent' }}>
+                      <opt.Icon size={15} />
+                    </IconButton>
+                  </Tooltip>
+                ))}
+              </Box>
+            )}
             <Button
               onClick={() => setShowFilters(!showFilters)}
               variant={showFilters ? 'contained' : 'outlined'}
@@ -441,9 +566,9 @@ const PartiesPage = () => {
             >
               {showFilters ? 'Hide' : 'Filters'}
             </Button>
-            {(filters.balanceMin || filters.balanceMax || filters.hasGST !== 'all' || filters.category !== 'all' || filters.sortBy !== 'name' || filters.sortOrder !== 'asc' || filters.balanceType !== 'all') && (
+            {(filters.balanceMin || filters.balanceMax || filters.hasGST !== 'all' || filters.category !== 'all' || filters.group !== 'all' || filters.sortBy !== 'name' || filters.sortOrder !== 'asc' || filters.balanceType !== 'all') && (
               <Button
-                onClick={() => setFilters({ balanceMin: '', balanceMax: '', hasGST: 'all', category: 'all', sortBy: 'name', sortOrder: 'asc', balanceType: 'all' })}
+                onClick={() => setFilters({ balanceMin: '', balanceMax: '', hasGST: 'all', category: 'all', group: 'all', sortBy: 'name', sortOrder: 'asc', balanceType: 'all' })}
                 variant="text" size="small" color="error"
                 sx={{ fontWeight: 600, textTransform: 'none', flexShrink: 0 }}
               >
@@ -511,6 +636,15 @@ const PartiesPage = () => {
                 </TextField>
               </Grid>
               <Grid size={{ xs: 12, sm: 6, md: 3 }}>
+                <TextField select fullWidth label="Group" value={filters.group}
+                  onChange={(e) => setFilters({ ...filters, group: e.target.value })} size="small">
+                  <MenuItem value="all">All Groups</MenuItem>
+                  {customGroups.map(g => (
+                    <MenuItem key={g} value={g}>{g}</MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+              <Grid size={{ xs: 12, sm: 6, md: 3 }}>
                 <TextField select fullWidth label="GST Status" value={filters.hasGST}
                   onChange={(e) => setFilters({ ...filters, hasGST: e.target.value })} size="small">
                   <MenuItem value="all">All Parties</MenuItem>
@@ -549,57 +683,7 @@ const PartiesPage = () => {
                 </Box>
               ) : (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                  {filteredParties.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map(party => {
-                    const chip = getBalanceChip(party);
-                    const isSelected = selectedParty?.id === party.id;
-                    return (
-                      <Box
-                        key={party.id}
-                        onClick={() => setSelectedParty(prev => prev?.id === party.id ? null : party)}
-                        sx={{
-                          border: '1px solid', borderColor: isSelected ? 'primary.main' : 'divider',
-                          borderRadius: 2, p: 1.5, cursor: 'pointer', bgcolor: isSelected ? alpha(theme.palette.primary.main, 0.03) : 'background.paper',
-                          transition: 'all 0.15s',
-                        }}
-                      >
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.25, mb: 1 }}>
-                          <Avatar sx={{ width: 36, height: 36, bgcolor: tab === 0 ? alpha('#111', 0.1) : alpha('#5c1f22', 0.1), color: tab === 0 ? '#111' : '#5c1f22', fontSize: '0.85rem', fontWeight: 800, flexShrink: 0 }}>
-                            {party.name.charAt(0).toUpperCase()}
-                          </Avatar>
-                          <Box sx={{ flex: 1, minWidth: 0 }}>
-                            <Typography sx={{ fontWeight: 700, fontSize: '0.9rem', lineHeight: 1.2 }} noWrap>{party.name}</Typography>
-                            <Box sx={{ display: 'flex', gap: 0.75, alignItems: 'center', flexWrap: 'wrap', mt: 0.25 }}>
-                              {party.partyId && (
-                                <Typography variant="caption" sx={{ fontFamily: 'monospace', bgcolor: alpha(theme.palette.primary.main, 0.07), color: 'primary.main', px: 0.6, py: 0.1, borderRadius: 0.5, fontWeight: 700, fontSize: '0.65rem' }}>
-                                  {party.partyId}
-                                </Typography>
-                              )}
-                              {party.phone && (
-                                <Typography variant="caption" color="text.secondary" sx={{ fontSize: '0.72rem' }}>
-                                  {party.countryCode || '+91'} {party.phone}
-                                </Typography>
-                              )}
-                            </Box>
-                          </Box>
-                          <Box sx={{ display: 'flex', gap: 0.25, flexShrink: 0 }} onClick={e => e.stopPropagation()}>
-                            <IconButton size="small" onClick={() => handleOpen(party)} sx={{ color: 'text.disabled', '&:hover': { color: 'primary.main' } }}><Edit2 size={14} /></IconButton>
-                            <IconButton size="small" onClick={() => handleDelete(party.id)} sx={{ color: 'text.disabled', '&:hover': { color: 'error.main' } }}><Trash2 size={14} /></IconButton>
-                          </Box>
-                        </Box>
-                        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 0.5 }}>
-                          <Box sx={{ display: 'flex', gap: 0.5, flexWrap: 'wrap' }}>
-                            {party.category && (
-                              <Chip label={party.category} size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha(theme.palette.primary.main, 0.08), color: 'primary.main' }} />
-                            )}
-                            {party.gstNumber && (
-                              <Chip label="GST" size="small" sx={{ height: 18, fontSize: '0.62rem', fontWeight: 600, bgcolor: alpha('#5c1f22', 0.08), color: '#5c1f22' }} />
-                            )}
-                          </Box>
-                          <Chip label={chip.label} size="small" sx={{ height: 20, fontWeight: 700, fontSize: '0.68rem', bgcolor: chip.bgcolor, color: chip.color, border: `1px solid ${chip.border}` }} />
-                        </Box>
-                      </Box>
-                    );
-                  })}
+                  {filteredParties.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map(renderPartyCard)}
                 </Box>
               )}
               <TablePagination
@@ -613,9 +697,37 @@ const PartiesPage = () => {
                 sx={{ borderTop: '1px solid', borderColor: 'divider', mt: 1 }}
               />
             </Box>
+          ) : viewMode === 'grid' ? (
+          <>
+          <Box ref={txScrollRef} sx={{ flex: 1, minHeight: 0, overflowY: 'auto', pr: 0.25 }}>
+            {filteredParties.length === 0 ? (
+              <Box sx={{ py: 8, textAlign: 'center' }}>
+                <Box sx={{ display: 'inline-flex', p: 2, borderRadius: '50%', bgcolor: alpha(theme.palette.primary.main, 0.07), mb: 1.5 }}>
+                  <Users size={28} color={theme.palette.primary.main} strokeWidth={1.5} />
+                </Box>
+                <Typography variant="body2" sx={{ fontWeight: 600, color: 'text.secondary' }}>{t('parties.noParties')}</Typography>
+                <Typography variant="caption" color="text.disabled">Try adjusting your search or filters</Typography>
+              </Box>
+            ) : (
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: 1.25, alignContent: 'start' }}>
+                {filteredParties.slice(page * rowsPerPage, page * rowsPerPage + rowsPerPage).map(renderPartyCard)}
+              </Box>
+            )}
+          </Box>
+          <TablePagination
+            component="div"
+            count={filteredParties.length}
+            page={page}
+            onPageChange={(_, newPage) => setPage(newPage)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+            rowsPerPageOptions={[10, 25, 50, 100]}
+            sx={{ borderTop: '1px solid', borderColor: 'divider', flexShrink: 0 }}
+          />
+          </>
           ) : (
           <>
-          <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, flex: 1, minHeight: 0, overflowY: 'auto' }}>
+          <TableContainer ref={txScrollRef} component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 1.5, flex: 1, minHeight: 0, overflowY: 'auto' }}>
             <Table size="small" sx={{ minWidth: 700 }}>
               <TableHead sx={{ bgcolor: 'background.default' }}>
                 <TableRow>
@@ -623,6 +735,7 @@ const PartiesPage = () => {
                   <TableCell sx={{ fontWeight: 600 }}>Name</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Phone</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>Category</TableCell>
+                  <TableCell sx={{ fontWeight: 600 }}>Group</TableCell>
                   <TableCell sx={{ fontWeight: 600 }}>GSTIN</TableCell>
                   <TableCell sx={{ fontWeight: 600 }} align="right">Balance Status</TableCell>
                   {/* Sticky to the right edge of the horizontally-scrolling
@@ -666,6 +779,12 @@ const PartiesPage = () => {
                           {party.category ? (
                             <Chip label={party.category} size="small" icon={<Tag size={11} />}
                               sx={{ fontSize: '0.7rem', height: 20, bgcolor: alpha(theme.palette.primary.main, 0.08), color: 'primary.main', border: `1px solid ${alpha(theme.palette.primary.main, 0.2)}`, '& .MuiChip-icon': { color: 'primary.main', ml: 0.5 } }} />
+                          ) : '—'}
+                        </TableCell>
+                        <TableCell>
+                          {party.group ? (
+                            <Chip label={party.group} size="small" icon={<Users size={11} />}
+                              sx={{ fontSize: '0.7rem', height: 20, bgcolor: alpha('#7c3aed', 0.08), color: '#7c3aed', border: `1px solid ${alpha('#7c3aed', 0.2)}`, '& .MuiChip-icon': { color: '#7c3aed', ml: 0.5 } }} />
                           ) : '—'}
                         </TableCell>
                         <TableCell>{party.gstNumber || 'N/A'}</TableCell>
@@ -721,8 +840,9 @@ const PartiesPage = () => {
       </Card>
 
       {/* ── Detail Panel ── */}
+      <ResizeHandle panel={detailPanel} side="left" label="Resize details panel" />
       {/* Desktop party preview panel */}
-      <Box sx={{ display: { xs: 'none', md: 'block' }, width: 300, flexShrink: 0, position: 'sticky', top: 16, maxHeight: 'calc(100vh - 120px)', borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: selectedParty ? 'divider' : 'transparent' }}>
+      <Box sx={{ display: { xs: 'none', md: 'block' }, width: detailPanel.width, flexShrink: 0, position: 'sticky', top: 16, maxHeight: 'calc(100vh - 120px)', borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: selectedParty ? 'divider' : 'transparent' }}>
         <CustomerPreviewPanel
           party={selectedParty}
           onClose={selectedParty ? () => setSelectedParty(null) : undefined}
@@ -1129,6 +1249,84 @@ const PartiesPage = () => {
         </DialogActions>
       </Dialog>
 
+      {/* ── Group Manager Dialog ── */}
+      <Dialog open={groupManagerOpen} onClose={() => { setGroupManagerOpen(false); setGroupManagerInput(''); }} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+              <Users size={18} color={theme.palette.primary.main} />
+              <Typography sx={{ fontWeight: 700 }}>Manage Groups</Typography>
+            </Box>
+            <IconButton size="small" onClick={() => { setGroupManagerOpen(false); setGroupManagerInput(''); }}>
+              <X size={16} />
+            </IconButton>
+          </Box>
+        </DialogTitle>
+        <DialogContent dividers sx={{ p: 0 }}>
+          {/* Tab toggle */}
+          <Box sx={{ display: 'flex', bgcolor: alpha(theme.palette.primary.main, 0.05), borderBottom: '1px solid', borderColor: 'divider' }}>
+            {['Customer', 'Vendor'].map(t => (
+              <Box
+                key={t}
+                onClick={() => { setGroupManagerTab(t); setGroupManagerInput(''); }}
+                sx={{
+                  flex: 1, py: 1.25, textAlign: 'center', cursor: 'pointer', userSelect: 'none',
+                  fontWeight: groupManagerTab === t ? 700 : 500, fontSize: '0.85rem',
+                  color: groupManagerTab === t ? 'primary.main' : 'text.secondary',
+                  borderBottom: groupManagerTab === t ? '2px solid' : '2px solid transparent',
+                  borderColor: groupManagerTab === t ? 'primary.main' : 'transparent',
+                  transition: 'all 0.15s',
+                }}
+              >
+                {t} Groups
+              </Box>
+            ))}
+          </Box>
+
+          <Box sx={{ p: 2 }}>
+            <Typography variant="caption" sx={{ fontWeight: 700, color: 'text.disabled', textTransform: 'uppercase', letterSpacing: 0.5, display: 'block', mb: 1 }}>
+              Groups
+            </Typography>
+            {(groupManagerTab === 'Customer' ? customGroupCustomer : customGroupVendor).length === 0 ? (
+              <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mb: 2 }}>No groups yet — add one below, or create one on the fly from the party form.</Typography>
+            ) : (
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 2 }}>
+                {(groupManagerTab === 'Customer' ? customGroupCustomer : customGroupVendor).map(g => (
+                  <Chip
+                    key={g}
+                    label={g}
+                    size="small"
+                    onDelete={() => handleGroupManagerDelete(g)}
+                    sx={{ fontSize: '0.75rem', bgcolor: alpha(theme.palette.primary.main, 0.1), color: 'primary.main', border: `1px solid ${alpha(theme.palette.primary.main, 0.25)}` }}
+                  />
+                ))}
+              </Box>
+            )}
+
+            {/* Add new */}
+            <Box sx={{ display: 'flex', gap: 1 }}>
+              <TextField
+                size="small"
+                fullWidth
+                placeholder="New group name"
+                value={groupManagerInput}
+                onChange={e => setGroupManagerInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); handleGroupManagerAdd(); } }}
+                autoComplete="off"
+              />
+              <Button variant="contained" size="small" onClick={handleGroupManagerAdd}
+                disabled={!groupManagerInput.trim()}
+                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 1.5, flexShrink: 0 }}>
+                Add
+              </Button>
+            </Box>
+          </Box>
+        </DialogContent>
+        <DialogActions sx={{ px: 2.5, pb: 2 }}>
+          <Button onClick={() => { setGroupManagerOpen(false); setGroupManagerInput(''); }} sx={{ fontWeight: 600 }}>Done</Button>
+        </DialogActions>
+      </Dialog>
+
       <BulkAddDialog
         open={bulkAddOpen}
         onClose={() => setBulkAddOpen(false)}
@@ -1164,6 +1362,7 @@ const PartiesPage = () => {
               balance: row.openingBalance || 0,
               countryCode: row.countryCode || '+91',
               category: row.category || '',
+              group: row.group || '',
               partyId,
             };
             if (match) {

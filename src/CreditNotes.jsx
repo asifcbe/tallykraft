@@ -11,7 +11,7 @@ import { useConfig } from './ConfigContext';
 import { useData } from './DataContext';
 import { useDialog } from './DialogContext';
 import { useReactToPrint } from 'react-to-print';
-import InvoiceTemplate, { PAPER_SIZES, getPaperWidthMm, getJsPdfFormat } from './InvoiceTemplate';
+import InvoiceTemplate, { PAPER_SIZES } from './InvoiceTemplate';
 import PartySelect from './PartySelect';
 import ItemSelect from './ItemSelect';
 import ItemFormDialog from './ItemFormDialog';
@@ -19,6 +19,7 @@ import BarcodeScanner from './BarcodeScanner';
 import SendDialog from './SendDialog';
 import TxListView from './TxListView';
 import { waitForQrReady } from './qrReady';
+import { captureElement, canvasToPdf } from './pdfCapture';
 
 const PAPER_SIZE_VALUES = PAPER_SIZES.map(p => p.value);
 
@@ -144,7 +145,7 @@ const buildCreditNoteMessage = ({ tx, businessName }) => {
   if (Number(tx.taxAmount) > 0) lines.push(`Tax (GST): ₹${Number(tx.taxAmount).toFixed(2)}`);
   lines.push(`*Total Credit: ₹${(Number(tx.totalAmount) || 0).toFixed(2)}*`);
   if (tx.reason?.trim()) lines.push(`\n📝 Reason/Notes: ${tx.reason.trim()}`);
-  lines.push('\n_Sent via TallyKraft_');
+  lines.push('\n_Sent via BillDheko_');
   return lines.filter(l => l !== null).join('\n');
 };
 
@@ -554,9 +555,8 @@ const CreditNotes = () => {
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
   };
   const captureInvoiceCanvas = async () => {
-    const { default: html2canvas } = await import('html2canvas');
     await waitForCaptureReady(pdfRef.current);
-    return html2canvas(pdfRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+    return captureElement(pdfRef.current, { scale: 1.5 });
   };
   const showDeliverResult = (result) => {
     if (result.method === 'clipboard') setSnack({ open: true, msg: 'Copied — paste it into the WhatsApp chat' });
@@ -576,12 +576,7 @@ const CreditNotes = () => {
       if (_shareCancelledRef.current || !pdfRef.current) return;
       const [canvas, { jsPDF }] = await Promise.all([captureInvoiceCanvas(), import('jspdf').then(m => ({ jsPDF: m.jsPDF }))]);
       if (_shareCancelledRef.current) return;
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfWidthMm = getPaperWidthMm(paperSize);
-      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
-      const namedFormat = getJsPdfFormat(paperSize);
-      const pdf = new jsPDF({ unit: 'mm', format: namedFormat || [pdfWidthMm, pdfHeightMm] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const pdf = canvasToPdf(canvas, jsPDF, paperSize);
       if (_shareCancelledRef.current) return;
       const fileName = `${target.noteNumber || 'credit-note'}.pdf`;
       const pdfBlob = pdf.output('blob');
@@ -926,8 +921,8 @@ const CreditNotes = () => {
         onClose={() => setSendOpen(false)}
         tx={sendTx}
         party={sendParty}
-        businessName={currentBusiness?.name || 'TallyKraft'}
-        initialMessage={buildCreditNoteMessage({ tx: sendTx, businessName: currentBusiness?.name || 'TallyKraft' })}
+        businessName={currentBusiness?.name || 'BillDheko'}
+        initialMessage={buildCreditNoteMessage({ tx: sendTx, businessName: currentBusiness?.name || 'BillDheko' })}
         dialogTitle="Share Credit Note"
         onSharePDF={() => shareAsPDF(sendTx)}
         onShareImage={() => shareAsImage(sendTx)}

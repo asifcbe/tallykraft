@@ -2,7 +2,6 @@ import React, { useState } from 'react';
 import {
   Box, Typography, Card, CardContent, Button, Chip,
   alpha, useTheme, Divider, CircularProgress,
-  Dialog, DialogTitle, DialogContent, DialogActions, TextField, MenuItem,
   Snackbar, Alert,
 } from '@mui/material';
 import { Check, Crown, LogOut, Zap, Gift, ShieldCheck, ArrowLeft, Cloud, Lock, Store, CheckCircle2 } from 'lucide-react';
@@ -11,27 +10,20 @@ import { useAuth } from './AuthContext';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useBusiness } from './BusinessContext';
 import { useData } from './DataContext';
-import { useBilling } from './BillingContext';
-import { STATE_NAMES, computeGST, SAC_CODE } from './gstUtils';
-import TallyKraftLogo from './TallyKraftLogo';
-
-const RAZORPAY_KEY = import.meta.env.VITE_RAZORPAY_KEY || 'rzp_test_SgTH0ctSdvsPBb';
+import { usePlanCheckout } from './PlanCheckout';
+import { BRAND_NAME, TRIAL_DAYS, PLAN_DAYS, PLAN_ID, PLAN_PRICE } from './planTiers';
+import BillDhekoLogo from './BillDhekoLogo';
 
 // ── Plan definitions ──────────────────────────────────────────────────────────
-// TallyKraft has a single plan tier. Each subscription covers ONE business — to
-// run more businesses, subscribe each one separately. All features + cloud
+// One plan: ₹299 per business for 30 days. Each subscription covers ONE business
+// — to run more businesses, subscribe each one separately. All features + cloud
 // backup & multi-device sync are always included.
 const PLANS = {
   standard: {
-    id_monthly: 'monthly_pro',
-    id_yearly: 'yearly_pro',
-    name: 'TallyKraft',
+    id: PLAN_ID,
+    name: BRAND_NAME,
     tagline: 'All features + cloud backup • for 1 business',
-    price_monthly: 299,
-    price_yearly: 2999,
-    amount_monthly: 29900,
-    amount_yearly: 299900,
-    yearlyNote: 'Save ₹589 vs monthly',
+    price: PLAN_PRICE,
     isPro: true,
     icon: Cloud,
     highlight: true,
@@ -53,69 +45,25 @@ const PLANS = {
 };
 
 // Per-business pricing shown beneath the plan card.
-const MULTI_BUSINESS_NOTE = 'Each subscription covers one business. Need more? Subscribe each additional business separately — e.g. 3 businesses = ₹299 × 3.';
+const MULTI_BUSINESS_NOTE = `Each subscription covers one business. Need more? Subscribe each additional business separately — e.g. 3 businesses = ₹${PLAN_PRICE} × 3 every ${PLAN_DAYS} days.`;
 
 const TRIAL_PERKS = [
   { icon: ShieldCheck, text: 'No credit card required' },
   { icon: Zap, text: 'Full access to all features' },
-  { icon: Gift, text: '3 days completely free' },
+  { icon: Gift, text: `${TRIAL_DAYS} days completely free` },
 ];
 
 // No auto-renewal note shown under plan cards
-const NO_AUTORENEWAL_NOTE = 'No auto-renewal. Your plan stays active until the period ends — then simply pay again whenever you’re ready, or stop anytime.';
-
-const loadRazorpay = () =>
-  new Promise((resolve) => {
-    if (window.Razorpay) { resolve(true); return; }
-    const script = document.createElement('script');
-    script.src = 'https://checkout.razorpay.com/v1/checkout.js';
-    script.onload = () => resolve(true);
-    script.onerror = () => resolve(false);
-    document.body.appendChild(script);
-  });
-
-// ── Billing toggle ────────────────────────────────────────────────────────────
-const BillingToggle = ({ billing, onChange, primary, baseRadius }) => (
-  <Box sx={{ display: 'inline-flex', border: '1.5px solid', borderColor: 'divider', borderRadius: `${baseRadius + 6}px`, p: 0.4, gap: 0.4, mb: 3 }}>
-    {['monthly', 'yearly'].map((b) => (
-      <Button
-        key={b}
-        size="small"
-        onClick={() => onChange(b)}
-        sx={{
-          borderRadius: `${baseRadius + 4}px`,
-          textTransform: 'none',
-          fontWeight: 700,
-          fontSize: '0.8rem',
-          px: 2,
-          py: 0.5,
-          minWidth: 96,
-          bgcolor: billing === b ? primary : 'transparent',
-          color: billing === b ? 'white' : 'text.secondary',
-          '&:hover': { bgcolor: billing === b ? primary : alpha(primary, 0.06) },
-        }}
-      >
-        {b === 'monthly' ? 'Monthly' : 'Yearly'}
-        {b === 'yearly' && (
-          <Chip label="Save 16%" size="small" sx={{ ml: 0.75, height: 18, fontSize: '0.6rem', fontWeight: 700, bgcolor: billing === 'yearly' ? alpha('#fff', 0.2) : alpha(primary, 0.1), color: billing === 'yearly' ? 'white' : primary }} />
-        )}
-      </Button>
-    ))}
-  </Box>
-);
+const NO_AUTORENEWAL_NOTE = `No auto-renewal. Each payment adds ${PLAN_DAYS} days — paying early adds them on top of the days you have left. Pay again whenever you’re ready, or stop anytime.`;
 
 // ── Tier card ────────────────────────────────────────────────────────────────
-const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, baseRadius, isSubscribed }) => {
-  const price = billing === 'monthly' ? plan.price_monthly : plan.price_yearly;
-  const period = billing === 'monthly' ? '/month' : '/year';
-  const planId = billing === 'monthly' ? plan.id_monthly : plan.id_yearly;
-  // Effective monthly equivalent when paying yearly — drives the "₹X effective" hint.
-  const yearlyMonthly = Math.round(plan.price_yearly / 12);
-
-  // Single plan tier — the card is either the user's current live plan or the
-  // one they're about to subscribe to.
+const TierCard = ({ plan, onSubscribe, paying, primary, primaryDark, baseRadius, isSubscribed }) => {
+  const price = plan.price;
+  const period = `/ ${PLAN_DAYS} days`;
+  // Single plan — when the business is already subscribed the card renews it
+  // (adds another 30 days on top of what's left).
   const isCurrentTier = isSubscribed;
-  const ctaLabel = isCurrentTier ? 'Current plan' : `Get ${plan.name}`;
+  const ctaLabel = isCurrentTier ? `Renew — add ${PLAN_DAYS} days` : `Pay ₹${price} & continue`;
 
   return (
     <Box sx={{ flex: '1 1 290px', maxWidth: 360, position: 'relative' }}>
@@ -217,28 +165,18 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
             </Typography>
             <Typography color="text.secondary" sx={{ fontSize: '0.9rem', fontWeight: 600 }}>{period}</Typography>
           </Box>
-          {/* Yearly: show effective monthly + savings; monthly: reserve the space */}
           <Box sx={{ minHeight: 22, mt: 0.6, mb: 2.25, display: 'flex', alignItems: 'center', gap: 1 }}>
-            {billing === 'yearly' ? (
-              <>
-                <Typography variant="caption" sx={{ color: 'text.secondary', fontSize: '0.74rem' }}>
-                  ≈ ₹{yearlyMonthly.toLocaleString('en-IN')}/mo
-                </Typography>
-                <Chip label={plan.yearlyNote} size="small" sx={{ height: 19, fontSize: '0.64rem', fontWeight: 700, bgcolor: alpha('#57433e', 0.12), color: '#5c1f22' }} />
-              </>
-            ) : (
-              <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.74rem' }}>
-                Billed monthly • cancel anytime
-              </Typography>
-            )}
+            <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.74rem' }}>
+              Per business · {PLAN_DAYS} days of full access per payment
+            </Typography>
           </Box>
 
           {/* CTA button */}
           <Button
             fullWidth
             variant={plan.highlight && !isCurrentTier ? 'contained' : 'outlined'}
-            onClick={() => onSubscribe({ id: planId, listPrice: price, label: plan.name, isPro: plan.isPro })}
-            disabled={paying !== null || isCurrentTier}
+            onClick={() => onSubscribe()}
+            disabled={paying}
             startIcon={isCurrentTier ? <Check size={15} /> : undefined}
             sx={
               isCurrentTier
@@ -267,7 +205,7 @@ const TierCard = ({ plan, billing, onSubscribe, paying, primary, primaryDark, ba
                   }
             }
           >
-            {paying === planId
+            {paying
               ? <><CircularProgress size={14} color="inherit" sx={{ mr: 1 }} />Opening payment…</>
               : ctaLabel}
           </Button>
@@ -307,7 +245,7 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
   const { currentUser, logout } = useAuth();
   const { businesses } = useBusiness();
   const { pushBusinessToCloud } = useData();
-  const { billing: billingCfg } = useBilling();
+  const { openCheckout, checkoutDialog, paying, error: payError } = usePlanCheckout();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -332,16 +270,8 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
   const isSubscribed = subscriptionState === 'subscribed';
   // Single plan tier — no Basic/Pro distinction to compute.
 
-  const [billing, setBilling] = useState('monthly');
-  const [paying, setPaying] = useState(null);
   const [starting, setStarting] = useState(false);
-  const [payError, setPayError] = useState('');
   const [paySuccess, setPaySuccess] = useState(false);
-
-  // GST billing-details capture before checkout.
-  const [gstDialog, setGstDialog] = useState(null); // { planId, listPrice, label, isPro } | null
-  const [custState, setCustState] = useState(business?.state && STATE_NAMES.includes(business.state) ? business.state : '');
-  const [custGstin, setCustGstin] = useState('');
 
   const handleStartTrial = async () => {
     setStarting(true);
@@ -349,83 +279,20 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
     setStarting(false);
   };
 
-  // listPrice = the headline plan price in rupees (e.g. 99 / 299 / 999 / 2999).
-  const taxEnabled = !!billingCfg?.taxEnabled;
-
-  // Open the GST/checkout flow for a chosen plan (Step 2 entry point).
-  const beginCheckout = ({ id, listPrice, label, isPro }) => {
-    setPayError('');
-    if (taxEnabled) {
-      setCustState((prev) => prev || (business?.state && STATE_NAMES.includes(business.state) ? business.state : ''));
-      setGstDialog({ planId: id, listPrice, label, isPro });
-    } else {
-      handleSubscribe({ planId: id, listPrice, label, isPro, gst: null });
-    }
-  };
-
-  // Clicking the plan → straight to checkout. Single tier: always Pro / cloud.
-  const onSubscribe = ({ id, listPrice, label }) => {
-    setPayError('');
-    beginCheckout({ id, listPrice, label, isPro: true });
-  };
-
-  // Step 2: actually open Razorpay with the GST-inclusive total and persist the
-  // GST breakup on the subscription so a compliant receipt can be generated.
-  const handleSubscribe = async ({ planId, listPrice, label, isPro, gst }) => {
-    setPayError('');
-    const loaded = await loadRazorpay();
-    if (!loaded) { setPayError('Could not load payment gateway. Please check your connection.'); return; }
-    if (!RAZORPAY_KEY) { setPayError('Payment gateway not configured. Contact support.'); return; }
-
-    const amountPaise = gst ? gst.amountPaise : Math.round(listPrice * 100);
-    setPaying(planId);
-    setGstDialog(null);
-    const options = {
-      key: RAZORPAY_KEY,
-      amount: amountPaise,
-      currency: 'INR',
-      name: billingCfg?.legalName || 'TallyKraft',
-      description: `${label} Plan${businessName ? ` — ${businessName}` : ''}`,
-      prefill: { email: currentUser?.email || '', name: currentUser?.displayName || '' },
-      theme: { color: primary },
-      modal: { ondismiss: () => setPaying(null) },
-      handler: async (response) => {
-        try {
-          const billingMeta = gst ? {
-            listPrice,
-            customerState: custState,
-            customerGstin: (custGstin || '').trim().toUpperCase() || null,
-            sellerState: billingCfg.sellerState,
-            sellerGstin: billingCfg.gstin || null,
-            sellerLegalName: billingCfg.legalName || null,
-            sac: SAC_CODE,
-            rate: gst.rate,
-            taxable: gst.taxable,
-            cgst: gst.cgst, sgst: gst.sgst, igst: gst.igst,
-            taxAmount: gst.taxAmount,
-            total: gst.total,
-            inclusive: !!billingCfg.taxInclusive,
-            invoicePrefix: billingCfg.invoicePrefix || 'SUB',
-          } : null;
-          await activateSubscription(bId, planId, response.razorpay_payment_id, billingMeta);
-          // Every plan is now cloud: seed the full local copy to the cloud
-          // immediately so every existing entry is backed up (auto-sync handles
-          // edits after). Runs in the background; we don't block the success UI.
-          pushBusinessToCloud(bId).catch(() => {});
-          setPaying(null);
-          setPaySuccess(true);
-          // Give the success message a moment, then take the user to their dashboard.
-          setTimeout(() => navigate('/'), 1400);
-        } catch (err) {
-          setPayError('Payment received but we could not activate your plan. Please contact support with reference: ' + response.razorpay_payment_id);
-          setPaying(null);
-        }
-      },
-    };
-    const rzp = new window.Razorpay(options);
-    rzp.on('payment.failed', () => { setPayError('Payment failed. Please try again.'); setPaying(null); });
-    rzp.open();
-  };
+  // Pay ₹299 (+ GST if enabled in Admin → Billing & Tax) for 30 days of this
+  // business. The shared checkout asks for the payer's state for GST first.
+  const onSubscribe = () => openCheckout({
+    businessName,
+    defaultState: business?.state,
+    onPaid: async (paymentId, billingMeta) => {
+      await activateSubscription(bId, PLAN_ID, paymentId, billingMeta);
+      // Every plan is cloud: seed the full local copy to the cloud now so every
+      // existing entry is backed up (auto-sync handles edits after).
+      pushBusinessToCloud(bId).catch(() => {});
+      setPaySuccess(true);
+      setTimeout(() => navigate('/'), 1400);
+    },
+  });
 
   return (
     <Box
@@ -460,7 +327,7 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
 
       {/* Logo */}
       <Box sx={{ mb: 3 }}>
-        <TallyKraftLogo size={40} variant="wordmark" />
+        <BillDhekoLogo size={40} variant="wordmark" />
       </Box>
 
       {/* Business context label */}
@@ -509,8 +376,8 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 0.75, textAlign: 'center', maxWidth: 440, fontSize: '0.92rem' }}>
             {isTrialExpired
-              ? 'Your 3-day free trial has ended. Subscribe to resume creating and editing.'
-              : 'Your subscription has expired. Renew to continue using this business.'}
+              ? `Your ${TRIAL_DAYS}-day free trial has ended. Pay ₹${PLAN_PRICE} for ${PLAN_DAYS} days to resume creating and editing.`
+              : `Your ${PLAN_DAYS}-day plan has ended. Pay ₹${PLAN_PRICE} to renew for another ${PLAN_DAYS} days.`}
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ mb: 4, display: 'block', textAlign: 'center' }}>
             You can still view all your data without a subscription.
@@ -535,15 +402,13 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
         </>
       )}
 
-      {/* ── Billing toggle + Plan cards ── */}
-      <BillingToggle billing={billing} onChange={setBilling} primary={primary} baseRadius={baseRadius} />
+      {/* ── Plan card ── */}
 
       <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center', alignItems: 'stretch', maxWidth: 760, width: '100%', mb: 2 }}>
         {Object.values(PLANS).map((plan) => (
           <TierCard
             key={plan.name}
             plan={plan}
-            billing={billing}
             onSubscribe={onSubscribe}
             paying={paying}
             primary={primary}
@@ -642,57 +507,7 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
         </Box>.
       </Typography>
 
-      {/* ── GST billing-details dialog ── */}
-      <Dialog open={!!gstDialog} onClose={() => setGstDialog(null)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 800 }}>Billing details</DialogTitle>
-        <DialogContent>
-          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-            We need your state to apply the correct GST. {billingCfg?.taxInclusive ? 'Prices include GST.' : 'GST is added on top.'}
-          </Typography>
-          <TextField
-            select fullWidth size="small" label="Your state / UT" value={custState}
-            onChange={(e) => setCustState(e.target.value)} sx={{ mb: 2 }} required
-          >
-            {STATE_NAMES.map((s) => <MenuItem key={s} value={s}>{s}</MenuItem>)}
-          </TextField>
-          <TextField
-            fullWidth size="small" label="GSTIN (optional — for input credit)" value={custGstin}
-            onChange={(e) => setCustGstin(e.target.value.toUpperCase())} inputProps={{ maxLength: 15 }} sx={{ mb: 2 }}
-          />
-          {gstDialog && custState && (() => {
-            const g = computeGST({ listPrice: gstDialog.listPrice, ratePct: billingCfg.taxRate, inclusive: billingCfg.taxInclusive, customerState: custState, sellerState: billingCfg.sellerState });
-            return (
-              <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: alpha(primary, 0.05), border: '1px solid', borderColor: alpha(primary, 0.18) }}>
-                <BillRow k="Taxable value" v={g.taxable} />
-                {g.intraState ? (
-                  <>
-                    <BillRow k={`CGST (${(g.rate / 2)}%)`} v={g.cgst} />
-                    <BillRow k={`SGST (${(g.rate / 2)}%)`} v={g.sgst} />
-                  </>
-                ) : (
-                  <BillRow k={`IGST (${g.rate}%)`} v={g.igst} />
-                )}
-                <Divider sx={{ my: 0.75 }} />
-                <BillRow k="Total payable" v={g.total} bold />
-              </Box>
-            );
-          })()}
-        </DialogContent>
-        <DialogActions sx={{ p: 2 }}>
-          <Button onClick={() => setGstDialog(null)} sx={{ textTransform: 'none' }}>Cancel</Button>
-          <Button
-            variant="contained"
-            disabled={!custState}
-            onClick={() => {
-              const g = computeGST({ listPrice: gstDialog.listPrice, ratePct: billingCfg.taxRate, inclusive: billingCfg.taxInclusive, customerState: custState, sellerState: billingCfg.sellerState });
-              handleSubscribe({ planId: gstDialog.planId, listPrice: gstDialog.listPrice, label: gstDialog.label, isPro: gstDialog.isPro, gst: g });
-            }}
-            sx={{ textTransform: 'none', fontWeight: 700 }}
-          >
-            Proceed to pay
-          </Button>
-        </DialogActions>
-      </Dialog>
+      {checkoutDialog}
 
       {/* ── Payment success notification ── */}
       <Snackbar
@@ -706,12 +521,5 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
     </Box>
   );
 };
-
-const BillRow = ({ k, v, bold }) => (
-  <Box sx={{ display: 'flex', justifyContent: 'space-between', py: 0.25 }}>
-    <Typography variant="caption" sx={{ color: 'text.secondary', fontWeight: bold ? 800 : 500 }}>{k}</Typography>
-    <Typography variant="caption" sx={{ fontWeight: bold ? 800 : 600 }}>₹{(Number(v) || 0).toFixed(2)}</Typography>
-  </Box>
-);
 
 export default SubscriptionPage;

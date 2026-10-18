@@ -19,6 +19,7 @@ import { useDialog } from './DialogContext';
 import ReportTemplate from './ReportTemplate';
 import SendDialog from './SendDialog';
 import SplitPaymentInput from './SplitPaymentInput';
+import { captureElement, canvasToPdf } from './pdfCapture';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const todayStr = () => {
@@ -668,7 +669,7 @@ const ProfitLossSplitTab = ({ investors, primary, sales, purchases, expenses, ca
     splitRows.forEach(r => {
       lines.push(`${r.investor.name} (${r.percent}%): ${r.share < 0 ? `(${fmtAmt(Math.abs(r.share))})` : fmtAmt(r.share)}`);
     });
-    lines.push('', '_Sent via TallyKraft_');
+    lines.push('', '_Sent via BillDheko_');
     return lines.join('\n');
   };
 
@@ -677,16 +678,12 @@ const ProfitLossSplitTab = ({ investors, primary, sales, purchases, expenses, ca
     _shareInFlight.current = true;
     setShareLoading(true);
     try {
-      const [{ default: html2canvas }, { jsPDF }] = await Promise.all([
+      const [, { jsPDF }] = await Promise.all([
         import('html2canvas'),
         import('jspdf').then(m => ({ jsPDF: m.jsPDF })),
       ]);
-      const canvas = await html2canvas(printRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfWidthMm = 210;
-      const pdfHeightMm = (canvas.height * pdfWidthMm) / canvas.width;
-      const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidthMm, pdfHeightMm);
+      const canvas = await captureElement(printRef.current, { scale: 1.5 });
+      const pdf = canvasToPdf(canvas, jsPDF, 'A4');
       const fileName = `investor-pl-split-${range.from}-to-${range.to}.pdf`;
       const pdfBlob = pdf.output('blob');
       const file = new File([pdfBlob], fileName, { type: 'application/pdf' });

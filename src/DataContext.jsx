@@ -5,7 +5,7 @@ import { useAuth } from './AuthContext';
 import { useNetwork } from './NetworkContext';
 import { getLocalRecord, setLocalData, markSynced } from './indexedDB';
 import { ensureUniquCode } from './businessCode';
-// TallyKraft billing gate: writes are only allowed while the current business
+// BillDheko billing gate: writes are only allowed while the current business
 // has an active subscription (trial / paid / admin-granted). SubscriptionContext
 // pushes state into this lightweight module so DataContext can read it without a
 // circular context dependency.
@@ -158,11 +158,27 @@ const chunkRowsBySize = (rows, rowJsonCache) => {
 // opticalOrders/opticalSettings/customSectionRecords/settings/staffMembers/
 // staffAttendance/staffSalary entirely), silently leaving those tables
 // untouched by "Delete All Data."
+// A new item's stock at creation is its OPENING stock. `stock` itself moves
+// with every sale/purchase afterwards, so the opening quantity, its cost and
+// date are captured once here (every creation path — item form, Bulk Add,
+// Import, Migrate — goes through addItem/addItems) for the Opening Stock
+// report and Stock Summary.
+const openingStockStamp = (table, item) => {
+  if (table !== 'items' || item.openingStock !== undefined) return {};
+  if (item.itemType === 'service' || item.type === 'service' || item.isMembership) return {};
+  return {
+    openingStock: Number(item.stock) || 0,
+    openingStockRate: Number(item.purchasePrice) || 0,
+    openingStockDate: new Date().toISOString().split('T')[0],
+  };
+};
+
 export const ALL_TABLES = [
   'parties','items','sales','purchases','expenses','payments','estimates',
   'creditNotes','debitNotes','deliveryNotes','journalEntries','orders',
   'opticals','opticalOrders','opticalSettings','customSectionRecords','settings','memberships',
   'cashEntries','staffMembers','staffAttendance','staffSalary','investors',
+  'notes', // Dashboard notes / whiteboard
 ];
 // `logo` is deliberately excluded — a user-uploaded image kept device-local
 // only (never synced to Firestore), so it doesn't inflate Firestore
@@ -428,16 +444,37 @@ const firestoreWriteAll = async (uid, allData, cc, dirtyTables = null, chunkHash
 };
 
 const firestoreDeleteBusiness = async (uid, bizId, cc) => {
-  const tColl = collection(firestore, 'users', uid, 'biz', bizId, 't');
-  const tSnap = await getDocs(tColl);
-  const refs = tSnap.docs.map(d => d.ref);
+  // Build the chunk doc refs straight from the known chunk counts (`_cc`,
+  // loaded with the business and kept current by every write) — no read.
+  // The old version did getDocs() on the whole `t` subcollection first, which
+  // DOWNLOADS every chunk's full data (the entire business — every invoice,
+  // item, party) just to learn the doc ids to delete; that round-trip was most
+  // of why deleting a large business took so long. Only when the counts are
+  // unknown (e.g. business never loaded this session) do we fall back to the
+  // listing read.
+  const known = cc?.[bizId];
+  let refs;
+  if (known && Object.keys(known).length) {
+    refs = [];
+    Object.entries(known).forEach(([table, count]) => {
+      for (let ci = 0; ci < (Number(count) || 0); ci++) {
+        refs.push(doc(firestore, 'users', uid, 'biz', bizId, 't', `${table}_${ci}`));
+      }
+    });
+  } else {
+    const tSnap = await getDocs(collection(firestore, 'users', uid, 'biz', bizId, 't'));
+    refs = tSnap.docs.map(d => d.ref);
+  }
   refs.push(doc(firestore, 'users', uid, 'biz', bizId));
 
+  // Independent batches committed in parallel (not one after another).
+  const commits = [];
   for (let i = 0; i < refs.length; i += 499) {
     const batch = writeBatch(firestore);
     refs.slice(i, i + 499).forEach(ref => batch.delete(ref));
-    await batch.commit();
+    commits.push(batch.commit());
   }
+  await Promise.all(commits);
   if (cc) delete cc[bizId];
 };
 
@@ -487,7 +524,15 @@ const emptyData = () => ({
   staffAttendance: [],
   staffSalary: [],
   investors: [],
+  notes: [],
 });
+
+// Transaction tables whose new records get a `createdBy` stamp (see
+// creatorStamp inside DataProvider).
+const CREATOR_TRACKED_TABLES = new Set([
+  'sales', 'purchases', 'estimates', 'orders', 'creditNotes', 'debitNotes',
+  'deliveryNotes', 'payments', 'expenses',
+]);
 
 export const DataProvider = ({ children }) => {
   const { currentUser, isAuthorized, staffSession, loading: authLoading } = useAuth();
@@ -581,6 +626,9 @@ export const DataProvider = ({ children }) => {
 
   const writeTimerRef = useRef(null);
   const pendingWriteSnapshotRef = useRef(null);
+  // True from schedulePersist() until the latest queued write has finished.
+  const persistPendingRef = useRef(false);
+  const persistSeqRef = useRef(0);
   const dirtyTablesRef = useRef(new Set());
   // Which business key(s) were actually mutated since the last successful
   // persist. null means "unknown / business-level op" — firestoreWriteAll
@@ -730,10 +778,13 @@ export const DataProvider = ({ children }) => {
   // ── Debounced flush — writes to Firestore, keeps dirty state until confirmed ──
   const schedulePersist = useCallback(() => {
     pendingWriteSnapshotRef.current = allDataRef.current;
+    persistPendingRef.current = true;
+    persistSeqRef.current += 1;
     setSaving(true);
     clearTimeout(writeTimerRef.current);
     writeTimerRef.current = setTimeout(async () => {
       const snapshot = pendingWriteSnapshotRef.current;
+      const mySeq = persistSeqRef.current;
       const user = currentUserRef.current;
       const authorized = isAuthorizedRef.current;
       const staff = staffSessionRef.current;
@@ -784,6 +835,7 @@ export const DataProvider = ({ children }) => {
         console.error('[schedulePersist] Firestore write failed — will retry when back online. code:', e?.code, 'message:', e?.message, e);
         setSyncError({ message: e?.message || 'Sync to cloud failed', code: e?.code, at: Date.now() });
       } finally {
+        if (persistSeqRef.current === mySeq) persistPendingRef.current = false;
         setSaving(false);
       }
     }, WRITE_DEBOUNCE_MS);
@@ -915,7 +967,7 @@ export const DataProvider = ({ children }) => {
       const chosenKey = matchByInternal || validKey;
       currentBusinessIdRef.current = chosenKey;
       setCurrentBusinessId(chosenKey);
-      localStorage.setItem('tallykraft_currentBusinessId', chosenKey);
+      localStorage.setItem('tallykraft_currentBusinessId', chosenKey); window.dispatchEvent(new Event('app-business-changed'));
     }
   };
 
@@ -932,7 +984,7 @@ export const DataProvider = ({ children }) => {
     allDataRef.current = blob;
     dataRef.current = matchedBizData;
     currentBusinessIdRef.current = matchedKey;
-    localStorage.setItem('tallykraft_currentBusinessId', matchedKey);
+    localStorage.setItem('tallykraft_currentBusinessId', matchedKey); window.dispatchEvent(new Event('app-business-changed'));
     setAllBusinessData(blob);
     setCurrentBusinessId(matchedKey);
     setData(matchedBizData);
@@ -1499,10 +1551,19 @@ export const DataProvider = ({ children }) => {
   const updateCurrentBusinessId = (businessId) => {
     currentBusinessIdRef.current = businessId;
     setCurrentBusinessId(businessId);
-    localStorage.setItem('tallykraft_currentBusinessId', businessId.toString());
+    localStorage.setItem('tallykraft_currentBusinessId', businessId.toString()); window.dispatchEvent(new Event('app-business-changed'));
   };
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
+
+  // Stamp who created a transaction — the staff id for a business-code
+  // login, 'owner' otherwise — so "own bills only" staff can be scoped to
+  // the records they created. Caller-supplied values (imports/restores) win.
+  const creatorStamp = (table, item) => {
+    if (!CREATOR_TRACKED_TABLES.has(table) || item.createdBy) return {};
+    const s = staffSessionRef.current;
+    return s ? { createdBy: s.id, createdByName: s.name || '' } : { createdBy: 'owner' };
+  };
 
   const addItem = (table, item) => {
     if (!currentUser && !staffSessionRef.current) return false;
@@ -1510,7 +1571,7 @@ export const DataProvider = ({ children }) => {
     if (!isBusinessActive(currentBusinessIdRef.current)) return false;
     if (!item || typeof item !== 'object') return false;
 
-    const tablesRequiringBusinessId = ['parties', 'items', 'sales', 'purchases', 'expenses', 'payments', 'opticals', 'estimates', 'creditNotes', 'debitNotes', 'deliveryNotes', 'journalEntries', 'cashEntries', 'investors', 'orders'];
+    const tablesRequiringBusinessId = ['parties', 'items', 'sales', 'purchases', 'expenses', 'payments', 'opticals', 'estimates', 'creditNotes', 'debitNotes', 'deliveryNotes', 'journalEntries', 'cashEntries', 'investors', 'orders', 'notes'];
     if (tablesRequiringBusinessId.includes(table) && !item.businessId) return false;
 
     if (table === 'sales' || table === 'purchases') {
@@ -1537,7 +1598,7 @@ export const DataProvider = ({ children }) => {
     // DeliveryNotes/Estimates/Orders/etc. without touching each one.
     // Reports/lists sort by this (falling back to `date`+`time` for any
     // pre-existing record saved before this field existed).
-    const newItem = { ...item, id: item.id ?? randomUUID(), createdAt: item.createdAt ?? Date.now() };
+    const newItem = { ...item, id: item.id ?? randomUUID(), createdAt: item.createdAt ?? Date.now(), ...creatorStamp(table, item), ...openingStockStamp(table, item) };
     applyMutation(table, [...(dataRef.current[table] || []), newItem]);
     return true;
   };
@@ -1561,7 +1622,7 @@ export const DataProvider = ({ children }) => {
         if (validLineItems.length === 0) { skipped++; return; }
         if (!item.totalAmount || item.totalAmount <= 0) { skipped++; return; }
       }
-      valid.push({ ...item, id: item.id ?? randomUUID(), createdAt: item.createdAt ?? Date.now() });
+      valid.push({ ...item, id: item.id ?? randomUUID(), createdAt: item.createdAt ?? Date.now(), ...creatorStamp(table, item), ...openingStockStamp(table, item) });
     });
     if (valid.length) {
       applyMutation(table, [...(dataRef.current[table] || []), ...valid]);
@@ -1681,7 +1742,6 @@ export const DataProvider = ({ children }) => {
         await setDoc(doc(firestore, 'businesses', newBizDocId), {
           id: newBizDocId,
           name: newBusiness.name,
-          businessType: 'general',
           ownerId: currentUser.uid,
           ownerEmail: currentUser.email,
           businessCode: code,
@@ -1723,27 +1783,49 @@ export const DataProvider = ({ children }) => {
     const updated = { ...allDataRef.current };
     delete updated[bKey];
 
-    // Apply the removal locally (state + IndexedDB, tombstoning bKey) FIRST,
-    // before the Firestore round-trip — closes the window where a reload
-    // right after clicking delete would still read a stale IndexedDB record
-    // with the business present. The tombstone also stops reconcileRemoteWithLocal
-    // from resurrecting the business if the Firestore delete below hasn't
-    // landed/synced yet by the time of a reload.
-    applyAllDataMutation(updated, [bKey]);
+    // Remove the business locally, instantly. Deliberately NOT via
+    // applyAllDataMutation: that schedules a full persist with no dirty-table
+    // or dirty-business scoping, i.e. it re-serialized and re-uploaded EVERY
+    // table of EVERY remaining business — pure wasted work (nothing about the
+    // businesses being kept changed) and the reason deleting a business sat
+    // on "Saving…" for so long. Any edits already queued for other businesses
+    // keep their own dirty tracking and still flush on their own timer.
+    allDataRef.current = updated;
+    isUpdatingDataRef.current = true;
+    setAllBusinessData(updated);
+    setTimeout(() => { isUpdatingDataRef.current = false; }, 100);
+    // A save that's still debouncing must not write the deleted business back.
+    // (Only swap if a write is actually queued/in flight.)
+    if (persistPendingRef.current && pendingWriteSnapshotRef.current) pendingWriteSnapshotRef.current = updated;
+    if (dirtyBizIdsRef.current) dirtyBizIdsRef.current.delete?.(bKey);
+    delete chunkHashesRef.current[bKey];
+    delete rowJsonCacheRef.current[bKey];
+    delete lastSeenRevsRef.current[bKey];
 
-    // Actually remove the business from Firestore — the local mutation alone
-    // only ever upserts businesses still present in the blob; it never diffs
-    // out ones that were removed, so without this the "deleted" business's
-    // cloud data would otherwise survive indefinitely.
+    // IndexedDB write-through with a tombstone, so a reload before the cloud
+    // delete lands can't resurrect it (reconcileRemoteWithLocal skips
+    // tombstoned ids). Other tables' pending dirt is preserved as-is.
+    if (localDbKeyRef.current) {
+      setLocalData(localDbKeyRef.current, updated, { pendingSync: true, dirtyTables: [...dirtyTablesRef.current], deletedBizIds: [bKey] })
+        .catch((e) => console.error('[deleteBusiness] IndexedDB write failed:', e));
+    }
+
+    // Cloud removal runs in the background — the UI doesn't wait on it.
+    // Without it the business's `users/{uid}/biz/{id}` tree would survive
+    // (writes only ever upsert businesses still in the blob).
     if (currentUser?.uid) {
-      try {
-        await firestoreDeleteBusiness(currentUser.uid, bKey, chunkCountsRef.current);
-        const profileDocId = removedBiz.firestoreBizDocId
-          || (bKey === '1' ? `biz_${currentUser.uid}` : `biz_${currentUser.uid}_${bKey}`);
-        await deleteDoc(doc(firestore, 'businesses', profileDocId)).catch(() => {});
-      } catch (e) {
-        console.warn('Could not delete business from Firestore:', e);
-      }
+      const uid = currentUser.uid;
+      const profileDocId = removedBiz.firestoreBizDocId
+        || (bKey === '1' ? `biz_${uid}` : `biz_${uid}_${bKey}`);
+      Promise.all([
+        firestoreDeleteBusiness(uid, bKey, chunkCountsRef.current),
+        deleteDoc(doc(firestore, 'businesses', profileDocId)).catch(() => {}),
+      ]).then(() => {
+        // Clear the tombstone once nothing else is waiting to sync.
+        if (localDbKeyRef.current && dirtyTablesRef.current.size === 0 && !persistPendingRef.current) {
+          markSynced(localDbKeyRef.current).catch(() => {});
+        }
+      }).catch((e) => console.warn('Could not delete business from Firestore:', e));
     }
 
     return true;

@@ -1,18 +1,20 @@
 import React, { useRef, useState, useMemo, useEffect } from 'react';
 import {
   Box, Dialog, DialogActions, Typography, IconButton, TextField, MenuItem, Menu,
-  Stack, Button, useTheme, useMediaQuery, alpha, Tooltip,
-  ListItemIcon, ListItemText, Snackbar, Alert, InputBase,
+  Stack, Button, useTheme, useMediaQuery, Tooltip,
+  ListItemIcon, ListItemText, Snackbar, Alert,
 } from '@mui/material';
-import { X, Eye, Printer, Share2, FileDown, ImageDown, Edit, Wallet, Trash2, Banknote, Landmark, CheckCircle2 } from 'lucide-react';
+import { X, Eye, Printer, Share2, FileDown, ImageDown, Edit, Wallet, Trash2, CheckCircle2 } from 'lucide-react';
 import { useReactToPrint } from 'react-to-print';
-import InvoiceTemplate, { PAPER_SIZES, getPaperWidthPx, getPaperWidthMm, getJsPdfFormat } from './InvoiceTemplate';
-import SplitPaymentInput from './SplitPaymentInput';
+import InvoiceTemplate, { PAPER_SIZES, getPaperWidthPx } from './InvoiceTemplate';
+import ReceivePaymentDialog from './ReceivePaymentDialog';
+import { txOutstanding, rcvSettledFor } from './paymentUtils';
 import { useData } from './DataContext';
 import { useDialog } from './DialogContext';
 import { useTabs } from './TabsContext';
 import { dispatchQuickNew } from './quickNewBridge';
 import { waitForQrReady } from './qrReady';
+import { captureElement, canvasToPdf } from './pdfCapture';
 
 const getTokens = (theme) => {
   const p = theme.palette.primary;
@@ -49,12 +51,21 @@ const GradientBtn = ({ children, tokens, onClick, disabled, startIcon, size = 's
 );
 
 const InvoicePreviewDialog = ({
-  open, onClose, transaction, business, parties = [], config = {}, isSale = true,
+  open, onClose, transaction: rawTransaction, business, parties = [], config = {}, isSale = true,
 }) => {
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const tokens = useMemo(() => getTokens(theme), [theme]);
-  const { getItems, addItem, updateItem, deleteItem } = useData();
+  const { data: liveData, getItems, updateItem, deleteItem } = useData();
+  // A bill keeps the phone copied when it was saved; older / imported /
+  // converted bills may have none even though the customer now has one.
+  // Fill it from the live customer record (only when the bill has none).
+  const transaction = useMemo(() => {
+    if (!rawTransaction || rawTransaction.partyPhone || !rawTransaction.partyId) return rawTransaction;
+    const p = (liveData?.parties || []).find((x) => String(x.id) === String(rawTransaction.partyId));
+    const ph = p?.phone || p?.altPhone;
+    return ph ? { ...rawTransaction, partyPhone: ph } : rawTransaction;
+  }, [rawTransaction, liveData?.parties]);
   const { confirm, showAlert } = useDialog();
   const { openTab } = useTabs();
 
@@ -71,13 +82,6 @@ const InvoicePreviewDialog = ({
   const [shareLoading, setShareLoading] = useState(false);
   const [shareMenuAnchor, setShareMenuAnchor] = useState(null);
   const [receivePayDialogOpen, setReceivePayDialogOpen] = useState(false);
-  const [receivePayMode, setReceivePayMode] = useState('Cash');
-  const [receivePaySplitCash, setReceivePaySplitCash] = useState('');
-  const [receivePaySplitBank, setReceivePaySplitBank] = useState('');
-  const [receivePayDate, setReceivePayDate] = useState(() => new Date().toISOString().split('T')[0]);
-  const [receivePayLess, setReceivePayLess] = useState('');
-  const [receivePayNotes, setReceivePayNotes] = useState('');
-  const [receivePaySaving, setReceivePaySaving] = useState(false);
   const [snack, setSnack] = useState({ open: false, message: '', severity: 'success' });
 
   const previewZoom = useMemo(() => {
@@ -103,7 +107,7 @@ const InvoicePreviewDialog = ({
     : undefined;
 
   const tableName = isSale ? 'sales' : 'purchases';
-  const outstanding = transaction ? Number(transaction.totalAmount || 0) - Number(transaction.advance || 0) : 0;
+  const outstanding = txOutstanding(transaction);
 
   // Edit — this dialog has no invoice-editing form of its own (item rows,
   // GST, party select, etc. only exist in Sales.jsx), so Edit navigates
@@ -129,86 +133,7 @@ const InvoicePreviewDialog = ({
       onClose?.();
       return;
     }
-    setReceivePayMode('Cash');
-    setReceivePaySplitCash('');
-    setReceivePaySplitBank('');
-    setReceivePayDate(new Date().toISOString().split('T')[0]);
-    setReceivePayLess('');
-    setReceivePayNotes('');
     setReceivePayDialogOpen(true);
-  };
-
-  // "Mark Paid without Payment" — same as Sales.jsx's version: flips the
-  // invoice's paid/due-date flag without touching the party balance or
-  // recording a payment. For bills settled outside the app / reconciled
-  // later, where the user will add the actual payment manually.
-  const markPaidWithoutPayment = async () => {
-    if (!transaction) return;
-    setReceivePaySaving(true);
-    try {
-      await updateItem(tableName, transaction.id, { status: 'paid', dueDate: '', paidDate: receivePayDate });
-      setReceivePayDialogOpen(false);
-      setSnack({ open: true, message: `${transaction.invoiceNumber} marked as paid on ${new Date(receivePayDate).toLocaleDateString('en-IN')} — no payment recorded, add it manually via Payment Entry when received.`, severity: 'info' });
-      onClose?.();
-    } catch (err) {
-      console.error('Error marking as paid:', err);
-      await showAlert({ title: 'Save error', message: 'An error occurred. Please try again.', variant: 'danger' });
-    } finally {
-      setReceivePaySaving(false);
-    }
-  };
-
-  const confirmReceivePayment = async () => {
-    if (!transaction) return;
-    const lessNum = parseFloat(receivePayLess) || 0;
-    const amountNum = Math.max(0, outstanding - lessNum); // actual cash/bank collected, after the write-off
-    let paymentSplit = null;
-    if (receivePayMode === 'Split') {
-      const cashNum = parseFloat(receivePaySplitCash) || 0;
-      const bankNum = parseFloat(receivePaySplitBank) || 0;
-      if (Math.abs(cashNum + bankNum - amountNum) > 0.01) {
-        await showAlert({ title: 'Split does not match', message: `Cash + Bank must add up to ₹${amountNum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}.`, variant: 'warning' });
-        return;
-      }
-      paymentSplit = { cash: cashNum, bank: bankNum, bankMode: 'Bank' };
-    }
-    setReceivePaySaving(true);
-    try {
-      const party = transaction.partyId ? getItems('parties').find((p) => p.id === transaction.partyId) : null;
-      const paymentData = {
-        businessId: business?.id,
-        partyId: transaction.partyId || null,
-        partyName: transaction.partyName || (party?.name ?? ''),
-        type: isSale ? 'PaymentIn' : 'PaymentOut',
-        totalAmount: amountNum,
-        ...(lessNum > 0 ? { lessAmount: lessNum } : {}),
-        date: receivePayDate,
-        paymentMode: receivePayMode,
-        ...(paymentSplit ? { paymentSplit } : {}),
-        referenceNo: `RCV-${transaction.invoiceNumber}`,
-        notes: receivePayNotes || `Payment received against invoice #${transaction.invoiceNumber}`,
-      };
-      await addItem('payments', paymentData);
-      if (party) {
-        await updateItem('parties', party.id, { balance: (party.balance || 0) + (isSale ? -outstanding : outstanding) });
-      }
-      await updateItem(tableName, transaction.id, { status: 'paid', dueDate: '', paidDate: receivePayDate });
-      setReceivePayDialogOpen(false);
-      setSnack({
-        open: true,
-        message: isSale ? 'Payment received — invoice marked paid.' : 'Payment made — bill marked paid.',
-        severity: 'success',
-      });
-      // Close the invoice preview too — the action is complete and the
-      // underlying transaction/list the user came from (Dashboard's recent
-      // activity, due-soon list, etc.) already reflects the new paid status.
-      onClose?.();
-    } catch (err) {
-      console.error('Error recording received payment:', err);
-      await showAlert({ title: 'Save error', message: 'An error occurred while recording the payment. Please try again.', variant: 'danger' });
-    } finally {
-      setReceivePaySaving(false);
-    }
   };
 
   const handleDeleteTx = async () => {
@@ -226,7 +151,8 @@ const InvoicePreviewDialog = ({
       // ('paid') transaction never touched the party balance (fully settled
       // via Payment Mode at creation), and a credit transaction's net effect
       // was totalAmount minus whatever advance had already been collected.
-      const txNet = transaction.saleType === 'paid' ? 0 : (Number(transaction.totalAmount) || 0) - (Number(transaction.advance) || 0);
+      const rcvSettled = rcvSettledFor(getItems('payments'), transaction, isSale, business?.id);
+      const txNet = transaction.saleType === 'paid' ? 0 : (Number(transaction.totalAmount) || 0) - (Number(transaction.advance) || 0) - rcvSettled;
       if (party) {
         await updateItem('parties', transaction.partyId, { balance: (party.balance || 0) + (isSale ? -txNet : txNet) });
       }
@@ -275,9 +201,8 @@ const InvoicePreviewDialog = ({
   };
 
   const captureCanvas = async () => {
-    const { default: html2canvas } = await import('html2canvas');
     await waitForCaptureReady(pdfRef.current);
-    return html2canvas(pdfRef.current, { scale: 1.5, useCORS: true, backgroundColor: '#ffffff' });
+    return captureElement(pdfRef.current, { scale: 1.5 });
   };
 
   const downloadInvoicePDF = async () => {
@@ -287,12 +212,7 @@ const InvoicePreviewDialog = ({
     try {
       const [{ jsPDF }] = await Promise.all([import('jspdf'), import('html2canvas')]);
       const canvas = await captureCanvas();
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfW = getPaperWidthMm(paperSize);
-      const pdfH = (canvas.height * pdfW) / canvas.width;
-      const namedFormat = getJsPdfFormat(paperSize);
-      const pdf = new jsPDF({ unit: 'mm', format: namedFormat || [pdfW, pdfH] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
+      const pdf = canvasToPdf(canvas, jsPDF, paperSize);
       pdf.save(`${transaction.invoiceNumber || 'invoice'}.pdf`);
     } catch (err) {
       console.error('PDF failed', err);
@@ -307,12 +227,7 @@ const InvoicePreviewDialog = ({
     setShareLoading(true);
     try {
       const [canvas, { jsPDF }] = await Promise.all([captureCanvas(), import('jspdf').then(m => ({ jsPDF: m.jsPDF }))]);
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
-      const pdfW = getPaperWidthMm(paperSize);
-      const pdfH = (canvas.height * pdfW) / canvas.width;
-      const namedFormat = getJsPdfFormat(paperSize);
-      const pdf = new jsPDF({ unit: 'mm', format: namedFormat || [pdfW, pdfH] });
-      pdf.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
+      const pdf = canvasToPdf(canvas, jsPDF, paperSize);
       const fileName = `${transaction.invoiceNumber || 'invoice'}.pdf`;
       const blob = pdf.output('blob');
       const file = new File([blob], fileName, { type: 'application/pdf' });
@@ -502,120 +417,17 @@ const InvoicePreviewDialog = ({
       </Dialog>
 
       {/* Received Payment / Payment Made — pick Cash / Bank / Split before settling */}
-      <Dialog
+      <ReceivePaymentDialog
         open={receivePayDialogOpen}
-        onClose={() => { if (!receivePaySaving) setReceivePayDialogOpen(false); }}
-        maxWidth="xs"
-        fullWidth
-        slotProps={{ paper: { sx: { borderRadius: 2.5 } } }}
-      >
-        <Box sx={{ px: 3, pt: 2.5, pb: 1 }}>
-          <Typography variant="h6" sx={{ fontWeight: 800, fontSize: '1.05rem' }}>
-            {isSale ? 'Received Payment' : 'Payment Made'}
-          </Typography>
-          <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
-            Invoice #{transaction?.invoiceNumber} · {transaction?.partyName}
-          </Typography>
-          <Typography sx={{ mt: 1.5, fontWeight: 800, fontSize: '1.5rem', color: '#16a34a' }}>
-            ₹{outstanding.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-          </Typography>
-        </Box>
-        <Box sx={{ px: 3, pb: 1 }}>
-          <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.75 }}>
-            Received Via
-          </Typography>
-          <Box sx={{ display: 'flex', gap: 0.75, mb: 1.5 }}>
-            {[
-              { value: 'Cash', icon: <Banknote size={14} />, color: '#16a34a' },
-              { value: 'Bank', icon: <Landmark size={14} />, color: '#5c1f22' },
-              { value: 'Split', icon: <Wallet size={14} />, color: '#7c3aed' },
-            ].map((opt) => {
-              const sel = receivePayMode === opt.value;
-              return (
-                <Box
-                  key={opt.value}
-                  onClick={() => setReceivePayMode(opt.value)}
-                  sx={{
-                    display: 'flex', alignItems: 'center', gap: 0.75, px: 1.5, py: 0.75, borderRadius: '8px',
-                    border: '1.5px solid', cursor: 'pointer', userSelect: 'none', transition: 'all 0.12s',
-                    fontWeight: 700, fontSize: '0.8rem',
-                    borderColor: sel ? opt.color : 'divider',
-                    bgcolor: sel ? alpha(opt.color, 0.07) : 'transparent',
-                    color: sel ? opt.color : 'text.secondary',
-                    '&:hover': { borderColor: opt.color, color: opt.color, bgcolor: alpha(opt.color, 0.05) },
-                  }}
-                >
-                  {opt.icon}{opt.value}
-                </Box>
-              );
-            })}
-          </Box>
-          {receivePayMode === 'Split' && (
-            <SplitPaymentInput
-              cash={receivePaySplitCash} onCashChange={setReceivePaySplitCash}
-              bank={receivePaySplitBank} onBankChange={setReceivePaySplitBank}
-              total={Math.max(0, outstanding - (parseFloat(receivePayLess) || 0))}
-            />
-          )}
-          <TextField
-            fullWidth size="small" type="date" label="Payment Date"
-            value={receivePayDate}
-            onChange={(e) => setReceivePayDate(e.target.value)}
-            slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: new Date().toISOString().split('T')[0] } }}
-            sx={{ mt: 1.5 }}
-          />
-          <Box sx={{ mt: 1.5, border: '1.5px solid', borderColor: receivePayLess ? '#d97706' : 'divider', borderRadius: '10px', px: 1.5, py: 0.75, bgcolor: receivePayLess ? alpha('#d97706', 0.05) : 'transparent', transition: 'all 0.15s' }}>
-            <Typography sx={{ fontSize: '0.68rem', fontWeight: 700, color: receivePayLess ? '#d97706' : 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.06em', mb: 0.25 }}>
-              Less (Discount / Write-off)
-            </Typography>
-            <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
-              <Typography sx={{ fontSize: '0.95rem', fontWeight: 700, color: receivePayLess ? '#d97706' : '#ddd0c9' }}>₹</Typography>
-              <InputBase
-                fullWidth type="number" placeholder="0 (optional)"
-                value={receivePayLess}
-                onChange={(e) => setReceivePayLess(e.target.value)}
-                slotProps={{ input: { min: 0, max: outstanding, step: '0.01' } }}
-                sx={{ fontSize: '0.9rem', fontWeight: 600 }}
-              />
-            </Box>
-          </Box>
-          {parseFloat(receivePayLess) > 0 && (
-            <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', mt: 0.5 }}>
-              Collecting ₹{Math.max(0, outstanding - (parseFloat(receivePayLess) || 0)).toLocaleString('en-IN', { maximumFractionDigits: 2 })} · writing off ₹{(parseFloat(receivePayLess) || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })} — invoice still marked fully paid.
-            </Typography>
-          )}
-          <TextField
-            fullWidth size="small" label="Notes (optional)" placeholder="e.g. Paid via GPay, ref #123"
-            value={receivePayNotes}
-            onChange={(e) => setReceivePayNotes(e.target.value)}
-            sx={{ mt: 1.5 }}
-          />
-        </Box>
-        <DialogActions sx={{ px: 3, pb: 2.5, flexWrap: 'wrap', gap: 1 }}>
-          <Button onClick={() => setReceivePayDialogOpen(false)} disabled={receivePaySaving} sx={{ fontWeight: 600 }}>Cancel</Button>
-          <Box sx={{ flex: 1 }} />
-          <Tooltip title="Marks the invoice as paid without recording any payment — add it manually via Payment Entry later.">
-            <span>
-              <Button
-                onClick={markPaidWithoutPayment}
-                disabled={receivePaySaving}
-                variant="outlined"
-                sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2 }}
-              >
-                Mark Paid without Payment
-              </Button>
-            </span>
-          </Tooltip>
-          <Button
-            variant="contained"
-            onClick={confirmReceivePayment}
-            disabled={receivePaySaving}
-            sx={{ fontWeight: 700, textTransform: 'none', borderRadius: 2, bgcolor: '#16a34a', '&:hover': { bgcolor: '#16a34a' } }}
-          >
-            {receivePaySaving ? 'Saving…' : (isSale ? 'Confirm Received' : 'Confirm Paid')}
-          </Button>
-        </DialogActions>
-      </Dialog>
+        tx={transaction}
+        isSale={isSale}
+        onClose={() => setReceivePayDialogOpen(false)}
+        onDone={({ message, severity }) => {
+          setReceivePayDialogOpen(false);
+          setSnack({ open: true, message, severity });
+          onClose?.();
+        }}
+      />
 
       {/* Rendered outside both Dialogs so it stays visible even after
           confirmReceivePayment closes the preview dialog via onClose(). */}

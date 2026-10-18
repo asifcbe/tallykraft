@@ -11,8 +11,9 @@ import { X, Plus, Trash2, ClipboardPaste, Download } from 'lucide-react';
 import { useData } from './DataContext';
 import { useBusiness } from './BusinessContext';
 import { useConfig } from './ConfigContext';
-import { COUNTRY_CODES, CUSTOMER_CATEGORIES, VENDOR_CATEGORIES, generatePartyId, loadCustomCategories, BUILTIN_PRODUCT_CATEGORIES, loadCustomItemCategories } from './partyUtils';
+import { COUNTRY_CODES, CUSTOMER_CATEGORIES, VENDOR_CATEGORIES, generatePartyId, loadCustomCategories } from './partyUtils';
 import { generateBarcode } from './ItemFormDialog';
+import { useItemCategories } from './useItemCategories';
 
 const DEFAULT_UNITS = ['NOS', 'BAGS', 'BOX', 'KGS', 'Ltr', 'Mtr', 'Pcs'];
 const TAX_SLABS = [0, 0.25, 1, 3, 5, 6, 12, 18, 28, 28.5, 43];
@@ -264,8 +265,8 @@ const BulkAddDialog = ({ open, onClose, type = 'customer', onSuccess }) => {
   const builtinCats = partyType === 'Customer' ? CUSTOMER_CATEGORIES : VENDOR_CATEGORIES;
   const customCats = currentBusiness?.id ? loadCustomCategories(currentBusiness.id, partyType) : [];
   const allCategories = [...builtinCats, ...customCats.filter(c => !builtinCats.includes(c))];
-  const customItemCats = currentBusiness?.id ? loadCustomItemCategories(currentBusiness.id, 'product') : [];
-  const allItemCategories = [...BUILTIN_PRODUCT_CATEGORIES, ...customItemCats.filter(c => !BUILTIN_PRODUCT_CATEGORIES.includes(c))];
+  // Shared, synced category list (see useItemCategories.js).
+  const { all: allItemCategories } = useItemCategories('product');
 
   const makeEmptyData = useCallback(() => ({
     name: '', countryCode: '+91', phone: '', category: '', balanceDir: 'collect', balanceAmt: '',

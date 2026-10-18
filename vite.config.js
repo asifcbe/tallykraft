@@ -15,8 +15,8 @@ export default defineConfig({
       },
       includeAssets: ['tallykraft.svg', 'tallykraft.png'],
       manifest: {
-        name: 'TallyKraft - Accounting Software',
-        short_name: 'TallyKraft',
+        name: 'BillDheko™ - Accounting Software',
+        short_name: 'BillDheko',
         description: 'Fully functional offline accounting software with GST and multi-business support.',
         theme_color: '#faf7f4',
         background_color: '#faf7f4',

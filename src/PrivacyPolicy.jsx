@@ -1,21 +1,21 @@
 import React from 'react';
-import TallyKraftLogo from './TallyKraftLogo';
+import BillDhekoLogo, { TM } from './BillDhekoLogo';
 import { useBilling } from './BillingContext';
 
 // Public, self-contained Privacy Policy + Refund/Cancellation page.
 // Reachable without authentication (see App.jsx public-route handling) so it can
 // be linked from the landing-page footer and referenced by the payment gateway.
 //
-// Content is adapted to how TallyKraft actually works:
-//  • A single subscription plan (₹299/mo · ₹2999/yr) — every feature plus cloud
+// Content is adapted to how BillDheko actually works:
+//  • A single subscription plan (₹299 per business for 30 days) — every feature plus cloud
 //    backup and multi-device sync.
 //  • Business data is stored locally (browser IndexedDB) AND backed up to our
 //    secure cloud (Google Firebase) so it can sync and restore across devices.
 //  • Payments are processed by Razorpay; we never see or store card details.
-//  • 3-day free trial → no refunds on subscription payments.
+//  • 7-day free trial → no refunds on subscription payments.
 
-const SITE = 'www.tallykraft.com';
-const SUPPORT_EMAIL = 'support@tallykraft.com';
+const SITE = 'www.billdheko.com';
+const SUPPORT_EMAIL = 'support@billdheko.com';
 const EFFECTIVE_DATE = 'June 8, 2026';
 
 const Section = ({ n, title, children }) => (
@@ -35,7 +35,7 @@ export default function PrivacyPolicy({ onBack }) {
   // Pull the legally-registered seller details from Admin → Billing so the
   // contact block always shows the GST-registered name / address / GSTIN.
   const { billing } = useBilling() || {};
-  const legalName = billing?.legalName?.trim() || 'TallyKraft';
+  const legalName = billing?.legalName?.trim() || 'BillDheko';
   const gstAddress = billing?.address?.trim() || '';
   const gstin = billing?.gstin?.trim() || '';
   const sellerState = billing?.sellerState?.trim() || '';
@@ -46,8 +46,8 @@ export default function PrivacyPolicy({ onBack }) {
       <div style={{ background: 'linear-gradient(135deg, #0f2733 0%, #0e7490 100%)', color: '#fff', padding: '28px 20px' }}>
         <div style={{ maxWidth: 820, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-            <TallyKraftLogo size={40} />
-            <span style={{ fontWeight: 800, letterSpacing: '0.04em' }}>TALLYKRAFT</span>
+            <BillDhekoLogo size={40} />
+            <span style={{ fontWeight: 800, letterSpacing: '0.04em' }}>BILLDHEKO<TM /></span>
           </div>
           {onBack && (
             <button
@@ -69,7 +69,7 @@ export default function PrivacyPolicy({ onBack }) {
       {/* Body */}
       <div style={{ maxWidth: 820, margin: '0 auto', padding: '32px 20px', background: '#fff', borderRadius: 0 }}>
         <p style={{ fontSize: '0.92rem', lineHeight: 1.65, color: '#5c1f22', marginTop: 0 }}>
-          TallyKraft ("we", "our", or "us") is committed to protecting the privacy of our users. This
+          BillDheko ("we", "our", or "us") is committed to protecting the privacy of our users. This
           Privacy Policy explains how we collect, use, store, and protect your information when you use
           our web-based billing and accounting software available at {SITE} (the "Service").
         </p>
@@ -86,7 +86,7 @@ export default function PrivacyPolicy({ onBack }) {
 
         <Section n={2} title="How We Use Your Information">
           <ul style={{ paddingLeft: 20, margin: '4px 0' }}>
-            <Li>To provide, operate, and maintain the TallyKraft service.</Li>
+            <Li>To provide, operate, and maintain the BillDheko service.</Li>
             <Li>To process your subscription payments and issue GST tax invoices/receipts.</Li>
             <Li>To send important service updates, security notices, and support messages.</Li>
             <Li>To improve the software based on how it is used.</Li>
@@ -97,7 +97,7 @@ export default function PrivacyPolicy({ onBack }) {
 
         <Section n={3} title="Data Storage and Security">
           <p style={{ margin: '0 0 8px' }}>
-            TallyKraft is a <strong>local-first</strong> application:
+            BillDheko is a <strong>local-first</strong> application:
           </p>
           <ul style={{ paddingLeft: 20, margin: '4px 0' }}>
             <Li><strong>On your device:</strong> Your business data is written to your browser's local storage first, so the app stays fast and keeps working offline.</Li>
@@ -127,7 +127,7 @@ export default function PrivacyPolicy({ onBack }) {
           <div style={{ background: '#fef2f2', border: '1px solid #fecaca', borderRadius: 10, padding: '12px 14px', margin: '8px 0' }}>
             <strong style={{ color: '#b91c1c' }}>No-Refund Policy.</strong>
             <p style={{ margin: '4px 0 0', color: '#7f1d1d' }}>
-              We offer a <strong>3-day free trial</strong> with full access to all features so you can
+              We offer a <strong>7-day free trial</strong> with full access to all features so you can
               evaluate the Service before paying. Because of this, all subscription payments are
               <strong> final and non-refundable</strong>. We do not provide refunds for partially used
               periods, accidental purchases, or change of mind.
@@ -142,7 +142,7 @@ export default function PrivacyPolicy({ onBack }) {
 
         <Section n={6} title="Cookies">
           <p style={{ margin: 0 }}>
-            TallyKraft uses cookies and similar technologies to keep you signed in, remember your
+            BillDheko uses cookies and similar technologies to keep you signed in, remember your
             preferences, and understand how the Service is used. You can disable cookies in your browser
             settings, but some features may not work correctly.
           </p>
@@ -176,7 +176,7 @@ export default function PrivacyPolicy({ onBack }) {
 
         <Section n={10} title="Children's Privacy">
           <p style={{ margin: 0 }}>
-            TallyKraft is not intended for anyone under the age of 18. We do not knowingly collect
+            BillDheko is not intended for anyone under the age of 18. We do not knowingly collect
             personal information from minors.
           </p>
         </Section>
@@ -202,7 +202,7 @@ export default function PrivacyPolicy({ onBack }) {
         </Section>
 
         <p style={{ textAlign: 'center', color: '#5f4f47', fontSize: '0.78rem', marginTop: 32 }}>
-          © {new Date().getFullYear()} TallyKraft. All rights reserved. · {SITE}
+          © {new Date().getFullYear()} BillDheko™. All rights reserved. · {SITE}
         </p>
       </div>
     </div>

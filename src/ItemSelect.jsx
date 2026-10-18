@@ -51,7 +51,7 @@ const VirtualListboxInner = React.forwardRef(function VirtualListboxInner(props,
 const VIRTUALIZE_THRESHOLD = 50;
 
 const COLORS = [
-  { bg: '#EEF2FF', fg: '#4F46E5', bd: '#C7D2FE' },
+  { bg: '#EEF2FF', fg: '#5c1f22', bd: '#C7D2FE' },
   { bg: '#F0FDF4', fg: '#16A34A', bd: '#BBF7D0' },
   { bg: '#FFF7ED', fg: '#C2410C', bd: '#FED7AA' },
   { bg: '#FDF4FF', fg: '#7C3AED', bd: '#DDD6FE' },
@@ -123,11 +123,27 @@ const ItemSelect = ({
   inputRef,
   onInputKeyDown,
   sx,
-}) => (
+  // freeText: typed text stays as typed — nothing is auto-highlighted or
+  // auto-picked on Enter/blur; a saved item is used only when the user
+  // actually picks it (click, or arrow to it + Enter). Used by On-the-go bills.
+  freeText = false,
+}) => {
+  // autoSelect commits the currently-highlighted option on Enter/blur, but
+  // when it does so via blur (e.g. focus programmatically moved to the next
+  // field right after picking) MUI's Autocomplete calls onChange with
+  // getOptionLabel(option) — a plain STRING, not the object — per its own
+  // documented autoSelect behavior. If two items share the same name, a
+  // caller that re-resolves that string by name alone always finds the
+  // FIRST match, silently picking the wrong item. Track the highlighted
+  // option ourselves so onChange can hand back the real object even when
+  // MUI degrades it to a string.
+  const highlightedRef = React.useRef(null);
+  return (
   <Autocomplete
     freeSolo
-    autoHighlight
-    autoSelect
+    autoHighlight={!freeText}
+    // No autoSelect: it picks the highlighted (first) match on blur, so just
+    // clicking out of the field selected an item. Enter still picks it.
     fullWidth={fullWidth}
     options={options}
     {...(options.length > VIRTUALIZE_THRESHOLD ? { ListboxComponent: VirtualListboxInner, disableListWrap: true } : {})}
@@ -154,8 +170,20 @@ const ItemSelect = ({
       }
       return filtered;
     }}
+    onHighlightChange={(_, option) => {
+      highlightedRef.current = option && !option._addNew ? option : null;
+    }}
     onChange={(_, v) => {
-      if (typeof v === 'string') { onChange?.(v); return; }
+      if (typeof v === 'string') {
+        // Prefer the option that was actually highlighted when autoSelect
+        // degraded the selection to a label string — only falls back to
+        // the caller's own name-based resolution (which can't disambiguate
+        // duplicate names) when nothing was highlighted.
+        const h = highlightedRef.current;
+        if (h && (h.name || '') === v) { onChange?.(h); return; }
+        onChange?.(v);
+        return;
+      }
       if (v?._addNew) { onAddNew?.(v._inputValue || ''); return; }
       onChange?.(v);
     }}
@@ -173,7 +201,7 @@ const ItemSelect = ({
                 bgcolor: 'primary.50', border: '1.5px dashed', borderColor: 'primary.main',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}>
-                <Plus size={15} color="#4F46E5" />
+                <Plus size={15} color="#5c1f22" />
               </Box>
               <Typography sx={{ fontWeight: 700, color: 'primary.main', fontSize: '0.875rem' }}>
                 {option._display}
@@ -219,7 +247,7 @@ const ItemSelect = ({
                   <Chip label={option.size} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(14,165,233,0.08)', color: '#5c1f22', border: 'none', flexShrink: 0 }} />
                 )}
                 {option.category && (
-                  <Chip label={option.category} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(17,17,17,0.06)', color: '#5c1f22', border: 'none', flexShrink: 0 }} />
+                  <Chip label={option.category} size="small" sx={{ height: 16, fontSize: '0.6rem', fontWeight: 600, bgcolor: 'rgba(92,31,34,0.06)', color: '#5c1f22', border: 'none', flexShrink: 0 }} />
                 )}
               </Box>
             </Box>
@@ -267,6 +295,7 @@ const ItemSelect = ({
       />
     )}
   />
-);
+  );
+};
 
 export default ItemSelect;

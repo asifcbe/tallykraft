@@ -1,5 +1,5 @@
 /**
- * IndexedDB layer for TallyKraft - primary local storage.
+ * IndexedDB layer for BillDheko - primary local storage.
  * No Firestore/backend calls except login. Backup to online is explicit (Backup page).
  * NOTE: the DB name below is intentionally kept as the legacy "TallyKraftDB" so
  * existing users' locally-stored data is not orphaned by the rebrand.

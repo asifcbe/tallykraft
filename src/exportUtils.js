@@ -46,6 +46,7 @@ export const PARTY_COLUMNS = [
   { header: 'Country Code', value: r => r.countryCode || '+91' },
   { header: 'Phone', value: r => r.phone || '' },
   { header: 'Category', value: r => r.category || '' },
+  { header: 'Group', value: r => r.group || '' },
   { header: 'Email', value: r => r.email || '' },
   { header: 'GST Number', value: r => r.gstNumber || '' },
   { header: 'Address', value: r => r.address || '' },

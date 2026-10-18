@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
+import { useConfig } from './ConfigContext';
 
 const TabsContext = createContext();
 
@@ -6,7 +7,7 @@ const TabsContext = createContext();
 const SINGLETON_PATHS = new Set([
   '/', '/parties', '/items', '/expenses', '/payment-in', '/payment-out',
   '/reports', '/backup', '/settings', '/staff', '/ledger', '/membership',
-  '/estimates', '/credit-notes', '/debit-notes', '/delivery-notes', '/journal',
+  '/credit-notes', '/debit-notes', '/delivery-notes', '/journal',
   '/opticals', '/admin', '/investors',
 ]);
 
@@ -26,6 +27,15 @@ export const pathLabel = (path) => {
   if (map[path]) return map[path];
   if (path?.startsWith('/section/')) return 'Custom';
   return 'Page';
+};
+
+// Pages that can have several simultaneous tabs, and the Settings toggle
+// (config.features.*) that controls each. '/reports' is always multi-tab.
+const MULTI_TAB_FEATURE = { '/sales': 'multiTabSales', '/purchases': 'multiTabSales', '/pos': 'multiTabPOS', '/estimates': 'multiTabEstimates' };
+export const isMultiTabAllowed = (path, features) => {
+  if (path === '/reports') return true;
+  const key = MULTI_TAB_FEATURE[path];
+  return !!key && features?.[key] !== false;
 };
 
 let _idSeq = 0;
@@ -57,6 +67,9 @@ const buildInitialTab = () => {
 };
 
 export const TabsProvider = ({ children }) => {
+  const { config } = useConfig();
+  const featuresRef = useRef(config.features);
+  featuresRef.current = config.features;
   const initial = useRef(buildInitialTab()).current;
   const [tabs, setTabs] = useState([initial]);
   const [activeTabId, setActiveTabId] = useState(initial.id);
@@ -86,7 +99,8 @@ export const TabsProvider = ({ children }) => {
    * @param {object} opts    - { duplicate: bool } duplicate=true always opens new tab (for Sales/Purchases)
    */
   const openTab = useCallback((path, label, opts = {}) => {
-    const { duplicate = false } = opts;
+    // Multi-tab turned off for this page in Settings → reuse its existing tab.
+    const duplicate = !!opts.duplicate && isMultiTabAllowed(path, featuresRef.current);
 
     if (!duplicate) {
       // Find an existing tab with this path and activate it; create only if none exists.

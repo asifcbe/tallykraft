@@ -1,6 +1,7 @@
 import React, { forwardRef } from 'react';
 import { buildUpiUri } from './upiUtils';
 import UpiQrImage from './UpiQrImage';
+import { resolveBillDesign, billKind, buildBillCtx, savedDesignFor, usesDesigner, isReceiptSize, PAPER_WIDTH_MM } from './billDesignUtils';
 
 // ── Named exports ─────────────────────────────────────────────────────────────
 
@@ -18,6 +19,7 @@ export const INVOICE_THEMES = [
   { value: 'mono',      label: 'Mono',      desc: 'Black & white, heavy typographic hierarchy, no color' },
   { value: 'stripe',    label: 'Stripe',    desc: 'Left accent stripe per row, clean Stripe-invoice feel' },
   { value: 'custom',    label: 'Custom',    desc: 'Build your own layout — drag to reorder and toggle sections' },
+  { value: 'designer',  label: 'Custom Designer', desc: 'Free-form header & footer — place and size every element yourself' },
 ];
 
 // Custom-theme section building blocks — each renders as its own row, in
@@ -135,6 +137,7 @@ export const SAMPLE_INVOICE = {
   type: 'Sales',
   invoiceNumber: 'INV-2024-047',
   date: '2024-03-15',
+  time: '14:30',
   dueDate: '2024-03-22',
   partyName: 'Mehta & Associates',
   partyAddress: 'Shop No. 12, Brigade Road, Bengaluru, Karnataka - 560025',
@@ -199,6 +202,8 @@ const DEFAULT_PRINT_OPTIONS = {
   showPartyGSTIN: true,
   showPlaceOfSupply: true,
   showDueDate: false,
+  // Bill time next to the date (Settings → Invoice → Bill Sections → Time).
+  showTime: false,
   showBilledBy: false,
   showPaymentMode: false,
   showBankDetails: false,
@@ -221,6 +226,41 @@ const DEFAULT_PRINT_OPTIONS = {
   docPaddingBottom: 0,
   docPaddingLeft: null,
   docPaddingRight: null,
+  // Printed logo size as a % of each theme's own default logo box
+  // (Settings → Invoice → Logo Size). 100 = the theme's original size.
+  logoScale: 100,
+};
+
+// Logo box scaled by the user's Logo Size setting. Width is also capped at the
+// available width so a large logo can never overflow narrow paper (A6/thermal).
+const logoScaleOf = (opts) => Math.min(400, Math.max(30, Number(opts?.logoScale) || 100)) / 100;
+const logoSize = (opts, h, w) => {
+  const k = logoScaleOf(opts);
+  return { maxHeight: `${Math.round(h * k)}px`, maxWidth: w ? `min(${Math.round(w * k)}px, 100%)` : '100%' };
+};
+
+// Bill time for print: the invoice's own time field (HH:mm) if set, else the
+// record's creation time. Returned as e.g. "2:45 PM"; '' when unknown.
+const billTime = (t) => {
+  if (!t) return '';
+  if (t.time) {
+    const m = /^(\d{1,2}):(\d{2})/.exec(String(t.time));
+    if (m) {
+      const h = Number(m[1]);
+      return `${h % 12 || 12}:${m[2]} ${h < 12 ? 'AM' : 'PM'}`;
+    }
+    return String(t.time);
+  }
+  if (t.createdAt) {
+    try { return new Date(t.createdAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }); } catch { return ''; }
+  }
+  return '';
+};
+// Date as printed on the bill, with the time appended when "Time" is on.
+const billDateText = (t, opts) => {
+  const d = formatDate(t.date, opts.dateFormat);
+  const tm = opts.showTime ? billTime(t) : '';
+  return tm ? `${d}, ${tm}` : d;
 };
 
 // Resolves the 4 configurable padding sides against a theme's own base `pad`
@@ -579,14 +619,16 @@ const HsnTaxSummary = ({ transaction, useIGST, useUTGST, isComposite, thStyle, t
   );
 };
 
-const TotalsBlock = ({ transaction, opts, isSale, accentColor, showBalanceSection, currentBillTotal, balanceNum, openingBalance, compact }) => {
+const TotalsBlock = ({ transaction, opts, isSale, accentColor, showBalanceSection, currentBillTotal, balanceNum, openingBalance, compact, fill, fontPx }) => {
   const showGST = opts.showGSTColumn && !transaction.noGST;
   const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
   const discountAmount = transaction.discountAmount ?? 0;
   const advanceAmount = transaction.advance ?? 0;
   const balanceDue = Math.max(0, (transaction.totalAmount ?? 0) - advanceAmount);
-  const fs = compact ? '12px' : '13px';
-  const totalFs = compact ? '14px' : '16px';
+  // fontPx (Bill Designer) overrides the built-in sizes so the block can be
+  // scaled to fit narrow paper.
+  const fs = fontPx ? `${fontPx}px` : (compact ? '12px' : '13px');
+  const totalFs = fontPx ? `${fontPx * 1.2}px` : (compact ? '14px' : '16px');
 
   // Recompute tax from items so inclusive items are handled correctly.
   // Groups by tax rate, sums taxable base per group, then totals tax.
@@ -607,7 +649,7 @@ const TotalsBlock = ({ transaction, opts, isSale, accentColor, showBalanceSectio
   );
 
   return (
-    <div className="inv-no-break" style={{ width: compact ? '220px' : '260px', marginLeft: 'auto' }}>
+    <div className="inv-no-break" style={{ width: fill ? '100%' : (compact ? '220px' : '260px'), marginLeft: 'auto' }}>
       {row('Subtotal', `₹${(transaction.subtotal ?? 0).toFixed(2)}`)}
       {discountAmount > 0 && row(`Discount${transaction.discountPercent ? ` (${transaction.discountPercent}%)` : ''}`, `-₹${discountAmount.toFixed(2)}`)}
       {isComposite && row('Composition Tax', `₹${computedTax.toFixed(2)}`)}
@@ -885,7 +927,7 @@ const InvoiceFooter = ({ opts, business, transaction, accentColor }) => {
 // natural document flow, same class of element as the rest of the footer.
 const PoweredByFooter = ({ color }) => (
   <div style={{ marginTop: '4px', textAlign: 'center', fontSize: '8px', lineHeight: 1.2, color: color || '#9ca3af' }}>
-    Powered by TallyKraft · www.tallykraft.com
+    Powered by BillDheko · www.billdheko.com
   </div>
 );
 
@@ -1032,7 +1074,7 @@ const ClassicTemplate = (p) => {
     <div style={{ padding: resolveDocPadding(opts, pad), backgroundColor: '#fff', color: '#000', width: dim.width, minHeight: dim.minHeight, margin: 'auto', fontFamily: 'Arial, sans-serif', fontSize: '13.5px', lineHeight: 1.45, boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: 1 }}>
-          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: '60px', maxWidth: '130px', objectFit: 'contain' }} />}
+          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, 60, 130), objectFit: 'contain' }} />}
           <div>
             <div style={{ fontSize: '22px', fontWeight: '800', color: '#000', marginBottom: '4px' }}>{business.name}</div>
             {business.address && <div style={{ color: '#444', fontSize: '12.5px' }}>{business.address}</div>}
@@ -1044,7 +1086,7 @@ const ClassicTemplate = (p) => {
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '18px', fontWeight: '800', color: acc, marginBottom: '6px' }}>{headerTitle}</div>
           {opts.showInvoiceNumber && <div style={{ fontSize: '13px', color: '#333' }}>Invoice #: {transaction.invoiceNumber}</div>}
-          {opts.showDate && <div style={{ fontSize: '13px', color: '#333' }}>Date: {formatDate(transaction.date, opts.dateFormat)}</div>}
+          {opts.showDate && <div style={{ fontSize: '13px', color: '#333' }}>Date: {billDateText(transaction, opts)}</div>}
           {opts.showDueDate && transaction.dueDate && <div style={{ fontSize: '13px', color: '#333' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
           {opts.showPaymentMode && transaction.paymentMode && <div style={{ fontSize: '13px', color: '#333' }}>Mode: {transaction.paymentMode}</div>}
           {opts.showBilledBy && transaction.billedBy && <div style={{ fontSize: '13px', color: '#333' }}>Billed by: {transaction.billedBy}</div>}
@@ -1110,7 +1152,7 @@ const ModernTemplate = (p) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           {opts.showLogo && business.logo && (
             <div style={{ backgroundColor: '#fff', borderRadius: '8px', padding: '6px', display: 'flex' }}>
-              <img src={business.logo} alt="" style={{ maxHeight: '48px', maxWidth: '120px', objectFit: 'contain' }} />
+              <img src={business.logo} alt="" style={{ ...logoSize(opts, 48, 120), objectFit: 'contain' }} />
             </div>
           )}
           <div>
@@ -1124,7 +1166,7 @@ const ModernTemplate = (p) => {
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '26px', fontWeight: '900', color: '#fff', letterSpacing: '-0.5px', lineHeight: 1 }}>{headerTitle}</div>
           {opts.showInvoiceNumber && <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: '13px', marginTop: '6px' }}>#{transaction.invoiceNumber}</div>}
-          {opts.showDate && <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: '13px' }}>{formatDate(transaction.date, opts.dateFormat)}</div>}
+          {opts.showDate && <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: '13px' }}>{billDateText(transaction, opts)}</div>}
           {opts.showDueDate && transaction.dueDate && <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: '13px' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
           {opts.showPaymentMode && transaction.paymentMode && <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: '13px' }}>Mode: {transaction.paymentMode}</div>}
           {opts.showBilledBy && transaction.billedBy && <div style={{ color: 'rgba(255,255,255,0.88)', fontSize: '13px' }}>Billed by: {transaction.billedBy}</div>}
@@ -1187,7 +1229,7 @@ const CompactTemplate = (p) => {
     <div style={{ padding: resolveDocPadding(opts, pad), backgroundColor: '#fff', color: '#000', width: dim.width, minHeight: dim.minHeight, margin: 'auto', fontFamily: 'Arial, sans-serif', fontSize: '12.5px', lineHeight: 1.4, boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: `2px solid ${acc}`, paddingBottom: '12px', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
-          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: '44px', maxWidth: '100px', objectFit: 'contain' }} />}
+          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, 44, 100), objectFit: 'contain' }} />}
           <div>
             <div style={{ fontSize: '17px', fontWeight: '800', color: '#000' }}>{business.name}</div>
             {business.address && <div style={{ color: '#555', fontSize: '11px' }}>{business.address}</div>}
@@ -1199,7 +1241,7 @@ const CompactTemplate = (p) => {
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '15px', fontWeight: '800', color: acc }}>{headerTitle}</div>
           {opts.showInvoiceNumber && <div style={{ color: '#444', fontSize: '11px' }}>#{transaction.invoiceNumber}</div>}
-          {opts.showDate && <div style={{ color: '#444', fontSize: '11px' }}>{formatDate(transaction.date, opts.dateFormat)}</div>}
+          {opts.showDate && <div style={{ color: '#444', fontSize: '11px' }}>{billDateText(transaction, opts)}</div>}
           {opts.showDueDate && transaction.dueDate && <div style={{ color: '#444', fontSize: '11px' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
           {opts.showBilledBy && transaction.billedBy && <div style={{ color: '#444', fontSize: '11px' }}>By: {transaction.billedBy}</div>}
         </div>
@@ -1260,7 +1302,7 @@ const ElegantTemplate = (p) => {
       <div style={{ flex: 1, padding: resolveDocPadding(opts, pad, pad - 4) }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '18px' }}>
           <div>
-            {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: '56px', maxWidth: '120px', objectFit: 'contain', marginBottom: '8px', display: 'block' }} />}
+            {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, 56, 120), objectFit: 'contain', marginBottom: '8px', display: 'block' }} />}
             <div style={{ fontSize: '24px', fontWeight: '400', color: '#000', letterSpacing: '-0.3px' }}>{business.name}</div>
             {business.address && <div style={{ color: '#666', fontSize: '12.5px', marginTop: '2px' }}>{business.address}</div>}
             {opts.showBusinessPhone !== false && business.phone && <div style={{ color: '#666', fontSize: '12.5px' }}>Ph: {business.phone}</div>}
@@ -1270,7 +1312,7 @@ const ElegantTemplate = (p) => {
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '13px', fontWeight: '700', letterSpacing: '0.12em', textTransform: 'uppercase', color: acc, marginBottom: '8px' }}>{headerTitle}</div>
             {opts.showInvoiceNumber && <div style={{ color: '#888', fontSize: '12px' }}>No. {transaction.invoiceNumber}</div>}
-            {opts.showDate && <div style={{ color: '#888', fontSize: '12px' }}>{formatDate(transaction.date, opts.dateFormat)}</div>}
+            {opts.showDate && <div style={{ color: '#888', fontSize: '12px' }}>{billDateText(transaction, opts)}</div>}
             {opts.showDueDate && transaction.dueDate && <div style={{ color: '#888', fontSize: '12px' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
             {opts.showBilledBy && transaction.billedBy && <div style={{ color: '#888', fontSize: '12px' }}>Billed by: {transaction.billedBy}</div>}
           </div>
@@ -1338,7 +1380,7 @@ const BoldTemplate = (p) => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
             {opts.showLogo && business.logo && (
               <div style={{ backgroundColor: '#fff', borderRadius: '6px', padding: '5px', display: 'inline-flex' }}>
-                <img src={business.logo} alt="" style={{ maxHeight: '44px', maxWidth: '110px', objectFit: 'contain' }} />
+                <img src={business.logo} alt="" style={{ ...logoSize(opts, 44, 110), objectFit: 'contain' }} />
               </div>
             )}
             <div>
@@ -1352,7 +1394,7 @@ const BoldTemplate = (p) => {
           <div style={{ textAlign: 'right' }}>
             <div style={{ fontSize: '22px', fontWeight: '900', color: acc, letterSpacing: '-0.5px' }}>{headerTitle}</div>
             {opts.showInvoiceNumber && <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: '12px', marginTop: '4px' }}>#{transaction.invoiceNumber}</div>}
-            {opts.showDate && <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: '12px' }}>{formatDate(transaction.date, opts.dateFormat)}</div>}
+            {opts.showDate && <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: '12px' }}>{billDateText(transaction, opts)}</div>}
             {opts.showDueDate && transaction.dueDate && <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: '12px' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
             {opts.showBilledBy && transaction.billedBy && <div style={{ color: 'rgba(255,255,255,0.75)', fontSize: '12px' }}>Billed by: {transaction.billedBy}</div>}
           </div>
@@ -1422,7 +1464,7 @@ const MinimalTemplate = (p) => {
     <div style={{ padding: resolveDocPadding(opts, pad, pad + 4), backgroundColor: '#fff', color: '#000', width: dim.width, minHeight: dim.minHeight, margin: 'auto', fontFamily: "'Helvetica Neue', Arial, sans-serif", fontSize: '13px', lineHeight: 1.45, boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
         <div>
-          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: '52px', maxWidth: '120px', objectFit: 'contain', marginBottom: '10px', display: 'block' }} />}
+          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, 52, 120), objectFit: 'contain', marginBottom: '10px', display: 'block' }} />}
           <div style={{ fontSize: '20px', fontWeight: '300', color: '#111', letterSpacing: '-0.3px' }}>{business.name}</div>
           {business.address && <div style={{ color: '#888', fontSize: '12px', marginTop: '4px' }}>{business.address}</div>}
           {opts.showBusinessPhone !== false && business.phone && <div style={{ color: '#888', fontSize: '12px' }}>Ph: {business.phone}</div>}
@@ -1432,7 +1474,7 @@ const MinimalTemplate = (p) => {
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '32px', fontWeight: '800', color: acc, lineHeight: 1 }}>{headerTitle}</div>
           {opts.showInvoiceNumber && <div style={{ color: '#666', fontSize: '13px', marginTop: '8px' }}>#{transaction.invoiceNumber}</div>}
-          {opts.showDate && <div style={{ color: '#666', fontSize: '13px' }}>{formatDate(transaction.date, opts.dateFormat)}</div>}
+          {opts.showDate && <div style={{ color: '#666', fontSize: '13px' }}>{billDateText(transaction, opts)}</div>}
           {opts.showDueDate && transaction.dueDate && <div style={{ color: '#666', fontSize: '13px' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
           {opts.showBilledBy && transaction.billedBy && <div style={{ color: '#666', fontSize: '13px' }}>Billed by: {transaction.billedBy}</div>}
         </div>
@@ -1565,7 +1607,7 @@ const CorporateTemplate = (p) => {
       {/* Two-column header box */}
       <div style={{ display: 'flex', border: '1px solid #ccc', borderRadius: '6px', marginBottom: '6px', overflow: 'hidden' }}>
         <div style={{ flex: 1, padding: '10px 18px', display: 'flex', alignItems: 'flex-start', gap: '14px' }}>
-          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: '60px', maxWidth: '120px', objectFit: 'contain' }} />}
+          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, 60, 120), objectFit: 'contain' }} />}
           <div>
             <div style={{ fontSize: '20px', fontWeight: '800', color: '#111', marginBottom: '4px' }}>{business.name}</div>
             {business.address && <div style={{ color: '#555', fontSize: '12.5px' }}>{business.address}</div>}
@@ -1585,7 +1627,7 @@ const CorporateTemplate = (p) => {
           {opts.showDate && (
             <div style={{ marginBottom: '2px' }}>
               <div style={{ fontSize: '10px', color: '#999', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Date</div>
-              <div style={{ fontSize: '13px', fontWeight: '700', color: '#111' }}>{formatDate(transaction.date, opts.dateFormat)}</div>
+              <div style={{ fontSize: '13px', fontWeight: '700', color: '#111' }}>{billDateText(transaction, opts)}</div>
             </div>
           )}
           {opts.showDueDate && transaction.dueDate && (
@@ -1692,7 +1734,7 @@ const VividTemplate = (p) => {
     <div style={{ padding: resolveDocPadding(opts, pad), backgroundColor: '#fff', color: '#000', width: dim.width, minHeight: dim.minHeight, margin: 'auto', fontFamily: "'Helvetica Neue', Arial, sans-serif", fontSize: '13.5px', lineHeight: 1.45, boxSizing: 'border-box' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: 1 }}>
-          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: '56px', maxWidth: '130px', objectFit: 'contain' }} />}
+          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, 56, 130), objectFit: 'contain' }} />}
           <div>
             <div style={{ fontSize: '22px', fontWeight: '800', color: '#111', marginBottom: '4px' }}>{business.name}</div>
             {business.address && <div style={{ color: '#555', fontSize: '12.5px' }}>{business.address}</div>}
@@ -1704,7 +1746,7 @@ const VividTemplate = (p) => {
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '20px', fontWeight: '900', color: acc, marginBottom: '4px' }}>{headerTitle}</div>
           {opts.showInvoiceNumber && <div style={{ fontSize: '13px', color: '#444' }}>Invoice #: {transaction.invoiceNumber}</div>}
-          {opts.showDate && <div style={{ fontSize: '13px', color: '#444' }}>Date: {formatDate(transaction.date, opts.dateFormat)}</div>}
+          {opts.showDate && <div style={{ fontSize: '13px', color: '#444' }}>Date: {billDateText(transaction, opts)}</div>}
           {opts.showDueDate && transaction.dueDate && <div style={{ fontSize: '13px', color: '#444' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
           {opts.showBilledBy && transaction.billedBy && <div style={{ fontSize: '13px', color: '#444' }}>Billed by: {transaction.billedBy}</div>}
         </div>
@@ -1813,7 +1855,7 @@ const ThermalTemplate = ({ transaction, business, paperSize, opts }) => {
   return (
     <div style={{ width, padding, backgroundColor: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', fontSize: bodyFs, lineHeight: '1.5' }}>
       <div style={{ textAlign: 'center', marginBottom: '6px' }}>
-        {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: is58mm ? '48px' : '56px', objectFit: 'contain', marginBottom: '4px' }} />}
+        {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, is58mm ? 48 : 56), objectFit: 'contain', marginBottom: '4px' }} />}
         <div style={{ fontSize: titleFs, fontWeight: 'bold', letterSpacing: '0.03em' }}>{business.name}</div>
         {business.address && <div style={{ fontSize: smallFs }}>{business.address}</div>}
         {business.phone && <div style={{ fontSize: smallFs }}>Ph: {business.phone}</div>}
@@ -1823,7 +1865,7 @@ const ThermalTemplate = ({ transaction, business, paperSize, opts }) => {
       <div style={{ textAlign: 'center', fontWeight: 'bold', fontSize: bodyFs, margin: '4px 0' }}>{isSale ? 'TAX INVOICE' : 'PURCHASE BILL'}</div>
       <div style={{ ...ls, fontSize: smallFs }}>
         {opts.showInvoiceNumber && <span>#{transaction.invoiceNumber}</span>}
-        {opts.showDate && <span>{formatDate(transaction.date, opts.dateFormat)}</span>}
+        {opts.showDate && <span>{billDateText(transaction, opts)}</span>}
       </div>
       {transaction.partyName && <div style={{ fontSize: smallFs, marginBottom: '2px' }}>{isSale ? 'To: ' : 'From: '}<strong>{transaction.partyName}</strong></div>}
       <div style={{ textAlign: 'center', fontSize: smallFs, margin: '4px 0' }}>{div}</div>
@@ -1837,7 +1879,7 @@ const ThermalTemplate = ({ transaction, business, paperSize, opts }) => {
           <div key={i} style={{ marginBottom: '4px' }}>
             <div style={{ fontWeight: '600', fontSize: bodyFs }}>{item.name}{(() => { const mp = [opts.showItemCategory && item.category, opts.showItemSize === true && item.size && `Size: ${item.size}`, opts.showItemVariant === true && item.variant].filter(Boolean); return mp.length > 0 ? <span style={{ fontWeight: '400', fontSize: smallFs, color: '#555' }}>{' — '}{mp.join(' · ')}</span> : null; })()}</div>
             <div style={{ ...ls, fontSize: smallFs }}>
-              <span>{fmtQty(qty)} × ₹{price.toFixed(2)}{opts.showDiscountColumn && discPct ? ` (${discPct}% off)` : ''}{showGST && taxRate ? ` +${taxRate}%GST` : ''}</span>
+              <span>{fmtQty(qty)} × ₹{price.toFixed(2)}{opts.showDiscountColumn && discPct ? ` (${discPct}% off)` : ''}{showGST && taxRate ? (item.taxInclusive ? ` (incl. ${taxRate}% GST)` : ` +${taxRate}% GST extra`) : ''}</span>
               <span style={{ fontWeight: '700' }}>₹{lineTotal.toFixed(2)}</span>
             </div>
           </div>
@@ -1898,9 +1940,18 @@ const ThermalTemplate = ({ transaction, business, paperSize, opts }) => {
         );
       })()}
       <LoyaltyBlock transaction={transaction} opts={opts} thermal />
+      {opts.showTerms && opts.termsText?.trim() && (
+        <>
+          <div style={{ textAlign: 'center', fontSize: smallFs, margin: '4px 0' }}>{div}</div>
+          <div style={{ fontSize: smallFs }}>
+            <div style={{ fontWeight: 'bold' }}>Terms &amp; Conditions</div>
+            <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.35 }}>{opts.termsText}</div>
+          </div>
+        </>
+      )}
       <div style={{ textAlign: 'center', fontSize: smallFs, margin: '6px 0 4px' }}>Thank you! Visit again.</div>
       <div style={{ textAlign: 'center', fontSize: smallFs }}>{div}</div>
-      <div style={{ textAlign: 'center', fontSize: smallFs, marginTop: '4px', color: '#888' }}>Powered by TallyKraft</div>
+      <div style={{ textAlign: 'center', fontSize: smallFs, marginTop: '4px', color: '#888' }}>Powered by BillDheko</div>
     </div>
   );
 };
@@ -1932,7 +1983,7 @@ const DotMatrixTemplate = ({ transaction, business, opts }) => {
         eq,
         `  ${isSale ? 'TAX INVOICE' : 'PURCHASE BILL'}`,
         opts.showInvoiceNumber ? `  Invoice No: ${transaction.invoiceNumber}` : null,
-        opts.showDate ? `  Date: ${formatDate(transaction.date, opts.dateFormat)}` : null,
+        opts.showDate ? `  Date: ${billDateText(transaction, opts)}` : null,
         divider,
         `  ${isSale ? 'Bill To' : 'Bill From'}: ${transaction.partyName}`,
         transaction.partyAddress ? `  ${transaction.partyAddress}` : null,
@@ -1965,7 +2016,7 @@ const DotMatrixTemplate = ({ transaction, business, opts }) => {
         opts.showSignature ? '  Authorized Signatory' : null,
         '',
         divider,
-        '        Powered by TallyKraft - www.tallykraft.com',
+        '        Powered by BillDheko - www.billdheko.com',
       ].filter(l => l !== null).join('\n')}</pre>
     </div>
   );
@@ -1995,7 +2046,7 @@ const ReceiptTemplate = (p) => {
     <div style={{ padding: resolveDocPadding(opts, pad), backgroundColor: '#fff', color: '#000', width: dim.width, minHeight: dim.minHeight, margin: 'auto', fontFamily: 'Arial, sans-serif', fontSize: '13px', lineHeight: 1.4, boxSizing: 'border-box' }}>
       {/* Centered header */}
       <div style={{ textAlign: 'center', marginBottom: '12px' }}>
-        {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: '56px', maxWidth: '140px', objectFit: 'contain', display: 'block', margin: '0 auto 10px' }} />}
+        {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, 56, 140), objectFit: 'contain', display: 'block', margin: '0 auto 10px' }} />}
         <div style={{ fontSize: '22px', fontWeight: '800', color: '#000', letterSpacing: '-0.3px' }}>{business.name}</div>
         {business.address && <div style={{ color: '#666', fontSize: '12px', marginTop: '3px' }}>{business.address}</div>}
         {opts.showBusinessPhone !== false && business.phone && <div style={{ color: '#666', fontSize: '12px' }}>Ph: {business.phone}</div>}
@@ -2015,7 +2066,7 @@ const ReceiptTemplate = (p) => {
         </div>
         <div style={{ textAlign: 'right', color: '#555' }}>
           {opts.showInvoiceNumber && <div><strong style={{ color: '#000' }}># {transaction.invoiceNumber}</strong></div>}
-          {opts.showDate && <div>{formatDate(transaction.date, opts.dateFormat)}</div>}
+          {opts.showDate && <div>{billDateText(transaction, opts)}</div>}
           {opts.showDueDate && transaction.dueDate && <div>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
           {opts.showPaymentMode && transaction.paymentMode && <div>{transaction.paymentMode}</div>}
           {opts.showBilledBy && transaction.billedBy && <div>By: {transaction.billedBy}</div>}
@@ -2085,7 +2136,7 @@ const PremiumTemplate = (p) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
           {opts.showLogo && business.logo && (
             <div style={{ backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: '8px', padding: '6px', backdropFilter: 'blur(4px)' }}>
-              <img src={business.logo} alt="" style={{ maxHeight: '48px', maxWidth: '120px', objectFit: 'contain' }} />
+              <img src={business.logo} alt="" style={{ ...logoSize(opts, 48, 120), objectFit: 'contain' }} />
             </div>
           )}
           <div>
@@ -2099,7 +2150,7 @@ const PremiumTemplate = (p) => {
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '26px', fontWeight: '900', color: '#fff', letterSpacing: '-0.5px' }}>{headerTitle}</div>
           {opts.showInvoiceNumber && <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '13px', marginTop: '4px' }}>#{transaction.invoiceNumber}</div>}
-          {opts.showDate && <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '13px' }}>{formatDate(transaction.date, opts.dateFormat)}</div>}
+          {opts.showDate && <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '13px' }}>{billDateText(transaction, opts)}</div>}
           {opts.showDueDate && transaction.dueDate && <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '13px' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
           {opts.showBilledBy && transaction.billedBy && <div style={{ color: 'rgba(255,255,255,0.85)', fontSize: '12px' }}>Billed by: {transaction.billedBy}</div>}
         </div>
@@ -2195,7 +2246,7 @@ const MonoTemplate = (p) => {
       <div style={{ borderTop: '5px solid #000', borderBottom: '1px solid #000', marginBottom: '14px', paddingBottom: '10px', paddingTop: '10px' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
           <div>
-            {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: '52px', maxWidth: '120px', objectFit: 'contain', marginBottom: '8px', display: 'block', filter: 'grayscale(100%)' }} />}
+            {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, 52, 120), objectFit: 'contain', marginBottom: '8px', display: 'block', filter: 'grayscale(100%)' }} />}
             <div style={{ fontSize: '28px', fontWeight: '900', color: '#000', textTransform: 'uppercase', letterSpacing: '0.04em', lineHeight: 1 }}>{business.name}</div>
             {business.address && <div style={{ color: '#333', fontSize: '12px', marginTop: '6px' }}>{business.address}</div>}
             {opts.showBusinessPhone !== false && business.phone && <div style={{ color: '#333', fontSize: '12px' }}>Ph: {business.phone}</div>}
@@ -2207,7 +2258,7 @@ const MonoTemplate = (p) => {
               <div style={{ fontSize: '14px', fontWeight: '900', textTransform: 'uppercase', letterSpacing: '0.12em' }}>{headerTitle}</div>
             </div>
             {opts.showInvoiceNumber && <div style={{ fontSize: '13px', fontWeight: '700', color: '#000' }}>No. {transaction.invoiceNumber}</div>}
-            {opts.showDate && <div style={{ fontSize: '13px', color: '#333' }}>{formatDate(transaction.date, opts.dateFormat)}</div>}
+            {opts.showDate && <div style={{ fontSize: '13px', color: '#333' }}>{billDateText(transaction, opts)}</div>}
             {opts.showDueDate && transaction.dueDate && <div style={{ fontSize: '13px', color: '#333' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
             {opts.showBilledBy && transaction.billedBy && <div style={{ fontSize: '12px', color: '#555' }}>Billed by: {transaction.billedBy}</div>}
           </div>
@@ -2291,7 +2342,7 @@ const StripeTemplate = (p) => {
       {/* Clean header row */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: 1 }}>
-          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: '48px', maxWidth: '120px', objectFit: 'contain' }} />}
+          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, 48, 120), objectFit: 'contain' }} />}
           <div>
             <div style={{ fontSize: '20px', fontWeight: '800', color: '#1a1a2e' }}>{business.name}</div>
             {business.address && <div style={{ color: '#888', fontSize: '12px', marginTop: '2px' }}>{business.address}</div>}
@@ -2305,7 +2356,7 @@ const StripeTemplate = (p) => {
             {transaction.invoiceNumber || headerTitle}
           </div>
           <div style={{ fontSize: '20px', fontWeight: '700', color: '#1a1a2e' }}>{headerTitle}</div>
-          {opts.showDate && <div style={{ color: '#888', fontSize: '13px' }}>{formatDate(transaction.date, opts.dateFormat)}</div>}
+          {opts.showDate && <div style={{ color: '#888', fontSize: '13px' }}>{billDateText(transaction, opts)}</div>}
           {opts.showDueDate && transaction.dueDate && <div style={{ color: '#888', fontSize: '13px' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
           {opts.showBilledBy && transaction.billedBy && <div style={{ color: '#888', fontSize: '12px' }}>By: {transaction.billedBy}</div>}
           {opts.showPaymentMode && transaction.paymentMode && <div style={{ color: '#888', fontSize: '12px' }}>{transaction.paymentMode}</div>}
@@ -2430,7 +2481,7 @@ const CustomTemplate = (p) => {
     header: () => (
       <div key="header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '10px', gap: '16px' }}>
         <div style={{ display: 'flex', alignItems: 'flex-start', gap: '14px', flex: 1 }}>
-          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ maxHeight: '60px', maxWidth: '130px', objectFit: 'contain' }} />}
+          {opts.showLogo && business.logo && <img src={business.logo} alt="" style={{ ...logoSize(opts, 60, 130), objectFit: 'contain' }} />}
           <div>
             <div style={{ fontSize: '22px', fontWeight: '800', color: '#000', marginBottom: '4px' }}>{business.name}</div>
             {business.address && <div style={{ color: '#444', fontSize: '12.5px' }}>{business.address}</div>}
@@ -2442,7 +2493,7 @@ const CustomTemplate = (p) => {
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: '18px', fontWeight: '800', color: acc, marginBottom: '6px' }}>{headerTitle}</div>
           {opts.showInvoiceNumber && <div style={{ fontSize: '13px', color: '#333' }}>Invoice #: {transaction.invoiceNumber}</div>}
-          {opts.showDate && <div style={{ fontSize: '13px', color: '#333' }}>Date: {formatDate(transaction.date, opts.dateFormat)}</div>}
+          {opts.showDate && <div style={{ fontSize: '13px', color: '#333' }}>Date: {billDateText(transaction, opts)}</div>}
           {opts.showDueDate && transaction.dueDate && <div style={{ fontSize: '13px', color: '#333' }}>Due: {formatDate(transaction.dueDate, opts.dateFormat)}</div>}
           {opts.showPaymentMode && transaction.paymentMode && <div style={{ fontSize: '13px', color: '#333' }}>Mode: {transaction.paymentMode}</div>}
           {opts.showBilledBy && transaction.billedBy && <div style={{ fontSize: '13px', color: '#333' }}>Billed by: {transaction.billedBy}</div>}
@@ -2556,6 +2607,293 @@ const CustomTemplate = (p) => {
 };
 
 // ════════════════════════════════════════════════════════════════════════════════
+// THEME — CUSTOM DESIGNER (free-form header & footer, flowing items table)
+// ════════════════════════════════════════════════════════════════════════════════
+
+const PX_MM = 3.7795;
+
+// Text shown by a single-line or multi-line bill element (without prefix).
+const billElementText = (el, ctx) => {
+  const { transaction: t, business: b, isSale, headerTitle, opts } = ctx;
+  const money = (v) => `₹${Number(v || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  switch (el.type) {
+    case 'businessName': return b.name || '';
+    case 'businessAddress': return b.address || '';
+    case 'businessPhone': return b.phone || '';
+    case 'businessEmail': return b.email || '';
+    case 'businessGstin': return b.gstNumber || '';
+    case 'docTitle': return headerTitle || (isSale ? 'TAX INVOICE' : 'PURCHASE BILL');
+    case 'invoiceNumber': return t.invoiceNumber || '';
+    case 'invoiceDate': return t.date ? formatDate(t.date, opts.dateFormat) : '';
+    case 'invoiceTime': return billTime(t);
+    case 'dueDate': return t.dueDate ? formatDate(t.dueDate, opts.dateFormat) : '';
+    case 'placeOfSupply': return t.placeOfSupply || '';
+    case 'supplyType': return (t.isInterState != null || t.gstType) ? gstTypeLabel(t) : '';
+    case 'paymentMode': return t.status === 'unpaid' ? 'Credit' : (t.paymentMode || '');
+    case 'billedBy': return t.billedBy || '';
+    case 'partyName': return t.partyName || '';
+    case 'partyAddress': return t.partyAddress || '';
+    case 'partyPhone': return t.partyPhone || '';
+    case 'partyGstin': return t.partyGstNumber || '';
+    case 'grandTotal': return money(t.totalAmount);
+    case 'balanceDue': {
+      const due = (Number(t.totalAmount) || 0) - (Number(t.advance) || 0) - (Number(t.amountPaid) || 0);
+      return t.status !== 'paid' && due > 0.009 ? money(due) : '';
+    }
+    case 'amountInWords': return t.totalAmount ? `Rupees ${numberToWords(t.totalAmount)}` : '';
+    case 'terms': return opts.termsText || '1. Goods once sold will not be taken back.\n2. Interest @ 18% will be charged if payment is not made within 7 days.';
+    case 'notes': return t.description || t.notes || '';
+    case 'customText': return el.text || '';
+    default: return '';
+  }
+};
+
+// Font size (px) that fits `text` on one line in a w×h px box.
+let _billMeasureCtx = null;
+const fitBillFont = (text, wPx, hPx, bold) => {
+  if (!_billMeasureCtx && typeof document !== 'undefined') _billMeasureCtx = document.createElement('canvas').getContext('2d');
+  let w10 = text.length * 5.5;
+  if (_billMeasureCtx) { _billMeasureCtx.font = `${bold ? 700 : 400} 10px Arial`; w10 = _billMeasureCtx.measureText(text).width || 1; }
+  return Math.max(4, Math.min((10 * wPx * 0.94) / w10, hPx * 0.82));
+};
+
+const BillPlaceholder = ({ label }) => (
+  <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'repeating-linear-gradient(45deg,#f3f4f6,#f3f4f6 4px,#fff 4px,#fff 8px)', color: '#9ca3af', fontSize: 10, textAlign: 'center', overflow: 'hidden' }}>
+    {label}
+  </div>
+);
+
+const BillElementBody = ({ el, ctx, wPx, hPx, placeholder }) => {
+  const { transaction, business, opts, isSale, acc } = ctx;
+  const color = el.color || '#000';
+  const kind = billKind(el.type);
+  const fontPx = (Number(el.fontSize) || 10) * (96 / 72);
+  const justify = el.align === 'right' ? 'flex-end' : el.align === 'center' ? 'center' : 'flex-start';
+  const alignItems = el.vAlign === 'bottom' ? 'flex-end' : el.vAlign === 'center' ? 'center' : 'flex-start';
+  const empty = (label) => (placeholder ? <BillPlaceholder label={label} /> : null);
+
+  switch (el.type) {
+    case 'logo':
+      return business.logo
+        ? <img src={business.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain', objectPosition: el.align === 'right' ? 'right' : el.align === 'center' ? 'center' : 'left', display: 'block' }} />
+        : empty('Logo (none set)');
+    case 'upiQr': {
+      if (!business.upiId) return empty('UPI QR (no UPI ID)');
+      // qrcode rounds each module up to whole pixels, so leave a little room.
+      const side = Math.max(16, Math.floor(Math.min(wPx, hPx) * 0.9));
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+          <UpiQrImage value={buildUpiUri({ upiId: business.upiId, payeeName: business.name })} size={side} />
+        </div>
+      );
+    }
+    case 'totals':
+      return (
+        <div style={{ width: '100%' }}>
+          <TotalsBlock transaction={transaction} opts={{ ...opts, showAmountInWords: false }} isSale={isSale} accentColor={acc}
+            showBalanceSection={ctx.showBalanceSection} currentBillTotal={ctx.currentBillTotal} balanceNum={ctx.balanceNum} openingBalance={ctx.openingBalance} compact fill fontPx={fontPx} />
+        </div>
+      );
+    case 'bankDetails':
+      return hasBankDetailsContent(business, { ...opts, showBankDetails: true })
+        ? <div style={{ zoom: fontPx / 14.67 }}><BankDetailsBlock business={business} opts={{ ...opts, showBankDetails: true, showQRCode: false }} /></div>
+        : empty('Bank details (none set)');
+    case 'loyalty':
+      return <div style={{ zoom: fontPx / 14.67 }}><LoyaltyBlock transaction={transaction} opts={opts} /></div>;
+    case 'line': {
+      const tk = `${Math.max(0.1, Number(el.thickness) || 0.3)}mm`;
+      const vertical = hPx > wPx;
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={vertical ? { width: tk, height: '100%', background: el.color || acc } : { height: tk, width: '100%', background: el.color || acc }} />
+        </div>
+      );
+    }
+    case 'box':
+      return <div style={{ width: '100%', height: '100%', boxSizing: 'border-box', border: `${Math.max(0.1, Number(el.thickness) || 0.3)}mm solid ${el.color || '#999'}` }} />;
+    case 'partyBlock': {
+      if (!transaction.partyName) return empty('Bill To (no party)');
+      return (
+        <div style={{ width: '100%', height: '100%', overflow: 'hidden', fontSize: fontPx, color, textAlign: el.align || 'left', lineHeight: 1.35 }}>
+          <div style={{ fontSize: fontPx * 0.8, fontWeight: 700, textTransform: 'uppercase', color: '#888', letterSpacing: '0.06em' }}>{isSale ? 'Bill To' : 'Bill From'}</div>
+          <div style={{ fontWeight: 700, fontSize: fontPx * 1.2 }}>{transaction.partyName}</div>
+          {transaction.partyAddress && <div style={{ whiteSpace: 'pre-line' }}>{transaction.partyAddress}</div>}
+          {transaction.partyPhone && <div>Ph: {transaction.partyPhone}</div>}
+          {transaction.partyGstNumber && <div>GSTIN: {transaction.partyGstNumber}</div>}
+        </div>
+      );
+    }
+    case 'signature':
+      return (
+        <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', justifyContent: el.vAlign === 'top' ? 'flex-start' : 'flex-end', textAlign: el.align || 'right', fontSize: fontPx, color, overflow: 'hidden' }}>
+          <div style={{ fontWeight: 700 }}>For {business.name}</div>
+          <div style={{ flex: el.vAlign === 'top' ? 1 : 0, minHeight: el.vAlign === 'top' ? undefined : fontPx * 2.2 }} />
+          <div style={{ fontSize: fontPx * 0.9, color: '#555' }}>Authorized Signatory</div>
+        </div>
+      );
+    default: break;
+  }
+
+  const value = billElementText(el, ctx);
+  if (!value) return empty(`${el.type} (empty)`);
+  if (kind === 'block') {
+    const heading = el.type === 'terms' ? 'Terms & Conditions' : el.type === 'notes' ? 'Notes' : null;
+    return (
+      <div style={{ width: '100%', height: '100%', display: 'flex', alignItems, overflow: 'hidden' }}>
+        <div style={{ width: '100%', fontSize: fontPx, color, textAlign: el.align || 'left', lineHeight: 1.4, whiteSpace: 'pre-line', fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? 'italic' : 'normal' }}>
+          {heading && <div style={{ fontWeight: 700, marginBottom: 2 }}>{heading}</div>}
+          {value}
+        </div>
+      </div>
+    );
+  }
+  const text = `${el.type === 'customText' ? '' : (el.prefix || '')}${value}`;
+  const px = el.autoFit ? fitBillFont(text, wPx, hPx, el.bold) : fontPx;
+  const tColor = el.color || (el.type === 'docTitle' ? acc : '#000');
+  return (
+    <div style={{ width: '100%', height: '100%', display: 'flex', alignItems, justifyContent: justify, overflow: 'hidden' }}>
+      <span style={{ fontSize: px, lineHeight: 1.15, color: tColor, fontWeight: el.bold ? 700 : 400, fontStyle: el.italic ? 'italic' : 'normal', textDecoration: el.strike ? 'line-through' : 'none', whiteSpace: 'nowrap', textAlign: el.align || 'left' }}>
+        {text}
+      </span>
+    </div>
+  );
+};
+
+// One free-form area (header or footer) at its real size in mm. `scale`
+// shrinks it for the on-screen designer.
+// Designer-only wrapper: clips the element to its box and flags it with a
+// red dashed outline when its content doesn't fit, so a too-small Totals or
+// Bank Details box is obvious while designing (the printed bill never clips).
+const FitWatch = ({ children }) => {
+  const ref = React.useRef(null);
+  const [over, setOver] = React.useState(false);
+  React.useEffect(() => {
+    const el = ref.current;
+    if (!el || typeof ResizeObserver === 'undefined') return undefined;
+    // ResizeObserver fires once right after observe(), so no direct call here.
+    const ro = new ResizeObserver(() => setOver(el.scrollHeight > el.clientHeight + 2 || el.scrollWidth > el.clientWidth + 2));
+    ro.observe(el);
+    Array.from(el.children).forEach((c) => ro.observe(c));
+    return () => ro.disconnect();
+  }, []);
+  return (
+    <div ref={ref} style={{ width: '100%', height: '100%', overflow: 'hidden', position: 'relative', outline: over ? '1.5px dashed #dc2626' : 'none', outlineOffset: '-1px' }}>
+      {children}
+      {over && <div style={{ position: 'absolute', right: 1, bottom: 1, background: '#dc2626', color: '#fff', fontSize: 9, fontWeight: 700, padding: '1px 4px', borderRadius: 3, fontFamily: 'Arial' }}>Doesn&apos;t fit</div>}
+    </div>
+  );
+};
+
+export const BillBand = ({ elements, widthMm, heightMm, ctx, scale = 1, placeholder = false }) => {
+  const wPx = widthMm * PX_MM;
+  const hPx = heightMm * PX_MM;
+  const band = (
+    <div style={{ position: 'relative', width: `${widthMm}mm`, height: `${heightMm}mm`, fontFamily: 'Arial, sans-serif', background: '#fff' }}>
+      {(elements || []).filter((el) => !el.hidden).map((el) => (
+        <div key={el.id} style={{ position: 'absolute', left: `${el.x}%`, top: `${el.y}%`, width: `${el.w}%`, height: `${el.h}%` }}>
+          {placeholder
+            ? <FitWatch><BillElementBody el={el} ctx={ctx} wPx={(el.w / 100) * wPx} hPx={(el.h / 100) * hPx} placeholder /></FitWatch>
+            : <BillElementBody el={el} ctx={ctx} wPx={(el.w / 100) * wPx} hPx={(el.h / 100) * hPx} />}
+        </div>
+      ))}
+    </div>
+  );
+  if (scale === 1) return band;
+  return (
+    <div style={{ width: wPx * scale, height: hPx * scale, overflow: 'hidden' }}>
+      <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left', width: wPx, height: hPx }}>{band}</div>
+    </div>
+  );
+};
+
+// Items as a compact receipt list (thermal / narrow paper): name on one line,
+// "qty × rate (+GST)" and the line total on the next.
+const ReceiptItemList = ({ transaction, opts, showGST, fontPx, color }) => (
+  <div style={{ fontSize: fontPx, color, margin: '1.5mm 0' }}>
+    {(transaction.items || []).map((item, i) => {
+      const qty = Number(item.qty) || 0;
+      const price = Number(item.price) || 0;
+      const discPct = Number(item.discountPercent) || 0;
+      const taxRate = Number(item.taxRate) || 0;
+      return (
+        <div key={i} className="inv-no-break" style={{ marginBottom: '1mm' }}>
+          <div style={{ fontWeight: 700 }}>{item.name}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6 }}>
+            <span style={{ fontSize: fontPx * 0.9 }}>
+              {fmtQty(qty)}{item.unit ? ` ${item.unit}` : ''} × ₹{price.toFixed(2)}
+              {opts.showDiscountColumn && discPct ? ` (${discPct}% off)` : ''}
+              {showGST && taxRate ? (item.taxInclusive ? ` (incl. ${fmtRate(taxRate)}% GST)` : ` +${fmtRate(taxRate)}% GST extra`) : ''}
+            </span>
+            <span style={{ fontWeight: 700 }}>₹{calcLineTotal(item).toFixed(2)}</span>
+          </div>
+        </div>
+      );
+    })}
+  </div>
+);
+
+// Items table styling from the design (font size, borders, header colours,
+// stripes) — every paper size gets the same controls.
+const designTableStyles = (table, acc) => {
+  const fontPx = (Number(table.fontSize) || 9.5) * (96 / 72);
+  const style = table.style || 'grid';
+  const borderColor = table.borderColor || '#d4d4d8';
+  const headBg = table.headerBg || acc;
+  const headColor = table.headerColor || '#ffffff';
+  const padV = `${Math.round(fontPx * 0.42)}px`;
+  const padH = `${Math.round(fontPx * 0.6)}px`;
+  const cellBorder = style === 'grid' ? `1px solid ${borderColor}` : 'none';
+  const th = {
+    padding: `${padV} ${padH}`, fontWeight: 700, fontSize: `${fontPx * 0.92}px`, whiteSpace: 'nowrap',
+    color: style === 'plain' ? '#000' : headColor, backgroundColor: style === 'plain' ? 'transparent' : headBg,
+    border: style === 'grid' ? `1px solid ${headBg}` : 'none',
+    borderBottom: style === 'grid' ? `1px solid ${headBg}` : `1.5px solid ${style === 'plain' ? '#000' : headBg}`,
+  };
+  const td = {
+    padding: `${padV} ${padH}`, fontSize: `${fontPx}px`, color: '#000', verticalAlign: 'top',
+    border: cellBorder, borderBottom: style === 'plain' ? 'none' : `1px solid ${borderColor}`,
+  };
+  return { th, td, fontPx, stripes: table.stripes !== false };
+};
+
+const DesignerTemplate = (p) => {
+  const { transaction, dim, opts, paperSize } = p;
+  const design = resolveBillDesign(savedDesignFor(opts, paperSize), paperSize);
+  const marginMm = Number(design.marginMm ?? 8);
+  const bandW = parseFloat(dim.width) - 2 * marginMm;
+  const ctx = buildBillCtx(p);
+  const showGST = opts.showGSTColumn && !transaction.noGST;
+  const { useIGST, useUTGST, isComposite, useCGSTSGST } = deriveGstFlags(transaction, showGST);
+  const showDisc = opts.showDiscountColumn && transaction.items?.some(i => Number(i.discountPercent) > 0);
+  const showHSN = opts.showHSNColumn !== false && transaction.items?.some(i => i.hsnCode);
+  const table = { ...(design.table || {}), headerBg: design.table?.headerBg || design.tableHeaderColor };
+  const { th, td, fontPx, stripes } = designTableStyles(table, ctx.acc);
+  const receipt = table.style === 'receipt';
+  return (
+    <div style={{ padding: `${receipt ? 2 : 4}mm ${marginMm}mm`, backgroundColor: '#fff', color: '#000', width: dim.width, margin: 'auto', fontFamily: 'Arial, sans-serif', fontSize: `${fontPx}px`, lineHeight: 1.4, boxSizing: 'border-box' }}>
+      <div className="inv-no-break"><BillBand elements={design.header.elements} widthMm={bandW} heightMm={design.header.heightMm} ctx={ctx} /></div>
+      {receipt ? (
+        <ReceiptItemList transaction={transaction} opts={opts} showGST={showGST} fontPx={fontPx} color="#000" />
+      ) : (
+        <table className="inv-table" style={{ width: '100%', borderCollapse: 'collapse', margin: '2mm 0' }}>
+          <TableHead thStyle={th} showHSN={showHSN} showDisc={showDisc} useCGSTSGST={useCGSTSGST} useIGST={useIGST} useUTGST={useUTGST} isComposite={isComposite} showGST={showGST} opts={opts} />
+          <tbody>
+            <ItemRows transaction={transaction} opts={opts} tdStyle={td} showHSN={showHSN} showDisc={showDisc} useCGSTSGST={useCGSTSGST} useIGST={useIGST} useUTGST={useUTGST} isComposite={isComposite} showGST={showGST} rowBg={i => (stripes && i % 2 === 1 ? '#fafafa' : '#fff')} />
+          </tbody>
+        </table>
+      )}
+      {design.showHsnSummary !== false && showGST && (
+        <div style={{ marginBottom: '2mm' }}>
+          <HsnTaxSummary transaction={transaction} useIGST={useIGST} useUTGST={useUTGST} isComposite={isComposite} thStyle={{ ...td, fontWeight: 700, backgroundColor: '#f9fafb' }} tdStyle={{ ...td, backgroundColor: '#fff' }} opts={opts} />
+        </div>
+      )}
+      <div className="inv-no-break"><BillBand elements={design.footer.elements} widthMm={bandW} heightMm={design.footer.heightMm} ctx={ctx} /></div>
+      <PoweredByFooter />
+    </div>
+  );
+};
+
+// ════════════════════════════════════════════════════════════════════════════════
 // MAIN ROUTER
 // ════════════════════════════════════════════════════════════════════════════════
 
@@ -2573,6 +2911,7 @@ const THEME_MAP = {
   mono:      MonoTemplate,
   stripe:    StripeTemplate,
   custom:    CustomTemplate,
+  designer:  DesignerTemplate,
 };
 
 const InvoiceTemplate = forwardRef(({ transaction: rawTransaction, business, paperSize = 'A4', title, partyBalance, printOptions }, ref) => {
@@ -2589,6 +2928,29 @@ const InvoiceTemplate = forwardRef(({ transaction: rawTransaction, business, pap
     : rawTransaction;
 
   const opts = { ...DEFAULT_PRINT_OPTIONS, ...printOptions };
+
+  // Custom Designer — any paper size, thermal and dot matrix included (for
+  // those, only once their own design is switched on in the Bill Designer).
+  if (usesDesigner(opts, paperSize)) {
+    const isSaleD = transaction.type === 'Sales';
+    const balanceNumD = partyBalance != null ? Number(partyBalance) : null;
+    const totalD = transaction.totalAmount ?? 0;
+    const dimD = isReceiptSize(paperSize)
+      ? { width: `${PAPER_WIDTH_MM[paperSize]}mm`, pad: 8 }
+      : (PAPER_DIM[paperSize] || PAPER_DIM['A4']);
+    return (
+      <div ref={ref} className="invoice-for-print">
+        <PrintStyle />
+        <DesignerTemplate
+          transaction={transaction} business={business} dim={dimD} opts={opts} paperSize={paperSize}
+          isSale={isSaleD} headerTitle={title || (isSaleD ? 'TAX INVOICE' : 'PURCHASE BILL')}
+          showBalanceSection={isSaleD && balanceNumD != null && opts.showOldBalance}
+          currentBillTotal={totalD} balanceNum={balanceNumD}
+          openingBalance={balanceNumD != null ? balanceNumD - totalD : null}
+        />
+      </div>
+    );
+  }
 
   if (paperSize === 'Thermal 80mm' || paperSize === 'Thermal 58mm') {
     return (
@@ -2621,6 +2983,7 @@ const InvoiceTemplate = forwardRef(({ transaction: rawTransaction, business, pap
     <div ref={ref} className="invoice-for-print">
       <PrintStyle />
       <ThemeComponent
+        paperSize={paperSize}
         transaction={transaction}
         business={business}
         dim={dim}

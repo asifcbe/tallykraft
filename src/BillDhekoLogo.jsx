@@ -1,9 +1,9 @@
 import React from 'react';
 
 /**
- * TallyKraft brand mark — white theme.
+ * BillDheko brand mark — white theme.
  *   variant="icon"            → the original artwork mark (recolored slate)
- *   variant="wordmark"        → mark + "TallyKraft" in slate ink
+ *   variant="wordmark"        → mark + "BillDheko" in slate ink
  *   variant="wordmark-light"  → mark + white wordmark (for the rare dark surface)
  *
  * The mark itself is public/tallykraft.svg (the original path artwork, its
@@ -11,13 +11,22 @@ import React from 'react';
  */
 
 const INK = '#2a2320';   // warm near-black — wordmark on white
-const SUB = '#5c1f22';    // oxblood — the 'Kraft' half
+const SUB = '#5c1f22';    // oxblood — the 'Dheko' half
 
-const TallyKraftLogo = ({ size = 36, variant = 'icon', color }) => {
+// Trademark sign after the BillDheko name. Sized/raised relative to the
+// surrounding text so it works in any heading, wordmark or caption.
+export const TM = ({ style }) => (
+  <span aria-label="trademark" style={{
+    fontSize: 'max(0.45em, 0.55rem)', fontWeight: 600, verticalAlign: 'top', lineHeight: 1,
+    marginLeft: '0.12em', letterSpacing: 0, position: 'relative', top: '0.1em', ...style,
+  }}>™</span>
+);
+
+const BillDhekoLogo = ({ size = 36, variant = 'icon', color }) => {
   const Mark = (
     <img
       src="/tallykraft.svg"
-      alt="TallyKraft"
+      alt="BillDheko"
       width={size}
       height={size}
       style={{ display: 'block', flexShrink: 0 }}
@@ -41,10 +50,10 @@ const TallyKraftLogo = ({ size = 36, variant = 'icon', color }) => {
         lineHeight: 1,
         fontFamily: '"Inter", "Segoe UI", system-ui, sans-serif',
       }}>
-        Tally<span style={{ fontWeight: 800, color: light ? '#ffffff' : SUB }}>Kraft</span>
+        Bill<span style={{ fontWeight: 800, color: light ? '#ffffff' : SUB }}>Dheko</span><TM />
       </span>
     </span>
   );
 };
 
-export default TallyKraftLogo;
+export default BillDhekoLogo;

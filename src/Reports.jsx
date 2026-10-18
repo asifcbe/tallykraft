@@ -5,7 +5,7 @@ import {
   TextField, MenuItem, Button, Stack, IconButton, Tooltip,
   alpha, useTheme, Chip, Select, FormControl, InputLabel, Divider,
   useMediaQuery, InputAdornment, Dialog, DialogContent, Avatar,
-  Autocomplete,
+  Autocomplete, TablePagination,
 } from '@mui/material';
 import {
   FileText, Filter, Printer, Download, Search, Share2,
@@ -23,6 +23,7 @@ import { useTabs } from './TabsContext';
 import { useReactToPrint } from 'react-to-print';
 import ReportTemplate from './ReportTemplate';
 import InvoiceTemplate from './InvoiceTemplate';
+import { useTableScrollReset } from './useTableScrollReset';
 import InvoicePreviewDialog from './InvoicePreviewDialog';
 import PaymentTemplate from './PaymentTemplate';
 import ExpenseTemplate from './ExpenseTemplate';
@@ -31,6 +32,7 @@ import { isSettled } from './cashUtils';
 import { byTxTimeAsc, formatCreatedTime } from './txTimeUtils';
 import PartySelect from './PartySelect';
 import ItemSelect from './ItemSelect';
+import { useResizableWidth, ResizeHandle } from './PanelResizer';
 
 // ── GST export helpers ──────────────────────────────────────────────────────
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -393,6 +395,7 @@ const REPORT_GROUPS = [
       { value: 'profit-loss', label: 'Profit & Loss', icon: TrendingUp },
       { value: 'bill-profit', label: 'Bill-wise Profit & Loss', icon: Receipt },
       { value: 'party-profit', label: 'Party-wise Profit & Loss', icon: UserCheck },
+      { value: 'party-group', label: 'Customer/Vendor Group', icon: Users },
       { value: 'item-profit', label: 'Item-wise Profit & Loss', icon: Package },
       { value: 'cash-flow', label: 'Cash Flow', icon: Wallet },
       { value: 'gst', label: 'GST Summary', icon: FileText },
@@ -483,6 +486,7 @@ const GST_DESCRIPTIONS = {
 
 // ── Main component ──────────────────────────────────────────────────────────
 const ReportsPage = () => {
+  const reportRail = useResizableWidth('reports-rail', 168, { min: 140, max: 360 });
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('md'));
   const { currentBusiness } = useBusiness();
@@ -505,6 +509,22 @@ const ReportsPage = () => {
   const [previewIsSale, setPreviewIsSale] = useState(true);
   // Item-wise / Party-wise P&L drill-down popup — { kind: 'item'|'party', id }
   const [detailDialog, setDetailDialog] = useState(null);
+  // Recent Sales/Recent Purchases in that popup can be unbounded for a
+  // group (buildGroupDetail deliberately lists every bill, not a capped
+  // "recent 8" like the single item/party detail) — paginate each list
+  // independently once it's long enough to need it. Reset together
+  // whenever a different item/party/group is opened.
+  const [detailSalesPage, setDetailSalesPage] = useState(0);
+  const [detailPurchasesPage, setDetailPurchasesPage] = useState(0);
+  const DETAIL_ROWS_PER_PAGE = 50;
+  // Group detail only (a single item/party detail is already scoped to one
+  // entity — a customer search inside it wouldn't add anything): Sales vs
+  // Purchases as its own tab strip, plus a customer-name search and a date
+  // range, both applied client-side over buildGroupDetail's all-time lists.
+  const [detailTab, setDetailTab] = useState('sales');
+  const [detailPartySearch, setDetailPartySearch] = useState('');
+  const [detailDateFrom, setDetailDateFrom] = useState('');
+  const [detailDateTo, setDetailDateTo] = useState('');
   // Stock Summary view toggle — 'item' (flat per-item rows, existing
   // behavior) or 'category' (rolled up per item category: total stock value,
   // qty, low-stock count per category).
@@ -767,17 +787,34 @@ const ReportsPage = () => {
   // purchases/parties/payments/expenses/notes/staff.
   const stockSummaryData = useMemo(() => {
     if (reportType !== 'stock-summary') return null;
+    // Stock units a line moved: a pack-priced line (e.g. 1 Box = 12 pcs) moves qty × pack size.
+    const lineUnits = (li, item) => {
+      const pack = li.packId && Array.isArray(item?.packSizes) ? item.packSizes.find(p => p.id === li.packId) : null;
+      return (Number(li.qty) || 0) * (pack ? (Number(pack.qty) || 1) : 1);
+    };
     const soldStats = {};
+    const soldUnits = {};
     sales.forEach(tx => {
       (tx.items || []).forEach(li => {
-        if (li.notBilled) return; // not charged — don't count as "sold amount"
         const k = li.itemId || li.name;
         if (!k) return;
+        // not-billed lines still leave stock, they just aren't "sold amount"
+        soldUnits[k] = (soldUnits[k] || 0) + lineUnits(li, itemsById.get(li.itemId));
+        if (li.notBilled) return; // not charged — don't count as "sold amount"
         if (!soldStats[k]) soldStats[k] = { qty: 0, amount: 0 };
         soldStats[k].qty += Number(li.qty) || 0;
         soldStats[k].amount += (Number(li.qty) || 0) * (Number(li.price) || 0);
       });
     });
+    const purchasedUnits = {};
+    purchases.forEach(tx => {
+      (tx.items || []).forEach(li => {
+        const k = li.itemId || li.name;
+        if (!k) return;
+        purchasedUnits[k] = (purchasedUnits[k] || 0) + lineUnits(li, itemsById.get(li.itemId));
+      });
+    });
+    let totalOpening = 0, totalOpeningValue = 0, totalPurchased = 0;
     let totalSoldQty = 0, totalSoldAmount = 0, totalStock = 0, totalStockValue = 0, lowStockCount = 0;
     const rows = [];
     // Per-category rollup (item 5: "how much total stock value is pending in
@@ -795,14 +832,30 @@ const ReportsPage = () => {
       const stockValue = stock * purchPrice;
       const isLow = i.minStock != null && stock <= Number(i.minStock);
       const sold = soldStats[i.id] || soldStats[i.name] || { qty: 0, amount: 0 };
+      const bought = purchasedUnits[i.id] ?? purchasedUnits[i.name] ?? 0;
+      // Opening stock: recorded when the item was created; for items created
+      // before that was captured, worked back from today's stock
+      // (stock − purchased + sold).
+      const recorded = i.openingStock !== undefined && i.openingStock !== null;
+      const openingQty = recorded
+        ? Number(i.openingStock) || 0
+        : Math.max(0, stock - bought + (soldUnits[i.id] ?? soldUnits[i.name] ?? 0));
+      const openingRate = recorded && i.openingStockRate != null ? Number(i.openingStockRate) || 0 : purchPrice;
+      const openingValue = openingQty * openingRate;
+      totalOpening += openingQty;
+      totalOpeningValue += openingValue;
+      totalPurchased += bought;
       totalSoldQty += sold.qty;
       totalSoldAmount += sold.amount;
       totalStock += stock;
       totalStockValue += stockValue;
       if (isLow) lowStockCount++;
       const cat = i.category || 'Uncategorized';
-      if (!catStats[cat]) catStats[cat] = { category: cat, itemCount: 0, stock: 0, stockValue: 0, soldQty: 0, soldAmount: 0, lowStockCount: 0 };
+      if (!catStats[cat]) catStats[cat] = { category: cat, itemCount: 0, openingStock: 0, openingValue: 0, purchasedQty: 0, stock: 0, stockValue: 0, soldQty: 0, soldAmount: 0, lowStockCount: 0 };
       catStats[cat].itemCount += 1;
+      catStats[cat].openingStock += openingQty;
+      catStats[cat].openingValue += openingValue;
+      catStats[cat].purchasedQty += bought;
       catStats[cat].stock += stock;
       catStats[cat].stockValue += stockValue;
       catStats[cat].soldQty += sold.qty;
@@ -812,6 +865,9 @@ const ReportsPage = () => {
         id: i.id,
         name: i.name,
         category: i.category || '—',
+        openingStock: openingQty,
+        openingValue: fmt(openingValue),
+        purchasedQty: bought,
         soldQty: sold.qty,
         soldAmount: fmt(sold.amount),
         stock,
@@ -828,6 +884,9 @@ const ReportsPage = () => {
         id: c.category,
         category: c.category,
         itemCount: c.itemCount,
+        openingStock: c.openingStock,
+        openingValue: fmt(c.openingValue),
+        purchasedQty: c.purchasedQty,
         stock: c.stock,
         stockValue: fmt(c.stockValue),
         soldQty: c.soldQty,
@@ -837,10 +896,10 @@ const ReportsPage = () => {
       }));
     return {
       rows, categoryRows,
-      totals: { soldQty: totalSoldQty, soldAmount: totalSoldAmount, stock: totalStock, stockValue: totalStockValue },
+      totals: { soldQty: totalSoldQty, soldAmount: totalSoldAmount, stock: totalStock, stockValue: totalStockValue, openingStock: totalOpening, openingValue: totalOpeningValue, purchasedQty: totalPurchased },
       lowStockCount,
     };
-  }, [reportType, sales, items]);
+  }, [reportType, sales, purchases, items, itemsById]);
 
   // partiesById/salesByPartyId/purchasesByPartyId/paymentsOutByPartyId (used
   // by the party-statement/aged-receivables/vendor-balance branches below)
@@ -912,6 +971,9 @@ const ReportsPage = () => {
         rc.columns = [
           { key: 'category', header: 'Category' },
           { key: 'itemCount', header: 'Items', align: 'right', isTotal: true },
+          { key: 'openingStock', header: 'Opening Stock', align: 'right', isTotal: true },
+          { key: 'openingValue', header: 'Opening Value', align: 'right', isTotal: true },
+          { key: 'purchasedQty', header: 'Purchased Qty', align: 'right', isTotal: true },
           { key: 'soldQty', header: 'Sold Qty', align: 'right', isTotal: true },
           { key: 'soldAmount', header: 'Sold Amount', align: 'right', isTotal: true },
           { key: 'stock', header: 'In Stock', align: 'right', isTotal: true },
@@ -921,19 +983,26 @@ const ReportsPage = () => {
         rc.rows = stockSummaryData?.categoryRows || [];
         rc.totals = {
           itemCount: (stockSummaryData?.categoryRows || []).reduce((s, r) => s + r.itemCount, 0),
+          openingStock: stockSummaryData?.totals?.openingStock || 0,
+          openingValue: stockSummaryData?.totals?.openingValue || 0,
+          purchasedQty: stockSummaryData?.totals?.purchasedQty || 0,
           soldQty: stockSummaryData?.totals?.soldQty || 0,
           soldAmount: stockSummaryData?.totals?.soldAmount || 0,
           stock: stockSummaryData?.totals?.stock || 0,
           stockValue: stockSummaryData?.totals?.stockValue || 0,
         };
       } else {
-        rc.title = 'Stock Summary — Sold vs In Stock';
+        rc.title = 'Stock Summary — Opening, Purchased, Sold & In Stock';
         rc.columns = [
           { key: 'name', header: 'Item Name' },
           { key: 'category', header: 'Category' },
+          { key: 'openingStock', header: 'Opening Stock', align: 'right', isTotal: true },
+          { key: 'openingValue', header: 'Opening Value', align: 'right', isTotal: true },
+          { key: 'purchasedQty', header: 'Purchased Qty', align: 'right', isTotal: true },
           { key: 'soldQty', header: 'Sold Qty', align: 'right', isTotal: true },
           { key: 'soldAmount', header: 'Sold Amount', align: 'right', isTotal: true },
           { key: 'stock', header: 'In Stock', align: 'right', isTotal: true },
+          { key: 'purchasePrice', header: 'Purchase Price', align: 'right' },
           { key: 'stockValue', header: 'Stock Value', align: 'right', isTotal: true },
           { key: 'minStock', header: 'Min Stock', align: 'right' },
         ];
@@ -1283,6 +1352,81 @@ const ReportsPage = () => {
         revenue: statList.reduce((s, r) => s + r.revenue, 0),
         cost: statList.reduce((s, r) => s + r.cost, 0),
         profit: statList.reduce((s, r) => s + (r.revenue - r.cost), 0),
+      };
+
+    } else if (reportType === 'party-group') {
+      // One row per Group (Parties → the party's own free-form Group field —
+      // see partyUtils.js/PartyFormDialog.jsx), covering BOTH customers and
+      // vendors in the same list since a group can hold either. Sales and
+      // Purchases within the date range are summed per group; a party with
+      // no group set falls into a single "Ungrouped" bucket rather than
+      // being silently dropped from the report.
+      rc.title = 'Customer/Vendor Group';
+      rc.columns = [
+        { key: 'groupName', header: 'Group' },
+        { key: 'partyCount', header: 'Parties', align: 'right' },
+        { key: 'salesCount', header: 'Sale Bills', align: 'right' },
+        { key: 'salesAmount', header: 'Sales', align: 'right', isTotal: true },
+        { key: 'purchaseCount', header: 'Purchase Bills', align: 'right' },
+        { key: 'purchaseAmount', header: 'Purchases', align: 'right', isTotal: true },
+      ];
+      const salesInRange = sales.filter(s => inRange(s.date));
+      const purchasesInRange = purchases.filter(p => inRange(p.date));
+      const groupOf = (partyId) => {
+        const p = partiesById.get(partyId);
+        return (p?.group || '').trim() || null; // null = Ungrouped bucket
+      };
+      const gstats = {};
+      const ensure = (key) => {
+        if (!gstats[key]) {
+          gstats[key] = {
+            groupKey: key,
+            groupName: key === '__ungrouped__' ? 'Ungrouped' : key,
+            partyIds: new Set(),
+            salesCount: 0, salesAmount: 0,
+            purchaseCount: 0, purchaseAmount: 0,
+          };
+        }
+        return gstats[key];
+      };
+      salesInRange.forEach(tx => {
+        if (!tx.partyId) return; // Cash & Carry has no party, so no group
+        const g = groupOf(tx.partyId) || '__ungrouped__';
+        // A party with no group at all (never assigned one) is excluded
+        // from the Ungrouped bucket too — only a party whose group was
+        // explicitly cleared/never set counts there; this matches "group"
+        // being an opt-in field, not everyone's an implicit member of
+        // "Ungrouped" unless they actually have sales/purchases to show.
+        const entry = ensure(g);
+        entry.partyIds.add(tx.partyId);
+        entry.salesCount += 1;
+        entry.salesAmount += Number(tx.totalAmount || 0);
+      });
+      purchasesInRange.forEach(tx => {
+        if (!tx.partyId) return;
+        const g = groupOf(tx.partyId) || '__ungrouped__';
+        const entry = ensure(g);
+        entry.partyIds.add(tx.partyId);
+        entry.purchaseCount += 1;
+        entry.purchaseAmount += Number(tx.totalAmount || 0);
+      });
+      const groupList = Object.values(gstats).sort((a, b) => (b.salesAmount + b.purchaseAmount) - (a.salesAmount + a.purchaseAmount));
+      rc.rows = groupList.map(g => ({
+        id: g.groupKey,
+        _groupKey: g.groupKey,
+        groupName: g.groupName,
+        partyCount: g.partyIds.size,
+        salesCount: g.salesCount,
+        salesAmount: fmt(g.salesAmount),
+        purchaseCount: g.purchaseCount,
+        purchaseAmount: fmt(g.purchaseAmount),
+      }));
+      rc.totals = {
+        partyCount: new Set(groupList.flatMap(g => Array.from(g.partyIds))).size,
+        salesCount: groupList.reduce((s, g) => s + g.salesCount, 0),
+        salesAmount: groupList.reduce((s, g) => s + g.salesAmount, 0),
+        purchaseCount: groupList.reduce((s, g) => s + g.purchaseCount, 0),
+        purchaseAmount: groupList.reduce((s, g) => s + g.purchaseAmount, 0),
       };
 
     } else if (reportType === 'item-profit') {
@@ -1880,6 +2024,7 @@ const ReportsPage = () => {
         const lowStockCount = stockSummaryData?.lowStockCount || 0;
         return [
           { icon: TrendingUp, label: 'Total Sold', value: totals.soldQty || 0, subValue: fmt(totals.soldAmount), color: '#7c3aed' },
+          { icon: LayoutList, label: 'Opening Stock', value: stockSummaryData?.totals?.openingStock || 0, subValue: fmt(stockSummaryData?.totals?.openingValue), color: '#0891b2' },
           { icon: Package, label: 'In Stock', value: totals.stock || 0, subValue: stockView === 'category' ? `${rows.length} categories` : `${rows.length} products`, color: '#5c1f22' },
           { icon: IndianRupee, label: 'Stock Value', value: fmt(totals.stockValue), color: '#5c1f22' },
           { icon: AlertCircle, label: 'Low Stock Items', value: lowStockCount, color: lowStockCount > 0 ? '#dc2626' : '#5c1f22' },
@@ -1949,6 +2094,15 @@ const ReportsPage = () => {
           { icon: Package, label: 'Total Revenue', value: fmt(totals.revenue), subValue: `${rows.length} item${rows.length !== 1 ? 's' : ''}`, color: '#5c1f22' },
           { icon: profit >= 0 ? TrendingUp : TrendingDown, label: profit >= 0 ? 'Net Profit' : 'Net Loss', value: fmt(Math.abs(profit)), color: profit >= 0 ? '#5c1f22' : '#dc2626' },
           { icon: Tag, label: 'Most Profitable', value: top?.itemName || '—', color: '#ea580c' },
+        ];
+      }
+      case 'party-group': {
+        const top = rows[0];
+        return [
+          { icon: Users, label: 'Groups', value: rows.length, subValue: `${totals.partyCount || 0} parties`, color: '#5c1f22' },
+          { icon: TrendingUp, label: 'Total Sales', value: fmt(totals.salesAmount), subValue: `${totals.salesCount || 0} bills`, color: '#5c1f22' },
+          { icon: ShoppingCart, label: 'Total Purchases', value: fmt(totals.purchaseAmount), subValue: `${totals.purchaseCount || 0} bills`, color: '#7c3aed' },
+          { icon: UserCheck, label: 'Top Group', value: top?.groupName || '—', color: '#ea580c' },
         ];
       }
       case 'cash-flow': {
@@ -2053,6 +2207,34 @@ const ReportsPage = () => {
     );
   }, [reportConfig.rows, reportConfig.columns, searchText]);
 
+  // Large reports (e.g. Stock Summary with thousands of items) are paginated
+  // so only one page of rows is rendered at a time. Small reports render in
+  // full as before. Totals, print and Excel export still use every row.
+  const PAGINATE_ABOVE = 100;
+  const [reportPage, setReportPage] = useState(0);
+  const [reportRowsPerPage, setReportRowsPerPage] = useState(50);
+  const paginated = displayRows.length > PAGINATE_ABOVE;
+  useEffect(() => { setReportPage(0); }, [reportType, searchText, stockView, reportConfig.rows]);
+  const pageRows = useMemo(() => {
+    if (!paginated) return displayRows;
+    const start = reportPage * reportRowsPerPage;
+    return displayRows.slice(start, start + reportRowsPerPage);
+  }, [displayRows, paginated, reportPage, reportRowsPerPage]);
+  const reportTableRef = useTableScrollReset(reportPage, reportRowsPerPage);
+  const reportPager = paginated ? (
+    <TablePagination
+      component="div"
+      count={displayRows.length}
+      page={Math.min(reportPage, Math.max(0, Math.ceil(displayRows.length / reportRowsPerPage) - 1))}
+      onPageChange={(_, p) => setReportPage(p)}
+      rowsPerPage={reportRowsPerPage}
+      onRowsPerPageChange={(e) => { setReportRowsPerPage(parseInt(e.target.value, 10)); setReportPage(0); }}
+      rowsPerPageOptions={[25, 50, 100, 200]}
+      labelRowsPerPage="Rows per page"
+      sx={{ borderTop: '1px solid', borderColor: 'divider', '& .MuiTablePagination-toolbar': { minHeight: 44 } }}
+    />
+  ) : null;
+
   // GST preview data (first 20 rows)
   const gstPreviewData = useMemo(() => {
     if (!isGstReturn) return null;
@@ -2124,13 +2306,13 @@ const ReportsPage = () => {
     const modeText = isSplit
       ? `Mode: Split Payment\n  Cash: ₹${(Number(row.paymentSplit.cash) || 0).toLocaleString()}\n  Bank: ₹${(Number(row.paymentSplit.bank) || 0).toLocaleString()}`
       : `Mode: ${row.mode}`;
-    const text = `*Payment Receipt from ${currentBusiness?.name || 'TallyKraft'}*\n\n` +
+    const text = `*Payment Receipt from ${currentBusiness?.name || 'BillDheko'}*\n\n` +
       `Amount: ₹${(Number(row.totalAmount) || 0).toLocaleString()}\n` +
       `Date: ${row.date}\n` +
       `Party: ${row.partyName}\n` +
       `${modeText}\n` +
       `Ref: ${row.referenceNo || row.invoiceNumber || ''}\n\n` +
-      `Shared via TallyKraft`;
+      `Shared via BillDheko`;
     if (navigator.share) {
       navigator.share({ title: `Payment Receipt`, text }).catch(() => {});
     } else {
@@ -2139,12 +2321,12 @@ const ReportsPage = () => {
   };
 
   const handleShareExpenseRow = (row) => {
-    const text = `*Expense Voucher from ${currentBusiness?.name || 'TallyKraft'}*\n\n` +
+    const text = `*Expense Voucher from ${currentBusiness?.name || 'BillDheko'}*\n\n` +
       `Amount: ₹${(Number(row.totalAmount) || 0).toLocaleString()}\n` +
       `Date: ${row.date}\n` +
       `Category: ${row.category || row.partyName}\n` +
       `Description: ${row.description || ''}\n\n` +
-      `Shared via TallyKraft`;
+      `Shared via BillDheko`;
     if (navigator.share) {
       navigator.share({ title: `Expense Voucher`, text }).catch(() => {});
     } else {
@@ -2272,8 +2454,52 @@ const ReportsPage = () => {
     };
   };
 
+  // Group drill-down — every party whose own `group` field matches (or, for
+  // the special "__ungrouped__" key, every party with no group set at all)
+  // pooled together: combined stats plus a merged, most-recent-first list of
+  // every sale/purchase bill across all of them. All-time (not scoped to the
+  // report's own date-range filter), matching buildPartyDetail's convention
+  // of a detail popup being a full account snapshot, not a filtered slice.
+  const buildGroupDetail = (groupKey) => {
+    const groupParties = parties.filter(p => {
+      const g = (p.group || '').trim();
+      return groupKey === '__ungrouped__' ? !g : g === groupKey;
+    });
+    const partyIdSet = new Set(groupParties.map(p => p.id));
+    let gSales = [], gPurchases = [];
+    groupParties.forEach(p => {
+      gSales = gSales.concat(salesByPartyId.get(p.id) || []);
+      gPurchases = gPurchases.concat(purchasesByPartyId.get(p.id) || []);
+    });
+    gSales.sort((a, b) => b.date.localeCompare(a.date));
+    gPurchases.sort((a, b) => b.date.localeCompare(a.date));
+    const totalRevenue = gSales.reduce((s, tx) => s + Number(tx.totalAmount || 0), 0);
+    const totalPurchaseValue = gPurchases.reduce((s, tx) => s + Number(tx.totalAmount || 0), 0);
+    const totalBalance = groupParties.reduce((s, p) => s + (Number(p.balance) || 0), 0);
+    return {
+      kind: 'group',
+      title: groupKey === '__ungrouped__' ? 'Ungrouped' : groupKey,
+      subtitle: `${groupParties.length} part${groupParties.length !== 1 ? 'ies' : 'y'} in this group`,
+      stats: [
+        { label: 'Total Sales', value: fmt(totalRevenue), sub: `${gSales.length} invoice${gSales.length !== 1 ? 's' : ''}` },
+        { label: 'Total Purchases', value: fmt(totalPurchaseValue), sub: `${gPurchases.length} bill${gPurchases.length !== 1 ? 's' : ''}` },
+        { label: 'Parties in Group', value: String(groupParties.length), sub: `${partyIdSet.size} unique` },
+        { label: 'Net Balance', value: `₹${Math.abs(totalBalance).toLocaleString('en-IN')}`, sub: totalBalance === 0 ? 'Settled' : (totalBalance > 0 ? 'To Collect' : 'To Pay'), color: totalBalance > 0 ? '#dc2626' : (totalBalance < 0 ? '#b45309' : undefined) },
+      ],
+      // Every bill, not capped to 8 like the single-party detail — a group
+      // spans several parties, so "what are all the sale/purchase bills
+      // from this group" (the actual ask) needs the full list, not a
+      // recent-few sample. Each still carries partyName so it's clear
+      // which member of the group the bill belongs to.
+      recentSales: gSales.map(tx => ({ id: tx.id, date: tx.date, invoiceNumber: tx.invoiceNumber, partyId: tx.partyId || null, partyName: partiesById.get(tx.partyId)?.name || tx.partyName || '—', amount: Number(tx.totalAmount || 0) })),
+      recentPurchases: gPurchases.map(tx => ({ id: tx.id, date: tx.date, invoiceNumber: tx.invoiceNumber, partyId: tx.partyId || null, partyName: partiesById.get(tx.partyId)?.name || tx.partyName || '—', amount: Number(tx.totalAmount || 0) })),
+    };
+  };
+
   const detailContent = detailDialog
-    ? (detailDialog.kind === 'item' ? buildItemDetail(detailDialog.id) : buildPartyDetail(detailDialog.id))
+    ? (detailDialog.kind === 'item' ? buildItemDetail(detailDialog.id)
+      : detailDialog.kind === 'group' ? buildGroupDetail(detailDialog.id)
+      : buildPartyDetail(detailDialog.id))
     : null;
 
   // Resolves which table (sales/purchases) a report row's underlying
@@ -2296,10 +2522,20 @@ const ReportsPage = () => {
   // Item-wise/Party-wise P&L rows open the drill-down popup (sale/purchase/
   // stock detail) instead of a single invoice preview — a P&L row IS an
   // aggregate across many invoices, there's no single bill to show.
-  const canOpenDetail = (row) => (reportType === 'item-profit' && !!row._itemId) || (reportType === 'party-profit' && !!row._partyId);
+  const canOpenDetail = (row) =>
+    (reportType === 'item-profit' && !!row._itemId) ||
+    (reportType === 'party-profit' && !!row._partyId) ||
+    (reportType === 'party-group' && !!row._groupKey);
   const openDetailDialog = (row) => {
+    setDetailSalesPage(0);
+    setDetailPurchasesPage(0);
+    setDetailTab('sales');
+    setDetailPartySearch('');
+    setDetailDateFrom('');
+    setDetailDateTo('');
     if (reportType === 'item-profit' && row._itemId) setDetailDialog({ kind: 'item', id: row._itemId });
     else if (reportType === 'party-profit' && row._partyId) setDetailDialog({ kind: 'party', id: row._partyId });
+    else if (reportType === 'party-group' && row._groupKey) setDetailDialog({ kind: 'group', id: row._groupKey });
   };
 
   // Day Book's Print/Share column also covers Payment-In/Payment-Out/Expense
@@ -2338,8 +2574,21 @@ const ReportsPage = () => {
     setPreviewOpen(true);
   };
 
+  // Same as openInvoicePreview, but for a spot (the detail popup's Recent
+  // Sales/Purchases lists) that already knows the exact table — no need to
+  // re-derive it from row shape via resolveRowTxTable.
+  const openBillFromDetail = (id, table) => {
+    if (!id) return;
+    const src = table === 'sales' ? sales : purchases;
+    const tx = src.find(t => t.id === id);
+    if (!tx) return;
+    setPreviewIsSale(table === 'sales');
+    setPreviewTx(tx);
+    setPreviewOpen(true);
+  };
+
   const handleShare = () => {
-    const text = `*${currentBusiness?.name || 'Business'} — ${reportConfig.title}*\n\nPeriod: ${filters.dateFrom} to ${filters.dateTo}\n\nShared via TallyKraft`;
+    const text = `*${currentBusiness?.name || 'Business'} — ${reportConfig.title}*\n\nPeriod: ${filters.dateFrom} to ${filters.dateTo}\n\nShared via BillDheko`;
     if (navigator.share) {
       navigator.share({ title: reportConfig.title, text }).catch(() => {});
     } else {
@@ -2362,7 +2611,7 @@ const ReportsPage = () => {
       `Kindly arrange payment at your earliest convenience. Please ignore this message if it has already been paid.`,
       '',
       `Thank you,`,
-      currentBusiness?.name || 'TallyKraft',
+      currentBusiness?.name || 'BillDheko',
     ].join('\n');
     const url = num ? `https://wa.me/${num}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
     window.open(url, '_blank');
@@ -2409,7 +2658,7 @@ const ReportsPage = () => {
   // row is one), the rest only for rows that actually resolve (e.g. Day
   // Book mixes invoices with expenses/payments, Party Statement mixes
   // invoices with payments/notes).
-  const showBillCol = ['sales', 'purchases', 'bill-profit', 'day-book', 'party-statement', 'item-profit', 'party-profit'].includes(reportType);
+  const showBillCol = ['sales', 'purchases', 'bill-profit', 'day-book', 'party-statement', 'item-profit', 'party-profit', 'party-group'].includes(reportType);
   const activeReport = ALL_REPORT_TABS.find(r => r.value === reportType);
   const yearOptions = [];
   for (let y = now.getFullYear(); y >= now.getFullYear() - 5; y--) yearOptions.push(y);
@@ -2508,7 +2757,7 @@ const ReportsPage = () => {
             a phone width, and a horizontal report picker reads better on
             a narrow screen than a vertical one squeezed into ~70px). ── */}
         {!isMobile && (
-          <Box sx={{ width: 168, flexShrink: 0, position: 'sticky', top: 0, alignSelf: 'flex-start' }}>
+          <Box sx={{ width: reportRail.width, flexShrink: 0, position: 'sticky', top: 0, alignSelf: 'flex-start' }}>
             <Card elevation={0} sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2.5, overflowX: 'hidden', overflowY: 'auto', maxHeight: 'calc(100vh - 190px)', p: 1 }}>
               <TextField
                 fullWidth size="small" placeholder="Find a report…"
@@ -2574,6 +2823,7 @@ const ReportsPage = () => {
             </Card>
           </Box>
         )}
+        {!isMobile && <ResizeHandle panel={reportRail} side="right" label="Resize report list" />}
 
         {/* ── RIGHT CONTENT ──
             `key={reportType}` + the fade-in keyframe below gives switching
@@ -2768,8 +3018,8 @@ const ReportsPage = () => {
                     {reportType === 'aged-receivables' && 'Showing all customers with outstanding balances, bucketed by age.'}
                     {reportType === 'aged-payables' && 'Showing all vendors with outstanding payables, bucketed by age.'}
                     {reportType === 'stock-summary' && (stockView === 'category'
-                      ? 'Showing stock value and sold amount rolled up by item category, all time.'
-                      : 'Showing all-time sold quantity/amount alongside current stock levels for all products. Items with stock ≤ minimum stock are highlighted.')}
+                      ? 'Opening stock, purchases, sales and current stock value rolled up by item category, all time.'
+                      : 'Each product\'s opening stock (qty and value at its purchase price), all-time purchases and sales, and current stock with its value. Items with stock ≤ minimum stock are highlighted. Opening stock for items created before it was recorded is estimated as stock − purchased + sold.')}
                   </Typography>
                   {reportType === 'stock-summary' && (
                     <Box sx={{ display: 'flex', gap: 0.75, mt: 1.5 }}>
@@ -3023,7 +3273,7 @@ const ReportsPage = () => {
               a phone screen — even with horizontal scroll, most reports have
               6+ columns and become unreadable), table on desktop ── */}
           {!isGstReturn && !(reportType === 'party-statement' && !filters.partyId) && isMobile && (
-            <Stack spacing={0.75}>
+            <Stack spacing={0.75} ref={reportTableRef}>
               {displayRows.length === 0 && (
                 <Box sx={{ py: 5, textAlign: 'center' }}>
                   <Stack alignItems="center" spacing={1.25} sx={{ opacity: 0.5 }}>
@@ -3039,7 +3289,7 @@ const ReportsPage = () => {
                   </Stack>
                 </Box>
               )}
-              {displayRows.map((row, rowIdx) => {
+              {pageRows.map((row, rowIdx) => {
                 // First column is the row's natural title (Date, Item Name,
                 // Party, etc.); the rest render as label: value lines.
                 const [titleCol, ...restCols] = reportConfig.columns;
@@ -3164,12 +3414,13 @@ const ReportsPage = () => {
                   </Box>
                 </Card>
               )}
+              {reportPager && <Card elevation={0} sx={{ borderRadius: 1.75, border: '1px solid', borderColor: 'divider' }}>{reportPager}</Card>}
             </Stack>
           )}
 
           {/* ── Results Table (desktop) ── */}
           {!isGstReturn && !(reportType === 'party-statement' && !filters.partyId) && !isMobile && (
-            <Box sx={{ overflowX: 'auto', width: '100%' }}>
+            <Box ref={reportTableRef} sx={{ overflowX: 'auto', width: '100%' }}>
               <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 2.5, border: '1px solid', borderColor: 'divider', overflow: 'hidden', width: '100%' }}>
                 <Table size="small" sx={{ width: '100%', ...(reportType === 'day-book' ? { tableLayout: 'fixed' } : {}) }}>
                   <TableHead sx={{ bgcolor: alpha(activeColor, 0.04) }}>
@@ -3194,7 +3445,7 @@ const ReportsPage = () => {
                           borderBottom: `2px solid ${alpha(activeColor, 0.15)}`,
                           position: 'sticky', top: 0, bgcolor: alpha(activeColor, 0.04), zIndex: 1,
                         }}>
-                          {['item-profit', 'party-profit'].includes(reportType) ? 'Detail' : 'Bill'}
+                          {['item-profit', 'party-profit', 'party-group'].includes(reportType) ? 'Detail' : 'Bill'}
                         </TableCell>
                       )}
                       {reportType === 'aged-receivables' && (
@@ -3210,7 +3461,7 @@ const ReportsPage = () => {
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {displayRows.map((row, rowIdx) => {
+                    {pageRows.map((row, rowIdx) => {
                       const clickable = canOpenBill(row) || canOpenDetail(row);
                       const rowClick = canOpenBill(row) ? () => openInvoicePreview(row) : (canOpenDetail(row) ? () => openDetailDialog(row) : undefined);
                       return (
@@ -3353,6 +3604,7 @@ const ReportsPage = () => {
                     </TableHead>
                   )}
                 </Table>
+                {reportPager}
               </TableContainer>
             </Box>
           )}
@@ -3416,59 +3668,186 @@ const ReportsPage = () => {
 
               <Divider />
 
-              {/* Recent Sales */}
-              <Box sx={{ px: 1.75, pt: 1.5, pb: 0.75 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: 'text.secondary', mb: 0.75 }}>
-                  Recent Sales {detailContent.recentSales.length > 0 && `(${detailContent.recentSales.length})`}
-                </Typography>
-                {detailContent.recentSales.length === 0 ? (
-                  <Typography sx={{ fontSize: '0.8rem', color: 'text.disabled', py: 1 }}>No sales recorded</Typography>
-                ) : (
-                  <Stack spacing={0.5}>
-                    {detailContent.recentSales.map((r, i) => (
-                      <Box key={r.id || i} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, py: 0.625, borderBottom: '1px solid', borderColor: 'divider' }}>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }} noWrap>{r.invoiceNumber || '—'}</Typography>
-                          <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }} noWrap>
-                            {r.date}{r.partyName ? ` · ${r.partyName}` : ''}{r.qty != null ? ` · ${r.qty} units` : ''}
-                          </Typography>
-                        </Box>
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#5c1f22', whiteSpace: 'nowrap' }}>
-                          {fmt(r.amount)}
-                        </Typography>
-                      </Box>
-                    ))}
-                  </Stack>
-                )}
-              </Box>
+              {detailContent.kind === 'group' ? (() => {
+                // Group detail only — a single item/party detail is already
+                // scoped to one entity, so a customer search inside it adds
+                // nothing (kept as the original stacked Sales+Purchases
+                // layout below instead). Tab strip picks which of the
+                // group's two all-time lists is being browsed; the party
+                // search + date range then narrow whichever list is active.
+                const activeRows = detailTab === 'sales' ? detailContent.recentSales : detailContent.recentPurchases;
+                const activePage = detailTab === 'sales' ? detailSalesPage : detailPurchasesPage;
+                const setActivePage = detailTab === 'sales' ? setDetailSalesPage : setDetailPurchasesPage;
+                const activeColorHex = detailTab === 'sales' ? '#5c1f22' : '#7c3aed';
+                const searchLc = detailPartySearch.trim().toLowerCase();
+                const filteredRows = activeRows.filter(r => {
+                  if (searchLc && !(r.partyName || '').toLowerCase().includes(searchLc)) return false;
+                  if (detailDateFrom && r.date < detailDateFrom) return false;
+                  if (detailDateTo && r.date > detailDateTo) return false;
+                  return true;
+                });
+                const hasFilters = !!(detailPartySearch || detailDateFrom || detailDateTo);
+                return (
+                  <>
+                    {/* Sales / Purchases tab strip */}
+                    <Box sx={{ px: 1.75, pt: 1.5, display: 'flex', gap: 0.75 }}>
+                      {[
+                        { value: 'sales', label: 'Sales', count: detailContent.recentSales.length, color: '#5c1f22' },
+                        { value: 'purchases', label: 'Purchases', count: detailContent.recentPurchases.length, color: '#7c3aed' },
+                      ].map(t => (
+                        <Chip key={t.value} label={`${t.label} (${t.count})`} size="small" clickable
+                          onClick={() => setDetailTab(t.value)}
+                          sx={{
+                            fontSize: '0.74rem', fontWeight: 700, height: 28,
+                            bgcolor: detailTab === t.value ? alpha(t.color, 0.12) : 'transparent',
+                            color: detailTab === t.value ? t.color : 'text.secondary',
+                            border: '1px solid', borderColor: detailTab === t.value ? alpha(t.color, 0.4) : 'divider',
+                          }} />
+                      ))}
+                    </Box>
 
-              <Divider />
+                    {/* Customer search + date range — apply to whichever tab is active */}
+                    <Box sx={{ px: 1.75, pt: 1.25, display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                      <TextField size="small" placeholder="Search customer/vendor…" value={detailPartySearch}
+                        onChange={e => { setDetailPartySearch(e.target.value); setActivePage(0); }}
+                        InputProps={{ startAdornment: <InputAdornment position="start"><Search size={14} /></InputAdornment> }}
+                        sx={{ flex: '1 1 180px', minWidth: 140 }} />
+                      <TextField size="small" type="date" label="From" value={detailDateFrom}
+                        onChange={e => { setDetailDateFrom(e.target.value); setActivePage(0); }}
+                        InputLabelProps={{ shrink: true }} sx={{ flex: '1 1 130px', minWidth: 120 }} />
+                      <TextField size="small" type="date" label="To" value={detailDateTo}
+                        onChange={e => { setDetailDateTo(e.target.value); setActivePage(0); }}
+                        InputLabelProps={{ shrink: true }} sx={{ flex: '1 1 130px', minWidth: 120 }} />
+                      {hasFilters && (
+                        <Button size="small" onClick={() => { setDetailPartySearch(''); setDetailDateFrom(''); setDetailDateTo(''); setActivePage(0); }}
+                          sx={{ textTransform: 'none', fontWeight: 600 }}>
+                          Clear
+                        </Button>
+                      )}
+                    </Box>
 
-              {/* Recent Purchases */}
-              <Box sx={{ px: 1.75, pt: 1.5, pb: 1.75 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: 'text.secondary', mb: 0.75 }}>
-                  Recent Purchases {detailContent.recentPurchases.length > 0 && `(${detailContent.recentPurchases.length})`}
-                </Typography>
-                {detailContent.recentPurchases.length === 0 ? (
-                  <Typography sx={{ fontSize: '0.8rem', color: 'text.disabled', py: 1 }}>No purchases recorded</Typography>
-                ) : (
-                  <Stack spacing={0.5}>
-                    {detailContent.recentPurchases.map((r, i) => (
-                      <Box key={r.id || i} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, py: 0.625, borderBottom: '1px solid', borderColor: 'divider' }}>
-                        <Box sx={{ minWidth: 0 }}>
-                          <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }} noWrap>{r.invoiceNumber || '—'}</Typography>
-                          <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }} noWrap>
-                            {r.date}{r.partyName ? ` · ${r.partyName}` : ''}{r.qty != null ? ` · ${r.qty} units` : ''}
-                          </Typography>
-                        </Box>
-                        <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#7c3aed', whiteSpace: 'nowrap' }}>
-                          {fmt(r.amount)}
+                    <Box sx={{ px: 1.75, pt: 1.25, pb: 1.75 }}>
+                      {hasFilters && (
+                        <Typography sx={{ fontSize: '0.7rem', color: 'text.secondary', mb: 0.75 }}>
+                          {filteredRows.length} of {activeRows.length} match{filteredRows.length !== 1 ? 'es' : ''}
                         </Typography>
-                      </Box>
-                    ))}
-                  </Stack>
-                )}
-              </Box>
+                      )}
+                      {filteredRows.length === 0 ? (
+                        <Typography sx={{ fontSize: '0.8rem', color: 'text.disabled', py: 1 }}>
+                          {activeRows.length === 0
+                            ? `No ${detailTab === 'sales' ? 'sales' : 'purchases'} recorded`
+                            : 'No bills match this filter'}
+                        </Typography>
+                      ) : (
+                        <>
+                          <Stack spacing={0.5}>
+                            {filteredRows
+                              .slice(activePage * DETAIL_ROWS_PER_PAGE, activePage * DETAIL_ROWS_PER_PAGE + DETAIL_ROWS_PER_PAGE)
+                              .map((r, i) => (
+                              <Box key={r.id || i} onClick={() => openBillFromDetail(r.id, detailTab === 'sales' ? 'sales' : 'purchases')}
+                                sx={{
+                                  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, py: 0.625,
+                                  borderBottom: '1px solid', borderColor: 'divider',
+                                  cursor: r.id ? 'pointer' : 'default', borderRadius: 1, px: 0.5, mx: -0.5,
+                                  '&:hover': r.id ? { bgcolor: alpha(activeColorHex, 0.06) } : undefined,
+                                }}>
+                                <Box sx={{ minWidth: 0 }}>
+                                  <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }} noWrap>{r.invoiceNumber || '—'}</Typography>
+                                  <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }} noWrap>
+                                    {r.date}{r.partyName ? ` · ${r.partyName}` : ''}{r.qty != null ? ` · ${r.qty} units` : ''}
+                                  </Typography>
+                                </Box>
+                                <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: activeColorHex, whiteSpace: 'nowrap' }}>
+                                  {fmt(r.amount)}
+                                </Typography>
+                              </Box>
+                            ))}
+                          </Stack>
+                          {filteredRows.length > DETAIL_ROWS_PER_PAGE && (
+                            <TablePagination
+                              component="div"
+                              count={filteredRows.length}
+                              page={activePage}
+                              onPageChange={(_e, p) => setActivePage(p)}
+                              rowsPerPage={DETAIL_ROWS_PER_PAGE}
+                              rowsPerPageOptions={[DETAIL_ROWS_PER_PAGE]}
+                              sx={{ mt: 0.5, '& .MuiTablePagination-toolbar': { minHeight: 40, pl: 0 } }}
+                            />
+                          )}
+                        </>
+                      )}
+                    </Box>
+                  </>
+                );
+              })() : (
+                <>
+                  {/* Recent Sales — item/party detail: unchanged stacked layout, capped to 8 rows by buildItemDetail/buildPartyDetail. */}
+                  <Box sx={{ px: 1.75, pt: 1.5, pb: 0.75 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: 'text.secondary', mb: 0.75 }}>
+                      Recent Sales {detailContent.recentSales.length > 0 && `(${detailContent.recentSales.length})`}
+                    </Typography>
+                    {detailContent.recentSales.length === 0 ? (
+                      <Typography sx={{ fontSize: '0.8rem', color: 'text.disabled', py: 1 }}>No sales recorded</Typography>
+                    ) : (
+                      <Stack spacing={0.5}>
+                        {detailContent.recentSales.map((r, i) => (
+                          <Box key={r.id || i} onClick={() => openBillFromDetail(r.id, 'sales')}
+                            sx={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, py: 0.625,
+                              borderBottom: '1px solid', borderColor: 'divider',
+                              cursor: r.id ? 'pointer' : 'default', borderRadius: 1, px: 0.5, mx: -0.5,
+                              '&:hover': r.id ? { bgcolor: alpha('#5c1f22', 0.06) } : undefined,
+                            }}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }} noWrap>{r.invoiceNumber || '—'}</Typography>
+                              <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }} noWrap>
+                                {r.date}{r.partyName ? ` · ${r.partyName}` : ''}{r.qty != null ? ` · ${r.qty} units` : ''}
+                              </Typography>
+                            </Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#5c1f22', whiteSpace: 'nowrap' }}>
+                              {fmt(r.amount)}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Stack>
+                    )}
+                  </Box>
+
+                  <Divider />
+
+                  {/* Recent Purchases — same as above, unchanged. */}
+                  <Box sx={{ px: 1.75, pt: 1.5, pb: 1.75 }}>
+                    <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: 'text.secondary', mb: 0.75 }}>
+                      Recent Purchases {detailContent.recentPurchases.length > 0 && `(${detailContent.recentPurchases.length})`}
+                    </Typography>
+                    {detailContent.recentPurchases.length === 0 ? (
+                      <Typography sx={{ fontSize: '0.8rem', color: 'text.disabled', py: 1 }}>No purchases recorded</Typography>
+                    ) : (
+                      <Stack spacing={0.5}>
+                        {detailContent.recentPurchases.map((r, i) => (
+                          <Box key={r.id || i} onClick={() => openBillFromDetail(r.id, 'purchases')}
+                            sx={{
+                              display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, py: 0.625,
+                              borderBottom: '1px solid', borderColor: 'divider',
+                              cursor: r.id ? 'pointer' : 'default', borderRadius: 1, px: 0.5, mx: -0.5,
+                              '&:hover': r.id ? { bgcolor: alpha('#7c3aed', 0.06) } : undefined,
+                            }}>
+                            <Box sx={{ minWidth: 0 }}>
+                              <Typography sx={{ fontWeight: 600, fontSize: '0.8rem' }} noWrap>{r.invoiceNumber || '—'}</Typography>
+                              <Typography sx={{ fontSize: '0.68rem', color: 'text.secondary' }} noWrap>
+                                {r.date}{r.partyName ? ` · ${r.partyName}` : ''}{r.qty != null ? ` · ${r.qty} units` : ''}
+                              </Typography>
+                            </Box>
+                            <Typography sx={{ fontWeight: 700, fontSize: '0.8rem', color: '#7c3aed', whiteSpace: 'nowrap' }}>
+                              {fmt(r.amount)}
+                            </Typography>
+                          </Box>
+                        ))}
+                      </Stack>
+                    )}
+                  </Box>
+                </>
+              )}
             </DialogContent>
           </>
         )}
