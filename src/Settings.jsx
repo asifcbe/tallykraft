@@ -24,7 +24,7 @@ import AddBusinessDialog from './AddBusinessDialog';
 import BillingPayments from './BillingPayments';
 import { useSubscription } from './SubscriptionContext';
 import { usePlanCheckout } from './PlanCheckout';
-import { PLAN_ID, PLAN_PRICE, PLAN_DAYS } from './planTiers';
+import { PLANS as PLAN_LIST, planById } from './planTiers';
 import { useI18n } from './i18n/I18nContext';
 import { firestore } from './db';
 import { collection, doc, onSnapshot, setDoc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
@@ -751,16 +751,17 @@ const SettingsPage = () => {
     const pending = pendingBizData;
     setShowBizPayModal(false);
     openBizCheckout({
+      planId: PLAN_LIST[0].id,
       businessName: pending?.name,
       defaultState: pending?.state || currentBusiness?.state,
-      onPaid: async (paymentId, billingMeta) => {
+      onPaid: async (planId, paymentId, billingMeta) => {
         const id = await addBusiness(pending);
         if (!id) throw new Error('Business creation failed after payment');
-        await activateSubscription(String(id), PLAN_ID, paymentId, billingMeta);
+        await activateSubscription(String(id), planId, paymentId, billingMeta);
         await backupToFirestore?.().catch?.(() => {});
         setCurrentBusinessId(id);
         setPendingBizData(null);
-        setMsg({ type: 'success', text: `"${pending?.name}" created — active for ${PLAN_DAYS} days.` });
+        setMsg({ type: 'success', text: `"${pending?.name}" created — active for ${planById(planId).period}.` });
         setTimeout(() => setMsg({ type: '', text: '' }), 4000);
       },
     });
@@ -3714,17 +3715,25 @@ const SettingsPage = () => {
           Each business needs its own subscription — all features, cloud backup &amp; multi-device sync.
           The business is created as soon as the payment succeeds.
         </Typography>
-        <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: alpha(primary, 0.25), bgcolor: alpha(primary, 0.04), display: 'flex', alignItems: 'baseline', gap: 0.75 }}>
-          <Typography sx={{ fontWeight: 900, fontSize: '1.6rem', color: primary }}>₹{PLAN_PRICE}</Typography>
-          <Typography variant="body2" color="text.secondary">/ {PLAN_DAYS} days</Typography>
+        <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1 }}>
+          {PLAN_LIST.map(p => (
+            <Box key={p.id} sx={{ p: 1.5, borderRadius: 2, border: '1px solid', borderColor: alpha(primary, 0.25), bgcolor: alpha(primary, 0.04) }}>
+              <Typography sx={{ fontSize: '0.75rem', fontWeight: 700, color: 'text.secondary' }}>{p.name}{p.badge ? ` · ${p.badge}` : ''}</Typography>
+              <Typography sx={{ fontWeight: 900, fontSize: '1.35rem', color: primary }}>₹{p.price.toLocaleString('en-IN')}</Typography>
+              <Typography variant="caption" color="text.secondary">{p.period}</Typography>
+            </Box>
+          ))}
         </Box>
+        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 1.25 }}>
+          You'll choose the plan on the next step. Plans can't be cancelled or refunded once paid.
+        </Typography>
       </DialogContent>
       <DialogActions>
         <Button onClick={() => { setShowBizPayModal(false); setPendingBizData(null); }}>Cancel</Button>
         <Button variant="contained" onClick={bizPayNow} disabled={bizPaying}
           startIcon={bizPaying ? <CircularProgress size={14} color="inherit" /> : undefined}
           sx={{ textTransform: 'none', fontWeight: 700 }}>
-          Pay ₹{PLAN_PRICE}
+          Continue to payment
         </Button>
       </DialogActions>
     </Dialog>

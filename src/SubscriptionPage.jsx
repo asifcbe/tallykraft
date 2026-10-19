@@ -11,41 +11,38 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useBusiness } from './BusinessContext';
 import { useData } from './DataContext';
 import { usePlanCheckout } from './PlanCheckout';
-import { BRAND_NAME, TRIAL_DAYS, PLAN_DAYS, PLAN_ID, PLAN_PRICE } from './planTiers';
+import { TRIAL_DAYS, PLANS as PLAN_LIST, planById } from './planTiers';
 import BillDhekoLogo from './BillDhekoLogo';
 
 // ── Plan definitions ──────────────────────────────────────────────────────────
-// One plan: ₹299 per business for 30 days. Each subscription covers ONE business
-// — to run more businesses, subscribe each one separately. All features + cloud
-// backup & multi-device sync are always included.
-const PLANS = {
-  standard: {
-    id: PLAN_ID,
-    name: BRAND_NAME,
-    tagline: 'All features + cloud backup • for 1 business',
-    price: PLAN_PRICE,
-    isPro: true,
-    icon: Cloud,
-    highlight: true,
-    features: [
-      'Covers 1 business',
-      'All features unlocked',
-      'Invoices, POS, purchases & expenses',
-      'GST reports & party ledgers',
-      'Online cloud backup & restore',
-      'Access & sync from any device',
-      'Staff management',
-      'WhatsApp bill sharing',
-      'Barcode scanning',
-      'Custom section builder',
-      'Export to Excel & Tally',
-      'Priority for new features',
-    ],
-  },
-};
+// Two plans (monthly ₹299 / 30 days, yearly ₹2,999 / year), each covering ONE
+// business — run more businesses by subscribing each one. Every plan includes
+// all features + cloud backup & multi-device sync. Prepaid, no auto-renewal,
+// not cancellable or refundable once paid.
+const PLAN_FEATURES = [
+  'Covers 1 business',
+  'All features unlocked',
+  'Invoices, POS, purchases & expenses',
+  'GST reports & party ledgers',
+  'Online cloud backup & restore',
+  'Access & sync from any device',
+  'Staff management',
+  'WhatsApp bill sharing',
+  'Barcode scanning',
+  'Custom section builder',
+  'Export to Excel & Tally',
+];
+const PLAN_CARDS = PLAN_LIST.map(p => ({
+  ...p,
+  tagline: p.id === 'yearly_pro' ? `Best value · ${p.badge}` : 'Pay every 30 days',
+  isPro: true,
+  icon: Cloud,
+  highlight: p.id === 'yearly_pro',
+  features: PLAN_FEATURES,
+}));
 
 // Per-business pricing shown beneath the plan card.
-const MULTI_BUSINESS_NOTE = `Each subscription covers one business. Need more? Subscribe each additional business separately — e.g. 3 businesses = ₹${PLAN_PRICE} × 3 every ${PLAN_DAYS} days.`;
+const MULTI_BUSINESS_NOTE = 'Each subscription covers one business. Need more? Subscribe each additional business separately — e.g. 3 businesses = 3 subscriptions.';
 
 const TRIAL_PERKS = [
   { icon: ShieldCheck, text: 'No credit card required' },
@@ -54,16 +51,16 @@ const TRIAL_PERKS = [
 ];
 
 // No auto-renewal note shown under plan cards
-const NO_AUTORENEWAL_NOTE = `No auto-renewal. Each payment adds ${PLAN_DAYS} days — paying early adds them on top of the days you have left. Pay again whenever you’re ready, or stop anytime.`;
+const NO_AUTORENEWAL_NOTE = `Prepaid, no auto-renewal. Plans cannot be cancelled or refunded once paid — use the ${TRIAL_DAYS}-day free trial to try everything first. Paying early adds the new period on top of the days you have left.`;
 
 // ── Tier card ────────────────────────────────────────────────────────────────
-const TierCard = ({ plan, onSubscribe, paying, primary, primaryDark, baseRadius, isSubscribed }) => {
+const TierCard = ({ plan, onSubscribe, paying, primary, primaryDark, baseRadius, isSubscribed, currentPlanId }) => {
   const price = plan.price;
-  const period = `/ ${PLAN_DAYS} days`;
-  // Single plan — when the business is already subscribed the card renews it
-  // (adds another 30 days on top of what's left).
-  const isCurrentTier = isSubscribed;
-  const ctaLabel = isCurrentTier ? `Renew — add ${PLAN_DAYS} days` : `Pay ₹${price} & continue`;
+  const period = plan.short;
+  // When the business is already subscribed the card extends it (adds this
+  // plan's period on top of what's left).
+  const isCurrentTier = isSubscribed && currentPlanId === plan.id;
+  const ctaLabel = isSubscribed ? `Extend — add ${plan.period}` : `Choose ${plan.name} · ₹${price.toLocaleString('en-IN')}`;
 
   return (
     <Box sx={{ flex: '1 1 290px', maxWidth: 360, position: 'relative' }}>
@@ -117,7 +114,7 @@ const TierCard = ({ plan, onSubscribe, paying, primary, primaryDark, baseRadius,
         ) : plan.highlight && (
           <Chip
             icon={<Crown size={12} />}
-            label="Most popular"
+            label="Best value"
             size="small"
             sx={{
               position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)',
@@ -167,7 +164,7 @@ const TierCard = ({ plan, onSubscribe, paying, primary, primaryDark, baseRadius,
           </Box>
           <Box sx={{ minHeight: 22, mt: 0.6, mb: 2.25, display: 'flex', alignItems: 'center', gap: 1 }}>
             <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.74rem' }}>
-              Per business · {PLAN_DAYS} days of full access per payment
+              Per business · {plan.period} of full access · non-refundable
             </Typography>
           </Box>
 
@@ -175,7 +172,7 @@ const TierCard = ({ plan, onSubscribe, paying, primary, primaryDark, baseRadius,
           <Button
             fullWidth
             variant={plan.highlight && !isCurrentTier ? 'contained' : 'outlined'}
-            onClick={() => onSubscribe()}
+            onClick={() => onSubscribe(plan.id)}
             disabled={paying}
             startIcon={isCurrentTier ? <Check size={15} /> : undefined}
             sx={
@@ -241,7 +238,7 @@ const TierCard = ({ plan, onSubscribe, paying, primary, primaryDark, baseRadius,
 
 // ── Main component ────────────────────────────────────────────────────────────
 const SubscriptionPage = ({ businessId: propBusinessId }) => {
-  const { activateSubscription, startTrial, getBusinessState, daysLeftForBusiness } = useSubscription();
+  const { activateSubscription, startTrial, getBusinessState, daysLeftForBusiness, businessSubs } = useSubscription();
   const { currentUser, logout } = useAuth();
   const { businesses } = useBusiness();
   const { pushBusinessToCloud } = useData();
@@ -279,13 +276,15 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
     setStarting(false);
   };
 
-  // Pay ₹299 (+ GST if enabled in Admin → Billing & Tax) for 30 days of this
-  // business. The shared checkout asks for the payer's state for GST first.
-  const onSubscribe = () => openCheckout({
+  // Pay for the chosen plan (+ GST if enabled in Admin → Billing & Tax). The
+  // shared checkout confirms the plan, GST and non-refundable terms first.
+  const currentPlanId = businessSubs?.[bId]?.plan || null;
+  const onSubscribe = (planId) => openCheckout({
+    planId,
     businessName,
     defaultState: business?.state,
-    onPaid: async (paymentId, billingMeta) => {
-      await activateSubscription(bId, PLAN_ID, paymentId, billingMeta);
+    onPaid: async (paidPlanId, paymentId, billingMeta) => {
+      await activateSubscription(bId, paidPlanId, paymentId, billingMeta);
       // Every plan is cloud: seed the full local copy to the cloud now so every
       // existing entry is backed up (auto-sync handles edits after).
       pushBusinessToCloud(bId).catch(() => {});
@@ -376,8 +375,8 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
           </Typography>
           <Typography color="text.secondary" sx={{ mb: 0.75, textAlign: 'center', maxWidth: 440, fontSize: '0.92rem' }}>
             {isTrialExpired
-              ? `Your ${TRIAL_DAYS}-day free trial has ended. Pay ₹${PLAN_PRICE} for ${PLAN_DAYS} days to resume creating and editing.`
-              : `Your ${PLAN_DAYS}-day plan has ended. Pay ₹${PLAN_PRICE} to renew for another ${PLAN_DAYS} days.`}
+              ? `Your ${TRIAL_DAYS}-day free trial has ended. Choose ₹${planById('monthly_pro').price} / 30 days or ₹${planById('yearly_pro').price.toLocaleString('en-IN')} / year to resume creating and editing.`
+              : `Your plan has ended. Choose a plan below to renew.`}
           </Typography>
           <Typography variant="caption" color="text.secondary" sx={{ mb: 4, display: 'block', textAlign: 'center' }}>
             You can still view all your data without a subscription.
@@ -405,7 +404,7 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
       {/* ── Plan card ── */}
 
       <Box sx={{ display: 'flex', gap: 3, flexWrap: 'wrap', justifyContent: 'center', alignItems: 'stretch', maxWidth: 760, width: '100%', mb: 2 }}>
-        {Object.values(PLANS).map((plan) => (
+        {PLAN_CARDS.map((plan) => (
           <TierCard
             key={plan.name}
             plan={plan}
@@ -415,6 +414,7 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
             primaryDark={primaryDark}
             baseRadius={baseRadius}
             isSubscribed={isSubscribed}
+            currentPlanId={currentPlanId}
           />
         ))}
       </Box>
@@ -502,9 +502,9 @@ const SubscriptionPage = ({ businessId: propBusinessId }) => {
       </Button>
       <Typography variant="caption" sx={{ mt: 1, color: 'text.disabled', fontSize: '0.72rem' }}>
         By subscribing you agree to our{' '}
-        <Box component="a" href="/privacy" target="_blank" rel="noopener" sx={{ color: 'text.secondary', fontWeight: 600 }}>
-          Privacy Policy &amp; No-Refund terms
-        </Box>.
+        <Box component="a" href="/terms" target="_blank" rel="noopener" sx={{ color: 'text.secondary', fontWeight: 600 }}>Terms</Box>,{' '}
+        <Box component="a" href="/refund-policy" target="_blank" rel="noopener" sx={{ color: 'text.secondary', fontWeight: 600 }}>Cancellation &amp; Refund Policy</Box> and{' '}
+        <Box component="a" href="/privacy" target="_blank" rel="noopener" sx={{ color: 'text.secondary', fontWeight: 600 }}>Privacy Policy</Box>.
       </Typography>
 
       {checkoutDialog}

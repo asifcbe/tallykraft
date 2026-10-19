@@ -16,7 +16,8 @@ import SubscriptionPage from './SubscriptionPage';
 import BillDhekoLogo from './BillDhekoLogo';
 import Login from './Login';
 import LandingPage from './LandingPage';
-import PrivacyPolicy from './PrivacyPolicy';
+import LegalPages from './LegalPages';
+import { legalPageForPath, isPublicPageNav, navigateTo } from './legalPagesConfig';
 import { DialogProvider } from './DialogContext';
 import { useData } from './DataContext';
 import { TabsProvider } from './TabsContext';
@@ -33,7 +34,9 @@ const BeforeUnloadGuard = () => {
     // Push a sentinel entry so the browser has somewhere to go "back" to inside the app.
     window.history.pushState({ appEntry: true }, '');
 
-    const handlePopState = () => {
+    const handlePopState = (e) => {
+      // Back/Forward on the public policy pages is ordinary navigation.
+      if (isPublicPageNav(e)) return;
       // Re-push so the back button never leaves the app.
       window.history.pushState({ appEntry: true }, '');
       if (window.confirm('Are you sure you want to leave BillDheko?')) {
@@ -46,6 +49,8 @@ const BeforeUnloadGuard = () => {
     };
 
     const handleBeforeUnload = (e) => {
+      // No "leave site?" prompt on the public policy pages.
+      if (legalPageForPath(window.location.pathname)) return;
       e.preventDefault();
       e.returnValue = '';
     };
@@ -134,6 +139,14 @@ const AppContent = () => {
   const { config } = useConfig(); // eslint-disable-line no-unused-vars
   const { hasAnySubscription, subLoading, getBusinessState } = useSubscription();
   const [_showLogin, setShowLogin] = useState(false);
+  // Current path — public policy pages switch in place (see legalPagesConfig).
+  const [path, setPath] = useState(() => (typeof window !== 'undefined' ? window.location.pathname : '/'));
+  useEffect(() => {
+    const sync = () => setPath(window.location.pathname);
+    window.addEventListener('app-pathchange', sync);
+    window.addEventListener('popstate', sync);
+    return () => { window.removeEventListener('app-pathchange', sync); window.removeEventListener('popstate', sync); };
+  }, []);
 
   // When staff logs in, auto-switch to their assigned local business.
   useEffect(() => {
@@ -150,10 +163,11 @@ const AppContent = () => {
     if (isAuthenticated) warmQrModule();
   }, [isAuthenticated]);
 
-  // Public legal page — reachable at /privacy regardless of auth state.
-  const isPrivacyRoute = typeof window !== 'undefined' && window.location.pathname === '/privacy';
-  if (isPrivacyRoute) {
-    return <PrivacyPolicy onBack={() => { window.history.length > 1 ? window.history.back() : (window.location.href = '/'); }} />;
+  // Public legal pages (/terms, /privacy, /refund-policy, /shipping-policy,
+  // /contact) — reachable regardless of auth state (Razorpay website checks).
+  const legalPage = legalPageForPath(path);
+  if (legalPage) {
+    return <LegalPages page={legalPage.key} onBack={() => navigateTo('/')} />;
   }
 
   if (loading) return <AppLoadingSplash />;

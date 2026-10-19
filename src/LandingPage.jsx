@@ -10,7 +10,8 @@ import { firestore } from './db';
 import { doc, getDoc } from 'firebase/firestore';
 import BillDhekoLogo, { TM } from './BillDhekoLogo';
 import FeatureDemos from './FeatureDemos';
-import { TRIAL_DAYS, PLAN_DAYS, PLAN_PRICE } from './planTiers';
+import { TRIAL_DAYS, PLANS, PLAN_PRICE, YEARLY_PRICE } from './planTiers';
+import { LEGAL_PAGES, linkTo } from './legalPagesConfig';
 
 /* ── brand ── */
 const P    = '#5c1f22';   // oxblood
@@ -276,15 +277,16 @@ export default function LandingPage({ onLoginClick }) {
 
   const ex = EXAMPLES[activeExample];
   const ExIcon = ex.icon;
-  const priceSuffix = `per business · ${PLAN_DAYS} days`;
 
   const FAQS = [
     { q: 'How does the free trial work?',
-      a: `Start a ${TRIAL_DAYS}-day free trial for your business with every feature unlocked — no card needed. When it ends, pay ₹${PLAN_PRICE} to continue for ${PLAN_DAYS} days.` },
+      a: `Start a ${TRIAL_DAYS}-day free trial for your business with every feature unlocked — no card needed. When it ends, choose ₹${PLAN_PRICE} for 30 days or ₹${YEARLY_PRICE.toLocaleString('en-IN')} for a year to continue.` },
     { q: 'How much does BillDheko cost?',
-      a: `₹${PLAN_PRICE}${gstNote ? ` ${gstNote}` : ''} per business for every ${PLAN_DAYS} days. Each business has its own subscription — three businesses cost ₹${PLAN_PRICE} × 3.` },
+      a: `₹${PLAN_PRICE} per business for 30 days, or ₹${YEARLY_PRICE.toLocaleString('en-IN')} per business for a full year (save ₹589)${gstNote ? `, ${gstNote}` : ''}. Each business has its own subscription.` },
     { q: 'Does my plan renew automatically?',
-      a: `No. There is no auto-renewal. Your plan stays active until the ${PLAN_DAYS} days end; pay again whenever you want to continue. Paying early adds the new days on top of the days you have left.` },
+      a: 'No. Plans are prepaid with no auto-renewal. Your plan stays active until its period ends; pay again whenever you want to continue. Paying early adds the new period on top of the days you have left.' },
+    { q: 'Can I cancel or get a refund?',
+      a: `No — both plans are non-cancellable and non-refundable once paid, which is why every business gets a ${TRIAL_DAYS}-day free trial first. The only exceptions are duplicate payments or a payment that was charged but not activated; see our Cancellation & Refund Policy.` },
     { q: 'What happens to my data if I don’t renew?',
       a: 'Nothing is deleted. Your records stay saved, and renewing picks up exactly where you left off.' },
     { q: 'Can my staff and my accountant use it?',
@@ -504,8 +506,13 @@ export default function LandingPage({ onLoginClick }) {
         .lp-price-card::before { content: ''; position: absolute; inset: 0 0 auto 0; height: 4px; background: linear-gradient(90deg, ${P}, ${GOLD}, ${P}); }
         .lp-price-tag { display: inline-flex; align-items: center; gap: 8px; font-size: .74rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
                         color: ${GOLD}; margin-bottom: 18px; }
-        .lp-price { display: flex; align-items: baseline; gap: 12px; margin-bottom: 8px; }
-        .lp-price b { font-family: 'Fraunces',Georgia,serif; font-weight: 500; font-size: 4.6rem; line-height: 1; letter-spacing: -0.03em; color: var(--ink); }
+        .lp-plan-opts { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 14px; }
+        .lp-plan-opt { border: 1px solid var(--line); border-radius: 16px; padding: 16px 18px; }
+        .lp-plan-opt.best { border-color: ${GOLD}; background: ${isDark ? 'rgba(217,185,138,.06)' : 'rgba(176,141,87,.06)'}; }
+        .lp-plan-opt-name { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: .78rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+        .lp-plan-opt-name span { font-size: .66rem; letter-spacing: .02em; text-transform: none; color: #2f7d4f; background: rgba(47,125,79,.1); border-radius: 999px; padding: 2px 8px; }
+        .lp-price { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+        .lp-price b { font-family: 'Fraunces',Georgia,serif; font-weight: 500; font-size: 2.6rem; line-height: 1; letter-spacing: -0.03em; color: var(--ink); }
         .lp-price span { font-size: .95rem; color: var(--muted); }
         .lp-price-trial { font-size: .92rem; color: var(--ink-soft); margin: 0 0 28px; }
         .lp-price-trial strong { color: ${isDark ? '#d9b98a' : P}; font-weight: 600; }
@@ -539,7 +546,7 @@ export default function LandingPage({ onLoginClick }) {
 
         /* footer */
         .lp-foot { border-top: 1px solid var(--line); padding: 64px 0 34px; }
-        .lp-foot-grid { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 40px; margin-bottom: 52px; }
+        .lp-foot-grid { display: grid; grid-template-columns: 1.5fr 1fr 1fr 1.2fr; gap: 40px; margin-bottom: 52px; }
         .lp-foot p { font-size: .9rem; line-height: 1.7; color: var(--muted); max-width: 340px; margin: 18px 0 0; }
         .lp-foot h5 { font-size: .7rem; letter-spacing: .2em; text-transform: uppercase; color: var(--muted); font-weight: 600; margin: 6px 0 18px; }
         .lp-foot-links { display: grid; gap: 12px; }
@@ -583,7 +590,7 @@ export default function LandingPage({ onLoginClick }) {
           .lp-fields { grid-template-columns: 1fr 1fr; }
           .lp-plan-list { grid-template-columns: 1fr; }
           .lp-price-card { padding: 40px 26px 32px; }
-          .lp-price b { font-size: 3.8rem; }
+          .lp-price b { font-size: 2.2rem; }
           .lp-final-card { padding: 64px 24px; border-radius: 22px; }
           .lp-stat { padding: 30px 12px; }
           .lp-stat b { font-size: 2rem; }
@@ -634,8 +641,8 @@ export default function LandingPage({ onLoginClick }) {
             <Reveal delay={320}>
               <div className="lp-assure">
                 <span><Check size={15} /> No credit card</span>
-                <span><Check size={15} /> ₹{PLAN_PRICE} per business / {PLAN_DAYS} days</span>
-                <span><Check size={15} /> Cancel anytime</span>
+                <span><Check size={15} /> From ₹{PLAN_PRICE} per business</span>
+                <span><Check size={15} /> No auto-renewal</span>
               </div>
             </Reveal>
           </div>
@@ -874,19 +881,27 @@ export default function LandingPage({ onLoginClick }) {
         <div className="wrap lp-price-grid">
           <Reveal>
             <Eyebrow>Simple pricing</Eyebrow>
-            <h2 className="lp-h2 serif">One plan.<br /><em>Every</em> feature.</h2>
-            <p className="lp-sub">Transparent, per-business pricing with no tiers, add-ons or surprises.</p>
+            <h2 className="lp-h2 serif">Two plans.<br /><em>Every</em> feature.</h2>
+            <p className="lp-sub">Transparent per-business pricing — monthly or yearly, every feature included, no add-ons or surprises.</p>
             <div className="lp-notes">
               <div className="lp-note"><span className="lp-note-ico"><Building2 size={15} /></span>
-                <span><strong style={{ color: 'var(--ink)' }}>Running more than one business?</strong> Each plan covers one business — three businesses are ₹{PLAN_PRICE} × 3 every {PLAN_DAYS} days.</span></div>
+                <span><strong style={{ color: 'var(--ink)' }}>Running more than one business?</strong> Each plan covers one business — subscribe each business separately.</span></div>
               <div className="lp-note"><span className="lp-note-ico"><ShieldCheck size={15} /></span>
-                <span><strong style={{ color: 'var(--ink)' }}>No auto-renewal.</strong> Pay only when you want to continue — paying early adds days on top of what’s left.</span></div>
+                <span><strong style={{ color: 'var(--ink)' }}>Prepaid, no auto-renewal.</strong> Plans can’t be cancelled or refunded once paid — try everything free for {TRIAL_DAYS} days first.</span></div>
             </div>
           </Reveal>
           <Reveal delay={120}>
             <div className="lp-price-card">
-              <div className="lp-price-tag"><Star size={13} /><span>BillDheko<TM /> plan</span></div>
-              <div className="lp-price"><b>₹{PLAN_PRICE}</b><span>{priceSuffix}{gstNote ? ` · ${gstNote}` : ''}</span></div>
+              <div className="lp-price-tag"><Star size={13} /><span>BillDheko<TM /> plans</span></div>
+              <div className="lp-plan-opts">
+                {PLANS.map(p => (
+                  <div key={p.id} className={`lp-plan-opt ${p.badge ? 'best' : ''}`}>
+                    <div className="lp-plan-opt-name">{p.name}{p.badge && <span>{p.badge}</span>}</div>
+                    <div className="lp-price"><b>₹{p.price.toLocaleString('en-IN')}</b><span>{p.short}</span></div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ fontSize: '.8rem', color: 'var(--muted)', margin: '-4px 0 12px' }}>Per business{gstNote ? ` · ${gstNote}` : ''} · non-cancellable, non-refundable</div>
               <p className="lp-price-trial">Begin with a <strong>{TRIAL_DAYS}-day free trial</strong> — no credit card required.</p>
               <button className="lp-btn lp-btn-primary" style={{ width: '100%' }} onClick={onLoginClick}>
                 Start free trial <ArrowRight size={17} />
@@ -930,7 +945,7 @@ export default function LandingPage({ onLoginClick }) {
             <h2 className="lp-h2 serif">Keep better books,<br /><em>beautifully</em>.</h2>
             <p>Join businesses across India who run their billing, stock and accounts on BillDheko.</p>
             <button className="lp-btn lp-btn-light" onClick={onLoginClick}>Open BillDheko <ArrowUpRight size={17} /></button>
-            <p className="lp-final-fine">{TRIAL_DAYS}-day free trial · ₹{PLAN_PRICE} per business / {PLAN_DAYS} days · No credit card</p>
+            <p className="lp-final-fine">{TRIAL_DAYS}-day free trial · ₹{PLAN_PRICE} / 30 days or ₹{YEARLY_PRICE.toLocaleString('en-IN')} / year per business · No credit card</p>
           </Reveal>
         </div>
       </section>
@@ -955,7 +970,13 @@ export default function LandingPage({ onLoginClick }) {
               <h5>Company</h5>
               <div className="lp-foot-links">
                 <button onClick={onLoginClick}>Sign in</button>
-                <a href="/privacy">Privacy Policy</a>
+                <a href="/contact" onClick={linkTo('/contact')}>Contact Us</a>
+              </div>
+            </div>
+            <div>
+              <h5>Legal</h5>
+              <div className="lp-foot-links">
+                {LEGAL_PAGES.filter(p => p.key !== 'contact').map(p => <a key={p.key} href={p.path} onClick={linkTo(p.path)}>{p.title}</a>)}
               </div>
             </div>
           </div>

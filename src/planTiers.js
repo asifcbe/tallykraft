@@ -5,16 +5,24 @@
 
 export const BRAND_NAME = 'BillDheko';
 
-// One plan: ₹299 per business for 30 days. A 7-day free trial comes first.
+// Two plans per business, after a 7-day free trial. Both are prepaid for a
+// fixed period, do not auto-renew, and are NOT cancellable or refundable once
+// paid (see the Terms / Refund Policy pages in LegalPages.jsx).
 export const TRIAL_DAYS = 7;
-export const PLAN_DAYS = 30;
-export const PLAN_ID = 'monthly_pro';
-export const PLAN_PRICE = 299;                 // ₹, list price per business per period
-export const PLAN_AMOUNT_PAISE = PLAN_PRICE * 100;
+export const PLANS = [
+  { id: 'monthly_pro', name: 'Monthly', price: 299, days: 30, period: '30 days', short: '/ 30 days' },
+  { id: 'yearly_pro', name: 'Yearly', price: 2999, days: 365, period: '1 year', short: '/ year', badge: 'Save ₹589' },
+];
+export const planById = (id) => PLANS.find(p => p.id === id) || PLANS[0];
+
+// Defaults (the monthly plan) — kept for places that show "from ₹299".
+export const PLAN_ID = PLANS[0].id;
+export const PLAN_PRICE = PLANS[0].price;           // ₹, monthly list price per business
+export const PLAN_DAYS = PLANS[0].days;
+export const YEARLY_PRICE = PLANS[1].price;
 export const PLAN_LABEL = `₹${PLAN_PRICE} / ${PLAN_DAYS} days`;
 
-// Paid plan ids that still unlock a business. 'yearly_pro' is no longer sold,
-// but subscriptions bought earlier stay valid until their end date.
+// Paid plan ids that unlock a business.
 export const PRO_PLANS = ['monthly_pro', 'yearly_pro'];
 // Legacy: no local-only tier any more. Kept empty so old branches stay inert.
 export const SOLO_PLANS = [];

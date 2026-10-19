@@ -3,7 +3,7 @@ import { firestore } from './db';
 import { doc, onSnapshot, setDoc } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 import { setBusinessActive, setBusinessPro, setAllBusinessesActive, notifyProStateChange } from './activeBusinessState';
-import { SOLO_PLANS, PRO_PLANS, TRIAL_DAYS, PLAN_DAYS, PLAN_ID, PLAN_PRICE, addDays } from './planTiers';
+import { SOLO_PLANS, PRO_PLANS, TRIAL_DAYS, PLAN_ID, planById, addDays } from './planTiers';
 
 const SubscriptionContext = createContext();
 
@@ -212,12 +212,14 @@ export const SubscriptionProvider = ({ children }) => {
       const bId = String(businessId);
       const now = new Date();
       const existing = businessSubs[bId] || {};
-      // Every payment buys PLAN_DAYS (30) days. Paying while still active (trial
-      // or paid) stacks onto the remaining time instead of discarding it.
+      // Each payment buys its plan's period (30 days monthly, 365 days yearly).
+      // Paying while still active (trial or paid) stacks onto the remaining
+      // time instead of discarding it.
+      const planId = plan || PLAN_ID;
+      const planDef = planById(planId);
       const currentEnd = existing.endDate && existing.status === 'active' ? new Date(existing.endDate) : null;
       const periodStart = currentEnd && currentEnd > now ? currentEnd : now;
-      const endDate = addDays(periodStart, PLAN_DAYS);
-      const planId = plan || PLAN_ID;
+      const endDate = addDays(periodStart, planDef.days);
 
       // Build a payment/receipt record. Appended to a per-business history so the
       // customer can download GST receipts from Settings → Billing & Payments.
@@ -231,8 +233,8 @@ export const SubscriptionProvider = ({ children }) => {
         date: now.toISOString(),
         plan: planId,
         paymentId: paymentId || null,
-        amount: Number(billingMeta?.total) || PLAN_PRICE,
-        days: PLAN_DAYS,
+        amount: Number(billingMeta?.total) || planDef.price,
+        days: planDef.days,
         periodStart: periodStart.toISOString(),
         periodEnd: endDate.toISOString(),
         ...(billingMeta || {}),

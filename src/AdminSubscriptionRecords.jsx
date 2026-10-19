@@ -7,7 +7,7 @@ import {
 import {
   Search, FileSpreadsheet, Gift, Clock, CheckCircle2, XCircle, TrendingUp, IndianRupee, AlertTriangle, Award, UserX,
 } from 'lucide-react';
-import { TRIAL_DAYS, PLAN_DAYS, PLAN_PRICE, PRO_PLANS, trialInfo } from './planTiers';
+import { TRIAL_DAYS, PLANS, PRO_PLANS, planById, trialInfo } from './planTiers';
 
 // Admin → Subscriptions: every subscription and trial fact in one place — one
 // row per user × business, built from the live `subscriptions` collection
@@ -15,7 +15,9 @@ import { TRIAL_DAYS, PLAN_DAYS, PLAN_PRICE, PRO_PLANS, trialInfo } from './planT
 // Excel export that also lists every individual Razorpay payment.
 
 const DAY = 86400000;
-const LEGACY_PRICE = { monthly: 99, yearly: 999, monthly_pro: PLAN_PRICE, yearly_pro: 2999 };
+const LEGACY_PRICE = { monthly: 99, yearly: 999, monthly_pro: planById('monthly_pro').price, yearly_pro: planById('yearly_pro').price };
+// Monthly-equivalent revenue per active plan (yearly spread over 12 months).
+const monthlyValue = (plan) => (plan === 'yearly_pro' ? planById('yearly_pro').price / 12 : plan === 'monthly_pro' ? planById('monthly_pro').price : 0);
 
 const parseBizSubs = (subDoc) => {
   if (!subDoc) return {};
@@ -147,7 +149,9 @@ const AdminSubscriptionRecords = ({ subscriptions, users, onGrant }) => {
       paidActive,
       paidExpired: biz.filter((r) => r.status === 'expired').length,
       expiring: biz.filter((r) => r.active && r.daysLeft !== null && r.daysLeft <= 7 && r.status !== 'admin').length,
-      mrr: paidActive * PLAN_PRICE,
+      mrr: Math.round(biz.filter((r) => r.status === 'paid').reduce((s, r) => s + monthlyValue(r.plan), 0)),
+      paidMonthly: biz.filter((r) => r.status === 'paid' && r.plan === 'monthly_pro').length,
+      paidYearly: biz.filter((r) => r.status === 'paid' && r.plan === 'yearly_pro').length,
       revenueMonth, revenueAll,
       notStarted: records.filter((r) => r.status === 'not_started').length,
     };
@@ -207,7 +211,7 @@ const AdminSubscriptionRecords = ({ subscriptions, users, onGrant }) => {
     filtered.forEach((r) => r.payments.forEach((p) => payRows.push({
       'Email': r.email, 'Business': r.bizName, 'Business ID': r.bId,
       'Invoice #': p.invoiceNo || '', 'Date': p.date ? fmtD(p.date) : '', 'Plan': p.plan || '',
-      'Days': p.days || PLAN_DAYS, 'Period Start': p.periodStart ? fmtD(p.periodStart) : '', 'Period End': p.periodEnd ? fmtD(p.periodEnd) : '',
+      'Days': p.days || planById(p.plan).days, 'Period Start': p.periodStart ? fmtD(p.periodStart) : '', 'Period End': p.periodEnd ? fmtD(p.periodEnd) : '',
       'List Price (₹)': p.listPrice ?? '', 'Taxable (₹)': p.taxable ?? '', 'CGST (₹)': p.cgst ?? '', 'SGST (₹)': p.sgst ?? '', 'IGST (₹)': p.igst ?? '',
       'Total (₹)': payAmount(p), 'Razorpay Payment ID': p.paymentId || '', 'Customer State': p.customerState || '', 'Customer GSTIN': p.customerGstin || '',
     })));
@@ -224,7 +228,8 @@ const AdminSubscriptionRecords = ({ subscriptions, users, onGrant }) => {
       { Metric: 'Paid · active', Value: kpis.paidActive },
       { Metric: 'Paid · expired', Value: kpis.paidExpired },
       { Metric: 'Expiring in ≤ 7 days', Value: kpis.expiring },
-      { Metric: `MRR (₹${PLAN_PRICE} × active)`, Value: kpis.mrr },
+      { Metric: 'MRR (monthly-equivalent)', Value: kpis.mrr },
+      { Metric: 'Paid · monthly / yearly', Value: `${kpis.paidMonthly} / ${kpis.paidYearly}` },
       { Metric: 'Revenue this month (₹)', Value: kpis.revenueMonth },
       { Metric: 'Revenue all time (₹)', Value: kpis.revenueAll },
       { Metric: 'Exported', Value: new Date().toLocaleString('en-IN') },
@@ -241,7 +246,7 @@ const AdminSubscriptionRecords = ({ subscriptions, users, onGrant }) => {
     { label: 'Paid · active', value: kpis.paidActive, color: '#16a34a', icon: CheckCircle2, f: 'paid' },
     { label: 'Expiring ≤ 7 days', value: kpis.expiring, color: '#d97706', icon: AlertTriangle, f: 'expiring' },
     { label: 'Paid · expired', value: kpis.paidExpired, color: '#b91c1c', icon: Clock, f: 'expired' },
-    { label: 'MRR', value: inr(kpis.mrr), sub: `₹${PLAN_PRICE} × ${kpis.paidActive}`, color: '#5c1f22', icon: IndianRupee },
+    { label: 'MRR', value: inr(kpis.mrr), sub: `${kpis.paidMonthly} monthly · ${kpis.paidYearly} yearly`, color: '#5c1f22', icon: IndianRupee },
     { label: 'Revenue this month', value: inr(kpis.revenueMonth), sub: `All time ${inr(kpis.revenueAll)}`, color: '#5c1f22', icon: IndianRupee },
   ];
 
@@ -251,7 +256,7 @@ const AdminSubscriptionRecords = ({ subscriptions, users, onGrant }) => {
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: 800 }}>Subscriptions &amp; Trials</Typography>
           <Typography variant="caption" color="text.secondary">
-            Plan: ₹{PLAN_PRICE} per business for {PLAN_DAYS} days · free trial {TRIAL_DAYS} days. One row per user × business.
+            Plans: {PLANS.map(p => `₹${p.price.toLocaleString('en-IN')} / ${p.period}`).join(' or ')} per business · free trial {TRIAL_DAYS} days. One row per user × business.
           </Typography>
         </Box>
         <Button size="small" variant="outlined" startIcon={<FileSpreadsheet size={14} />} onClick={exportExcel}
@@ -321,6 +326,7 @@ const AdminSubscriptionRecords = ({ subscriptions, users, onGrant }) => {
                     </TableCell>
                     <TableCell>
                       <Chip size="small" label={st.label} sx={{ height: 20, fontSize: '0.64rem', fontWeight: 700, bgcolor: alpha(st.color, 0.12), color: st.color }} />
+                      {PRO_PLANS.includes(r.plan) && <Typography sx={{ fontSize: '0.62rem', color: 'text.secondary', mt: 0.25 }}>{planById(r.plan).name} plan</Typography>}
                     </TableCell>
                     <TableCell>
                       {r.trialStart ? (

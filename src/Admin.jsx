@@ -50,7 +50,7 @@ const featureLabels = {
 // --- Subscription plan helpers ---
 const PLAN_META = {
   monthly_pro:  { label: '₹299 / 30 days',   short: 'Plan',   color: '#5c1f22', tier: 'pro' },
-  yearly_pro:   { label: '₹2999/yr (legacy)', short: 'Plan',  color: '#5c1f22', tier: 'pro' },
+  yearly_pro:   { label: '₹2999 / year',    short: 'Plan',   color: '#7a2e30', tier: 'pro' },
   trial:        { label: 'Trial',            short: 'Trial',  color: '#f59e0b', tier: 'trial' },
   admin_granted:{ label: 'Admin Granted',    short: 'Admin',  color: '#8b5cf6', tier: 'admin' },
 };
@@ -68,6 +68,7 @@ const isProPlan = (plan) => plan === 'monthly_pro' || plan === 'yearly_pro';
 const GRANT_PLAN_OPTIONS = [
   { value: 'trial',       label: 'Trial',          desc: `${TRIAL_DAYS}-day free trial (all features)`,           color: '#f59e0b' },
   { value: 'monthly_pro', label: '₹299 / 30 days', desc: 'All features + cloud backup, 1 business (no charge)', color: '#5c1f22' },
+  { value: 'yearly_pro',  label: '₹2999 / year',   desc: 'All features + cloud backup, 1 business (no charge)', color: '#7a2e30' },
 ];
 
 const DURATION_OPTIONS = [
@@ -480,7 +481,7 @@ const Admin = () => {
     const planDistribution = [
       // "Basic" is a legacy tier (no longer sold); fold any remaining legacy
       // Basic subs into the single paid bucket so the chart isn't misleading.
-      { name: 'Paid (₹299 / 30 days)', value: proActive + basicActive, color: '#5c1f22' },
+      { name: 'Paid (monthly + yearly)', value: proActive + basicActive, color: '#5c1f22' },
       { name: 'Trial', value: stats.trial, color: '#f59e0b' },
       { name: 'Expired', value: stats.expired, color: '#ef4444' },
     ].filter((s) => s.value > 0);
@@ -2417,7 +2418,7 @@ const Admin = () => {
                 {GRANT_PLAN_OPTIONS.map(opt => (
                   <Box
                     key={opt.value}
-                    onClick={() => setGrantForm(f => ({ ...f, plan: opt.value, durationType: opt.value === 'trial' ? '7d' : '1m' }))}
+                    onClick={() => setGrantForm(f => ({ ...f, plan: opt.value, durationType: opt.value === 'trial' ? '7d' : opt.value === 'yearly_pro' ? '1y' : '1m' }))}
                     sx={{
                       p: 1.5, borderRadius: 2, cursor: 'pointer', border: '2px solid',
                       borderColor: grantForm.plan === opt.value ? opt.color : 'divider',
